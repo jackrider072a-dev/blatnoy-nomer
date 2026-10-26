@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Блатной номер</title>
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="bg"></div>
+<canvas id="fx"></canvas>
+
+<div id="app">
+  <header>
+    <div class="hrow">
+      <div class="coins" id="coinsBox"><span class="ico">💰</span><span id="coins">0</span></div>
+      <div class="inc"><span data-i18n>доход с гаража</span><br><b id="inc">0/сек</b></div>
+    </div>
+    <div class="lvl">
+      <span class="lvlnum" id="lvlnum">Ур. 1</span>
+      <div class="bar"><i id="xpbar"></i></div>
+      <span class="pts" id="ptsLabel"></span>
+    </div>
+    <div class="pills" id="pills"></div>
+  </header>
+
+  <main id="main">
+    <!-- КУПИТЬ -->
+    <section class="tab on" id="tab-buy">
+      <div class="stage" id="stage">
+        <div class="tier t0" id="tier">Бланк номера</div>
+        <div id="plateBox"></div>
+        <div class="note" id="note"></div>
+        <div class="pity"><div class="bar"><i id="pitybar"></i></div><small id="pitytxt"></small></div>
+      </div>
+      <div class="goal" id="goal"></div>
+      <div class="row" id="resolveRow" style="display:none">
+        <button class="btn alt" data-act="sellPending" id="btnSell">Продать</button>
+        <button class="btn green" data-act="keepPending" data-i18n>В гараж</button>
+      </div>
+      <div id="packs"></div>
+      <div class="row">
+        <button class="btn alt" id="btnTaxi" data-act="taxi">🚕 Таксовать</button>
+        <button class="btn alt" id="btnAd" data-act="ad">🎁 Бонус (реклама)</button>
+      </div>
+      <button class="btn alt" id="btnBuff" data-act="buffAd">🔥 Доход ×2 на 5 мин (реклама)</button>
+      <details class="odds"><summary data-i18n>Шансы выпадения</summary><div id="odds"></div></details>
+    </section>
+
+    <section class="tab" id="tab-garage"></section>
+    <section class="tab" id="tab-forge"></section>
+    <section class="tab" id="tab-orders"></section>
+    <section class="tab" id="tab-up"></section>
+    <section class="tab" id="tab-more"></section>
+  </main>
+
+  <nav id="nav">
+    <button data-tab="buy" class="on"><span>🎰</span><b data-i18n>Номера</b></button>
+    <button data-tab="garage"><span>🏠</span><b data-i18n>Гараж</b></button>
+    <button data-tab="forge"><span>🔨</span><b data-i18n>Тюнинг</b></button>
+    <button data-tab="orders"><span>📋</span><b data-i18n>Заказы</b><em id="orderDot"></em></button>
+    <button data-tab="up"><span>⚙</span><b data-i18n>Апгрейды</b></button>
+    <button data-tab="more"><span>☰</span><b data-i18n>Ещё</b></button>
+  </nav>
+</div>
+
+<div id="vignette"></div>
+<div id="big"></div>
+<div id="jp" class="hidden"></div>
+<div id="buyer" class="hidden">🚘</div>
+<div id="toasts"></div>
+<div id="modal" class="hidden"><div class="mbox" id="mbox"></div></div>
+<div id="adwait" class="hidden">📺</div>
+
+<script src="i18n.js"></script>
+<script src="platform.js"></script>
+<script src="bg-city.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
