@@ -23,7 +23,9 @@ function L(s, ...a) {
   if (I18N.lang !== "ru" && /[А-Яа-яЁё]/.test(s)) { const t = I18N.en[s]; if (t != null) r = t; else I18N.miss.add(s); }
   return a.length ? r.replace(/\{(\d+)\}/g, (m, i) => a[i]) : r;
 }
-I18N.set(new URLSearchParams(location.search).get("lang") || navigator.language || "ru");   // площадка может уточнить позже
+// в ВК язык берётся из настроек ВКонтакте (vk_language), а без него — русский (правила VK Mini Apps, п. 3.1.2)
+(() => { const q = new URLSearchParams(location.search), vk = q.has("vk_app_id") || q.has("vk_user_id"), vl = q.get("vk_language");
+  I18N.set(q.get("lang") || (vk ? (vl === "ua" ? "uk" : vl || "ru") : navigator.language) || "ru"); })();   // площадка может уточнить позже
 // поля объекта с данными (названия, описания) переводятся при каждом чтении
 function Lprops(o, ...keys) {
   keys.forEach(k => { const ru = o[k]; Object.defineProperty(o, k, { get: () => L(ru), enumerable: true, configurable: true }); });
@@ -37,7 +39,7 @@ I18N.en = {
   "Ур. {0}": "Lv. {0}", "{0}/сек": "{0}/sec", "+{0}/сек": "+{0}/sec", "{0} мин": "{0} min",
   "Бланк номера": "Blank plate",
   "Купи свой первый номер — тебя ждёт подарок! 🎁": "Buy your first plate — a gift is waiting for you! 🎁",
-  "Купи номер в ГИБДД — повезёт, и выпадет «блатной»!": "Buy a plate at the DMV — with luck you'll get a VIP one!",
+  "Купи бланк номера — повезёт, и выпадет «блатной»!": "Buy a plate pack — with luck you'll get a VIP one!",
   "Печатаем номер…": "Printing your plate…", "Что же выпадет?": "What will it be?", "(тапни по табло, чтобы пропустить)": "(tap the plate to skip)",
   "До гарантированного блатного номера: {0}": "Guaranteed VIP plate in: {0}",
   "Откроется на уровне {0}": "Unlocks at level {0}", "🔒 Откроется на уровне {0}": "🔒 Unlocks at level {0}",
@@ -95,7 +97,7 @@ I18N.en = {
   "«АМР» с 97 регионом — спецсерия: такие номера в народе считают государственными, поэтому в игре они всегда легендарные, а с особыми цифрами (001–009, 100 или три одинаковые) — суперлегендарные.": "«АМР» with region 97 is a special series: people consider these government plates, so in the game they are always Legends, and with special digits (001–009, 100 or three of a kind) — Super Legends.",
   "«Госномер»": "«State Plate»", "«Спецсерия»": "«Special Series»", "«Первое лицо трассы»": "«First on the Road»", "«Номер вне очереди»": "«No Queue Needed»",
   "специальный гараж": "a special motor pool", "«очень важное ведомство»": "«a very important agency»", "водитель, которому не задают вопросов": "a driver no one asks questions", "кортеж, о котором не пишут в новостях": "a motorcade the news never mentions",
-  "Aurus Senat с мигалкой": "Aurus Senat with a flashing light", "чёрный Aurus Arsenal": "a black Aurus Arsenal", "бронированный седан": "an armored sedan", "головная машина кортежа": "the lead car of a motorcade",
+  "бронированный седан": "an armored sedan", "головная машина кортежа": "the lead car of a motorcade",
   "Такие номера не выдают в обычном окне — их выдают по списку.": "Plates like this aren't issued at the counter — they're issued from a list.",
   "Спецсерия «АМР» 97 региона: в очереди за ней не стоят.": "Special series «АМР», region 97: nobody queues for it.",
   "Номер из тех, перед которыми открывают шлагбаум без вопросов.": "The kind of plate that gets the barrier raised without a word.",
@@ -119,16 +121,29 @@ I18N.en = {
 
   // ----- улучшения
   "⚙ Улучшения": "⚙ Upgrades", "ур. {0}": "lv. {0}", " (макс.)": " (max)", "МАКСИМУМ": "MAXED", "Улучшить — {0} 💰": "Upgrade — {0} 💰",
-  "🍀 Связи в ГИБДД": "🍀 DMV connections", "Шанс на красивые, редкие и блатные ×1.12 за уровень (легенды — слабее, они «прям редкие»)": "Nice, Rare and VIP chance ×1.12 per level (Legends a bit less — they're «really» rare)",
+  "🍀 Удача": "🍀 Luck", "Шанс на красивые, редкие и блатные ×1.12 за уровень (легенды — слабее, они «прям редкие»)": "Nice, Rare and VIP chance ×1.12 per level (Legends a bit less — they're «really» rare)",
   "🏷 Скидка на бланки": "🏷 Pack discount", "Все бланки дешевле на 7% за уровень": "All packs 7% cheaper per level",
   "🚕 Таксопарк": "🚕 Taxi fleet", "+4 к заработку за тап «Таксовать»": "+4 earnings per «Taxi» tap",
   "💥 Чаевые": "💥 Tips", "+5% шанс, что тап в такси даст ×10": "+5% chance that a taxi tap pays ×10",
   "🏠 Парковочные места": "🏠 Parking spots", "+2 места в гараже": "+2 garage spots",
   "📈 Сдача в аренду": "📈 Rentals", "+25% дохода с гаража за уровень": "+25% garage income per level",
-  "🤖 Помощник в ГИБДД": "🤖 DMV assistant", "Сам покупает обычные бланки: раз в 25с÷(1+0.5×ур.)": "Buys basic packs for you: every 25s÷(1+0.5×lv.)",
+  "🤖 Помощник": "🤖 Assistant", "Сам покупает обычные бланки: раз в 25с÷(1+0.5×ур.)": "Buys basic packs for you: every 25s÷(1+0.5×lv.)",
   "🔨 Золотые руки мастера": "🔨 Master's golden hands", "+5% к шансу успеха в мастерской за уровень (от текущего шанса)": "+5% workshop success chance per level (of the current chance)",
   "🎯 Гарантия": "🎯 Guarantee", "Гарантированный блатной номер на 10 покупок раньше": "Guaranteed VIP plate 10 purchases sooner",
   "🤖 Помощник купил: {0} ({1})": "🤖 Assistant bought: {0} ({1})",
+
+  // ----- стартовое меню и «Как играть»
+  "Выбивай блатные номера и собирай гараж с доходом": "Roll VIP plates and build a garage that earns money",
+  "▶ Играть": "▶ Play", "📖 Как играть": "📖 How to play", "☰ Главное меню": "☰ Main menu", "← В меню": "← Menu", "Играть": "Play",
+  "Игра вымышленная: номера генерируются случайно, монеты нельзя обменять на реальные деньги.": "The game is fictional: plates are random, and coins can't be exchanged for real money.",
+  "🚘 Покупай бланки номеров. Табло крутится — и выпадает номер одной из 6 редкостей: обычный, красивый, редкий, блатной, легенда или суперлегенда.": "🚘 Buy plate packs. The board spins and you get a plate of one of 6 rarities: Common, Nice, Rare, VIP, Legend or Super Legend.",
+  "💰 Продай номер сразу или поставь в 🏠 гараж — там он приносит доход каждую секунду, даже когда ты не в игре.": "💰 Sell the plate right away or put it in the 🏠 garage — it earns money every second, even while you're away.",
+  "🚕 Не хватает денег — жми «Таксовать».": "🚕 Short on money? Tap «Taxi».",
+  "📋 Со 2-го уровня открываются заказы: отдай подходящий номер и получи больше, чем при продаже.": "📋 From level 2, orders unlock: hand over a matching plate and earn more than by selling it.",
+  "🔨 В тюнинге можно обменять несколько номеров на один более редкий.": "🔨 In the tuning shop you can trade several plates for one rarer plate.",
+  "⚙ Апгрейды повышают шанс редких номеров, дают скидки на бланки и места в гараже.": "⚙ Upgrades raise the chance of rare plates and give pack discounts and garage slots.",
+  "🎣 С 4-го уровня — мини-игра «Поймай номер», с 10-го — «Переезд в Москву»: начни заново с вечным бонусом.": "🎣 From level 4 — the «Catch a Plate» mini-game, from level 10 — «Move to Moscow»: start over with a permanent bonus.",
+  "📖 Шансы выпадения смотри под бланками, коллекцию серий и достижения — во вкладке «Ещё».": "📖 Drop chances are under the packs; the series collection and achievements are in the «More» tab.",
 
   // ----- вкладка «Ещё»
   "☰ Ещё": "☰ More", "🎣 Поймай номер": "🎣 Catch a Plate",
@@ -300,7 +315,7 @@ I18N.en = {
   "«100» — как отличная оценка в школьном аттестате.": "«100» — like a perfect score on a school exam.",
 
   // прозвища
-  "«Тихий работяга»": "«Quiet Worker»", "«Серая мышка»": "«Gray Mouse»", "«Лада-Рассвет»": "«Lada Sunrise»", "«Колёсный трудяга»": "«Wheeled Workhorse»", "«Дорожный скромник»": "«Modest Roadster»", "«Старожил»": "«Old-Timer»",
+  "«Тихий работяга»": "«Quiet Worker»", "«Серая мышка»": "«Gray Mouse»", "«Дачный рассвет»": "«Country Sunrise»", "«Колёсный трудяга»": "«Wheeled Workhorse»", "«Дорожный скромник»": "«Modest Roadster»", "«Старожил»": "«Old-Timer»",
   "«Зеркальце»": "«Little Mirror»", "«Ровный»": "«Smooth One»", "«Счастливая тройка»": "«Lucky Three»", "«Красавчик»": "«Handsome»", "«Симметричный»": "«Symmetric»", "«Номер-открытка»": "«Postcard Plate»",
   "«Золотая рыбка»": "«Goldfish»", "«Фиолетовый гость»": "«Purple Guest»", "«Редкая птица»": "«Rare Bird»", "«Находка года»": "«Find of the Year»", "«Тот самый»": "«The One»", "«Вот это повезло»": "«What Luck»",
   "«Главный по трассе»": "«Boss of the Highway»", "«Тяжёлая артиллерия»": "«Heavy Artillery»", "«Дорогой гость»": "«Honored Guest»", "«Громкое имя»": "«Big Name»", "«Мэтр»": "«Maestro»", "«Красная дорожка»": "«Red Carpet»",
@@ -319,8 +334,12 @@ I18N.en = {
   "«тот, кого всегда пропускают»": "«the one everyone lets through»", "владелец острова и автопарка": "the owner of an island and a car fleet", "анонимный коллекционер из Швейцарии": "an anonymous collector from Switzerland",
 
   // машины
-  "ВАЗ-2107": "VAZ-2107", "BMW 5-й серии": "BMW 5 Series", "Mercedes E-класса": "Mercedes E-Class", "Mercedes S-класса": "Mercedes S-Class",
-  "чёрный Mercedes S 600": "black Mercedes S 600", "Maybach с тонировкой": "Maybach with tinted windows", "кортеж из трёх одинаковых машин": "motorcade of three identical cars", "лимузин на заказ": "custom limousine",
+  "потрёпанный хэтчбек": "a battered hatchback", "бюджетный седан": "a budget sedan", "старенькая «семёрка»": "an old Soviet sedan", "маленький городской седан": "a small city sedan", "универсал «для дачи»": "a «country house» wagon", "недорогой кроссовер": "an affordable crossover",
+  "семейный седан": "a family sedan", "городской кроссовер": "a city crossover", "аккуратный лифтбек": "a tidy liftback", "японский седан": "a Japanese sedan", "компактный хэтчбек": "a compact hatchback", "минивэн для большой семьи": "a minivan for a big family",
+  "седан бизнес-класса": "a business sedan", "немецкий седан": "a German sedan", "премиальный кроссовер": "a premium crossover", "универсал с полным приводом": "an AWD wagon", "шведский внедорожник": "a Swedish SUV", "большой японский внедорожник": "a big Japanese SUV",
+  "представительский седан": "an executive sedan", "британский внедорожник": "a British SUV", "спортивный кроссовер": "a sport crossover", "гран-туризмо": "a grand tourer", "огромный внедорожник": "a huge SUV", "американский внедорожник": "an American SUV",
+  "чёрный лимузин": "a black limousine", "отечественный лимузин": "a domestic limousine", "седан с тонировкой": "a sedan with tinted windows", "кортеж из трёх одинаковых машин": "motorcade of three identical cars", "английский лимузин": "an English limousine", "лимузин на заказ": "custom limousine",
+  "лимузин с мигалкой": "a limousine with a flashing light", "чёрный внедорожник сопровождения": "a black escort SUV",
 
   // события
   "Трижды попадал в ДТП и ни разу не был виноват.": "Was in three accidents and was never at fault.",

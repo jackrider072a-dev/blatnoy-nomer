@@ -92,9 +92,13 @@ const VK_ADAPTER = (() => {
   return {
     name: "vk",
     detect: () => /[?&](vk_app_id|vk_user_id)=/.test(location.search) || /[?&]platform=vk\b/.test(location.search),
-    script: "https://unpkg.com/@vkontakte/vk-bridge@2/dist/browser.min.js",
+    script: "vk-bridge.min.js",                          // лежит в сборке: сторонний CDN может не ответить, и ВК зависнет на загрузке
+    noInterstitial: true,                                // межстраничная — только во время явной загрузки (правила VK, п. 5.1.5.1), у нас таких экранов нет
     init(c) {
       ctx = c;
+      // язык — из настроек ВКонтакте (п. 3.1.2); нет параметра — русский
+      const vl = new URLSearchParams(location.search).get("vk_language");
+      ctx.lang(vl === "ua" ? "uk" : vl || "ru");
       if (!window.vkBridge) return Promise.reject();
       return vkBridge.send("VKWebAppInit").then(() => {
         try { vkBridge.subscribe(e => { const t = e && e.detail && e.detail.type; if (t === "VKWebAppViewHide") ctx.pause(true); if (t === "VKWebAppViewRestore") ctx.pause(false); }); } catch (e) {}
@@ -189,7 +193,7 @@ const Platform = (() => {
       return blocking(() => a.rewarded().catch(() => false));
     },
     interstitial() {
-      if (!a.name || !this.adsOK || Date.now() - lastAd < INTERSTITIAL_GAP) return;
+      if (!a.name || a.noInterstitial || !this.adsOK || Date.now() - lastAd < INTERSTITIAL_GAP) return;
       lastAd = Date.now();
       blocking(() => a.interstitial().catch(() => {}));
     },
