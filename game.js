@@ -32,7 +32,7 @@ const TIERS = [
   { name: "Суперлегенда", val: 250000, color: "#5ef2ff" }
 ];
 const PACKS = {
-  basic: { name: "Обычный бланк",  icon: "📄", price: 120,  w: [70, 20, 7.6, 2.37, 0.03, 0.002], lvl: 1,  xp: 2 },
+  basic: { name: "Обычный бланк",  icon: "📄", price: 100,  w: [70, 20, 7.6, 2.37, 0.03, 0.002], lvl: 1,  xp: 2 },
   prem:  { name: "Премиум-бланк",  icon: "💼", price: 700,  w: [0, 50, 32, 17.5, 0.5, 0.02],    lvl: 4,  xp: 8 },
   elite: { name: "Элитный бланк",  icon: "👑", price: 1500, w: [0, 0, 59, 40, 1, 0.08],          lvl: 12, xp: 30 }
 };
@@ -40,7 +40,7 @@ const TOP = TIERS.length - 1;               // самая высокая ред�
 const UPS = [
   { id: "luck",  name: "🍀 Удача",            base: 800,   mul: 2.0, max: 40, desc: "Шанс на красивые, редкие и блатные ×1.12 за уровень (легенды — слабее, они «прям редкие»)" },
   { id: "disc",  name: "🏷 Скидка на бланки",  base: 700,   mul: 2.4, max: 8,  desc: "Все бланки дешевле на 7% за уровень" },
-  { id: "taxi",  name: "🚕 Таксопарк",         base: 200,   mul: 1.8, max: 60, desc: "+4 к заработку за тап «Таксовать»" },
+  { id: "taxi",  name: "🚕 Таксопарк",         base: 200,   mul: 1.8, max: 60, desc: "+3 к заработку за тап «Таксовать»" },
   { id: "crit",  name: "💥 Чаевые",            base: 1500,  mul: 2.2, max: 10, desc: "+5% шанс, что тап в такси даст ×10" },
   { id: "slots", name: "🏠 Парковочные места", base: 500,   mul: 1.9, max: 30, desc: "+2 места в гараже" },
   { id: "park",  name: "📈 Сдача в аренду",    base: 600,   mul: 2.1, max: 40, desc: "+25% дохода с гаража за уровень" },
@@ -53,6 +53,9 @@ Lprops(SERIES_INFO, ...Object.keys(SERIES_INFO));
 TIERS.forEach(t => Lprops(t, "name")); Object.values(PACKS).forEach(p => Lprops(p, "name")); UPS.forEach(u => Lprops(u, "name", "desc"));
 const PITY_BASE = 120;
 const INC_DIV = 400;                       // доход номера в сек = цена / INC_DIV
+// слияние: сколько номеров редкости t нужно на один номер редкости t+1. Чем выше, тем больше нужно — иначе цепочка слияний
+// умножает деньги быстрее, чем игрок успевает их тратить (из 81 обычного за 8 тыс. выходила легенда за 20 тыс.)
+const MERGE_NEED = [3, 3, 4, 5, 8];
 const SAVE_KEY = "blatnoy_nomer_v3";       // новый ключ = у всех чистый старт после ребаланса
 const DAILY = [200, 400, 700, 1200, 2000, 3500, "prem"];
 const BUYER_MIN = 70, BUYER_MAX = 160;
@@ -78,21 +81,29 @@ const yesterdayStr = () => { const d = new Date(Date.now() - 864e5); return d.ge
 
 // ===================== СОСТОЯНИЕ =====================
 const fresh = () => ({
-  v: 3, coins: START_COINS, drawn: 0, goal: 0, forge: { sel: [], coins: 0, target: null, lots: [], lotsAt: 0, boost: false, tries: 0, wins: 0, legend: 0 }, forgePend: null, earned: 0, earnedRun: 0, plates: [], found: {}, up: {}, bought: 0, sold: 0,
+  v: 4, sets: {}, merges: 0, mergeBest: 0, story: { ch: 0, intro: false, ev: {} }, tut: 0, title: "", achClaim: {}, coins: START_COINS, drawn: 0, goal: 0, forge: { sel: [], coins: 0, target: null, lots: [], lotsAt: 0, boost: false, tries: 0, wins: 0, legend: 0 }, forgePend: null, earned: 0, earnedRun: 0, plates: [], found: {}, up: {}, bought: 0, sold: 0,
   tc: [0, 0, 0, 0, 0, 0], pity: 0, xp: 0, lvl: 1, pts: 0, prest: 0, orders: [], ordAt: 0, ach: {},
   daily: { last: "", streak: 0 }, mini: { best: 0, next: 0, plays: 0 },
-  set: { music: true, sfx: true, vib: true, auto: 0, city: true }, market: null, t: Date.now(), nid: 1,
+  set: { music: true, sfx: true, vib: true, auto: -1, city: true }, market: null, t: Date.now(), nid: 1,
   playSec: 0, ordersDone: 0, buffUntil: 0, buyers: 0, taxis: 0, botAcc: 0, adNext: 0
 });
 let S = fresh();
 function normalize(r) {                              // сохранение (локальное или облачное) → полное состояние игры
   const s = Object.assign(fresh(), r); s.set = Object.assign(fresh().set, r.set); s.mini = Object.assign(fresh().mini, r.mini); s.daily = Object.assign(fresh().daily, r.daily);
   s.forge = Object.assign(fresh().forge, r.forge);                        // мастерская: старые сейвы с другим форматом
+  s.story = Object.assign(fresh().story, r.story); s.story.ev = Object.assign({}, s.story.ev);
+  if (!r.story) s.tut = r.drawn > 0 ? -1 : 0;                              // сейв до сюжета: опытным игрокам обучение не показываем
   if (!Array.isArray(s.forge.sel)) s.forge.sel = [];
   if (!Array.isArray(s.forge.lots)) s.forge.lots = [];
   if (s.forgePend && !s.forgePend.v2) s.forgePend = null;
   if (!Array.isArray(s.tc)) s.tc = [];
   while (s.tc.length < TIERS.length) s.tc.push(0);                       // старые сейвы: счётчик без суперлегенд
+  if (!(r.v >= 4)) {                                                      // до слияния обычные продавались сами — теперь они нужны для слияния
+    if (s.set.auto === 0) s.set.auto = -1;
+    for (const p of s.plates) s.found["t:" + p.tier] = true;
+    for (let t = 0; t < TIERS.length; t++) if (s.tc[t]) s.found["t:" + t] = true;
+    s.v = 4;
+  }
   return s;
 }
 const RESET = /[?&]reset\b/.test(location.search);   // ссылка вида ...?reset — сброс прогресса
@@ -262,7 +273,7 @@ function shake(el, long) { el.classList.remove("shake", "shake2"); void el.offse
 function buzz(ms) { if (S.set.vib && navigator.vibrate) try { navigator.vibrate(ms); } catch (e) {} }
 function toast(t) {
   const el = document.createElement("div"); el.className = "toast"; el.textContent = t; $("toasts").appendChild(el);
-  while ($("toasts").children.length > 4) $("toasts").firstChild.remove();
+  while ($("toasts").children.length > 2) $("toasts").firstChild.remove();
   setTimeout(() => el.remove(), 2700);
 }
 function floatText(x, y, text, color) {
@@ -319,8 +330,9 @@ function rollTier(packId) {
 function drawPlate(packId, minTier = 0) {
   let want = Math.max(rollTier(packId), minTier), gift = false;
   S.drawn++;
-  // подарки новичку: 1-й номер — редкий, 7-й — блатной (хук для первого знакомства)
+  // подарки новичку: 1-й номер — редкий, 2–4-й — обычные (сразу собираются в первое слияние), 7-й — блатной
   if (S.drawn === 1 && want < 2) { want = 2; gift = true; }
+  if (S.drawn >= 2 && S.drawn <= 4 && want <= 2) want = 0;
   if (S.drawn === 7 && want < 3) { want = 3; gift = true; }
   S.pity++;
   if (S.pity >= pityMax() && want < 3) want = Math.random() < 0.02 ? 4 : 3;
@@ -344,21 +356,22 @@ function plateNote(p) {
   return L("Обычный номер. Повезёт в следующий раз!");
 }
 function markFound(p) {
-  const ser = seriesOf(p);
-  if (SERIES_INFO[ser]) S.found["s:" + ser] = true;
-  if (SPECIAL_DIGITS.includes(p.d)) S.found["d:" + p.d] = true;
-  if (ELITE_REG.includes(p.reg)) S.found["r:" + p.reg] = true;
+  const ser = seriesOf(p), keys = ["t:" + p.tier];
+  if (SERIES_INFO[ser]) keys.push("s:" + ser);
+  if (SPECIAL_DIGITS.includes(p.d)) keys.push("d:" + p.d);
+  if (ELITE_REG.includes(p.reg)) keys.push("r:" + p.reg);
+  for (const k of keys) if (!S.found[k]) { S.found[k] = true; setProgress(k); }
 }
 
 // ===================== ЭКОНОМИКА =====================
 function gain(n) { S.coins += n; S.earned += n; S.earnedRun += n; }
-const slots = () => 10 + 2 * up("slots");
-function incMult() { return (1 + 0.25 * up("park")) * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (Date.now() < S.buffUntil ? 2 : 1); }
+const slots = () => 12 + 2 * up("slots");
+function incMult() { return (1 + 0.25 * up("park")) * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus()) * (Date.now() < S.buffUntil ? 2 : 1); }
 function income() { let s = 0; for (const p of S.plates) s += p.val; return s / INC_DIV * incMult(); }
 const plateInc = p => p.val / INC_DIV * incMult();
 const packPrice = id => Math.max(60, Math.round(PACKS[id].price * Math.pow(0.93, up("disc"))));
 const upCost = u => Math.round(u.base * Math.pow(u.mul, up(u.id)));
-const taxiTap = () => (3 + 3 * up("taxi")) * (1 + 0.02 * (S.lvl - 1));
+const taxiTap = () => (5 + 3 * up("taxi")) * (1 + 0.02 * (S.lvl - 1));
 const xpNeed = l => Math.round(60 * Math.pow(l, 1.7));
 const adReward = () => Math.max(500, Math.round(income() * 150));
 const XP_TIER = [1, 2, 6, 25, 150, 1000];
@@ -373,6 +386,7 @@ function marketMult(p) {
 const sellVal = p => Math.round(p.val * marketMult(p));
 function refreshMarket() {
   if (S.market && Date.now() < S.market.until) return;
+  if (S.lvl < 3) { S.market = null; return; }           // «тренды» — с 3 уровня, новичку и так есть на что смотреть
   const m = Math.random() < 0.5 ? { kind: "tier", key: 1 + rnd(3), mult: 1.5 } : { kind: "series", key: pick([...LEGEND_SER, ...BLAT_SER]), mult: 2 };
   m.until = Date.now() + 150000; S.market = m; renderPills();
 }
@@ -383,13 +397,13 @@ function addXp(n) {
     S.xp -= xpNeed(S.lvl); S.lvl++;
     const r = 60 * S.lvl; gain(r);
     const ut = unlockText(S.lvl);
-    if (ut || S.lvl % 5 === 0) {                     // важные уровни — полноэкранная сцена (покажется, когда игрок не занят)
+    if (ut) {                                        // уровни, которые что-то открывают, — полноэкранная сцена (покажется, когда игрок не занят)
       enqueueCinema({ color: "#4fc3f7", bg: "#0d2238", icon: "⭐", top: L("Новый уровень"), title: L("УРОВЕНЬ {0}", S.lvl), value: r, valueLabel: L("НАГРАДА"), valueIcon: "💰", sub: ut || L("Так держать!"), coinRain: false, confetti: 70 });
     } else { Snd.level(); vignette("#4fc3f7"); fx.confetti(40); toast(L("⭐ Уровень {0}! +{1} 💰", S.lvl, fmt(r))); }
-    renderPacks(); if (tab === "orders") renderOrders();
+    renderPacks(); syncNav(); if (tab === "orders") renderOrders();
   }
 }
-function unlockText(l) { const t = { 2: "Открыты заказы!", 5: "Мастерская тюнинга!", 4: "Премиум-бланк и мини-игра!", 10: "Престиж!", 12: "Элитный бланк!" }[l]; return t ? L(t) : ""; }
+function unlockText(l) { const t = { 2: "Открыты заказы!", 4: "Премиум-бланк и мини-игра!", 10: "Престиж!", 12: "Элитный бланк!" }[l]; return t ? L(t) : ""; }
 
 // ===================== ПОКУПКА =====================
 function setStage(html, tier, tierText, note, glow) {
@@ -500,7 +514,8 @@ function reveal(r) {
   }
   checkAch(); renderPacks(); save();
 }
-function keepPlate(p) {   // кладём в гараж; если полон — вытесняем самый дешёвый
+function keepPlate(p) {   // кладём в гараж; если полон — сначала сливаем тройку, иначе вытесняем самый дешёвый
+  if (S.plates.length >= slots()) { const t = mergeTiers()[0]; if (t != null) { const m = mergeTake(t); toast(L("Гараж полон: слито {2} × «{0}» → «{1}»", TIERS[t].name, TIERS[m.tier].name, MERGE_NEED[t])); } }
   if (S.plates.length < slots()) { S.plates.push(p); return "kept"; }
   const worst = S.plates.reduce((a, b) => a.val <= b.val ? a : b);
   if (worst.val < p.val) { S.plates = S.plates.filter(x => x.id !== worst.id); gain(sellVal(worst)); S.sold++; S.plates.push(p); toast(L("Гараж полон: продан самый дешёвый номер")); return "swapped"; }
@@ -513,6 +528,51 @@ function resolvePending(sell) {
   if (sell) { gain(sellVal(p)); S.sold++; fx.fly(rect.left + rect.width / 2, rect.top + 30, 6); Snd.sell(); }
   else { keepPlate(p); Snd.keep(); }
   renderPacks(); checkAch(); save();
+}
+
+// ===================== СЛИЯНИЕ: несколько номеров одной редкости → 1 номер редкостью выше =====================
+// Так любой выпавший номер — шаг вперёд: три обычных дают красивый, три красивых — редкий и т.д. до суперлегенды.
+const tierCount = t => S.plates.filter(p => p.tier === t).length + (pending && pending.tier === t ? 1 : 0);
+const mergeTiers = () => { const r = []; for (let t = 0; t < TOP; t++) if (S.plates.filter(p => p.tier === t).length >= MERGE_NEED[t]) r.push(t); return r; };
+function mergeTake(t) {                                 // без анимации: убрать три номера, положить новый
+  const src = S.plates.filter(p => p.tier === t).slice(0, MERGE_NEED[t]), ids = src.map(p => p.id);
+  S.plates = S.plates.filter(p => !ids.includes(p.id));
+  const r = makePlate(t + 1); r.merged = true;
+  S.plates.push(r); markFound(r); S.merges++; S.mergeBest = Math.max(S.mergeBest, r.tier); addXp(XP_TIER[r.tier]);
+  return { r, src, tier: r.tier };
+}
+function doMerge(t) {
+  if (rolling || forging) return;
+  if (pending) resolvePending(false);
+  if (S.plates.filter(p => p.tier === t).length < MERGE_NEED[t]) return Snd.err();
+  const { r, src } = mergeTake(t), col = TIERS[r.tier].color;
+  Snd.rise(0.9); buzz(30);
+  openModal(`<h2 style="color:${col}">${L("⚡ Слияние!")}</h2>
+    <div class="merge-anim">${src.map((p, i) => `<div class="mg mg${i}">${plateHTML(p, "small")}</div>`).join("")}<div class="mg-flash" style="--mc:${col}"></div>
+    <div class="mg-res">${plateHTML(r, "")}</div></div>
+    <p class="mg-txt" style="color:${col}"><b>${TIERS[r.tier].name}</b> · ${L("стоимость {0} 💰 (было {1})", fmt(r.val), fmt(TIERS[t].val * MERGE_NEED[t]))}<br><small>${plateNote(r)}</small></p>
+    <button class="btn green" data-act="closeModal">${L("Класс!")}</button>`, true);
+  setTimeout(() => {
+    modalLocked = false; Snd.boom(); Snd.win(Math.min(r.tier, 4)); vignette(col); shake($("mbox"));
+    fx.burst(innerWidth / 2, innerHeight / 2, 30 + r.tier * 15, [col, "#fff"], { speed: 300 });
+    if (r.tier >= 3) { closeModal(); jackpot(r); }
+  }, 900);
+  renderPacks(); if (tab === "garage") renderGarage(); renderHeader(); checkAch(); save();
+}
+function renderMergeBar() {                             // под табло: прогресс слияния и кнопка «Слить»
+  const el = $("mergeBar"); if (!el) return;
+  const ready = []; for (let t = 0; t < TOP; t++) if (tierCount(t) >= MERGE_NEED[t]) ready.push(t);   // с учётом номера на табло
+  let h = "";
+  if (ready.length) {
+    const t = ready[0];
+    h = `<button class="btn mergebtn ready" data-act="merge" data-t="${t}">${L("⚡ Слить {2} × «{0}» → «{1}»", TIERS[t].name, TIERS[t + 1].name, MERGE_NEED[t])}</button>`;
+  } else if (S.drawn) {
+    const t = pending ? Math.min(pending.tier, TOP - 1) : 0, need = MERGE_NEED[t], n = Math.min(tierCount(t), need);
+    const dots = Array.from({ length: need }, (_, i) => `<i class="${i < n ? "on" : ""}" style="--mc:${TIERS[t].color}"></i>`).join("");
+    h = `<div class="mergeinfo"><span class="mdots">${dots}</span><span>${L("Собери {2} × «{0}» в гараже → получишь «{1}»", TIERS[t].name, TIERS[t + 1].name, need)}</span></div>`;
+  }
+  el.style.display = h ? "" : "none";
+  if (el._h !== h) { el._h = h; el.innerHTML = h; }    // без лишней перерисовки, чтобы не терять нажатия
 }
 function buyMany(id) {
   if (rolling) return;
@@ -579,7 +639,8 @@ function cinema(cfg) {
     cards[FIN] = t; cards[FIN + 1] = t === 4 ? 3 : 4; cards[FIN - 1] = t === 4 ? 4 : 3;
     stripHTML = `<div class="jp-strip-wrap" id="jpWrap"><div class="jp-mark"></div><div class="jp-strip" id="jpStrip">${cards.map(c => `<div class="jp-card" style="--cc:${TIERS[c].color}">${TIERS[c].name}</div>`).join("")}</div></div>`;
   }
-  const title = String(cfg.title).split("").map((c, i) => `<span style="animation-delay:${i * 0.07}s">${c === " " ? "&nbsp;" : c}</span>`).join("");
+  let li = 0;                                          // буквы влетают по одной; слова не рвутся, длинное название переносится по словам
+  const title = String(cfg.title).split(" ").map(w => `<b class="jw">${w.split("").map(c => `<span style="animation-delay:${li++ * 0.07}s">${c}</span>`).join("")}</b>`).join(" ");
   let odoHTML = "";
   if (cfg.value) {
     const s = String(Math.floor(cfg.value));
@@ -675,7 +736,7 @@ function renderPills() {
 function renderHeader() {
   $("lvlnum").textContent = L("Ур. {0}", S.lvl);
   $("xpbar").style.width = (S.xp / xpNeed(S.lvl) * 100) + "%";
-  $("ptsLabel").textContent = S.pts ? "⭐ " + S.pts : "";
+  $("ptsLabel").textContent = (S.title ? "🏷 " + L(S.title) + " " : "") + (S.pts ? "⭐ " + S.pts : "");
   $("inc").textContent = L("{0}/сек", fmt(income()));
   const bb = $("btnBuff"), left = S.buffUntil - Date.now();
   if (bb) { bb.disabled = left > 0; bb.textContent = left > 0 ? L("🔥 Доход ×2 · {0}", mmss(left)) : L("🔥 Доход ×2 на 5 мин (📺 реклама)"); }
@@ -702,10 +763,15 @@ function renderPacks() {
   TIERS.forEach((t, i) => { const pc = w[i] / sum * 100; o += `<div class="orow"><span style="color:${t.color}"><b>${t.name}</b> · ${L("продажа {0}", fmt(t.val))}</span><span style="text-align:right">${pctStr(pc)}%</span><div class="ob"><i style="width:${Math.max(pc, 1)}%;background:${t.color}"></i></div></div>`; });
   $("odds").innerHTML = o;
   $("btnTaxi").textContent = L("🚕 Таксовать +{0}", fmt(taxiTap()));
-  syncAdButtons();
+  syncAdButtons(); renderMergeBar();
 }
 // кнопки рекламы прячем, если площадка её не даёт (блокировщик, пробный запуск) — пустых кнопок быть не должно
-function syncAdButtons() { document.querySelectorAll("#btnAd, #btnBuff").forEach(b => b.style.display = Platform.adsOK ? "" : "none"); }
+function syncAdButtons() {
+  $("btnAd").style.display = Platform.adsOK ? "" : "none";
+  $("btnBuff").style.display = Platform.adsOK && S.lvl >= 3 && S.plates.length ? "" : "none";   // доход ×2 имеет смысл, когда гараж уже приносит деньги
+}
+// вкладки открываются по мере роста, чтобы новичок не тонул в кнопках
+function syncNav() { const b = document.querySelector('nav button[data-tab="orders"]'); if (b) b.classList.toggle("hidden", !ordersOpen()); }
 function refreshDisabled() {
   document.querySelectorAll("[data-cost]").forEach(b => { const lockedPack = b.dataset.pack && S.lvl < PACKS[b.dataset.pack].lvl; b.disabled = lockedPack || S.coins < +b.dataset.cost; });
 }
@@ -729,6 +795,9 @@ function renderGarage() {
   let h = `<h2>${L("🏠 Гараж")} <small>${L("{0}/{1} мест · доход {2}/сек", S.plates.length, slots(), fmt(income()))}</small></h2>
     <div class="chips"><small style="align-self:center">${L("Продать всё ниже:")}</small>
     ${[0, 1, 2].map(t => `<button class="chip" data-act="sellTier" data-t="${t}" style="color:${TIERS[t].color}">≤ ${TIERS[t].name}</button>`).join("")}</div>`;
+  h += `<div class="mergegrid">${TIERS.slice(0, TOP).map((tr, t) => { const n = S.plates.filter(p => p.tier === t).length, ok = n >= MERGE_NEED[t];
+    return `<button class="mcell ${ok ? "ready" : ""}" data-act="merge" data-t="${t}" ${ok ? "" : "disabled"} style="--mc:${tr.color}"><b>${tr.name}</b><small>${Math.min(n, 99)}/${MERGE_NEED[t]} → ${TIERS[t + 1].name}</small></button>`; }).join("")}</div>`;
+  h += setsHTML();
   if (!list.length) h += `<div class="hint">${L("Гараж пуст. Купи номер и нажми «В гараж» — номера приносят доход, даже когда тебя нет.")}</div>`;
   list.slice(0, 100).forEach(p => {
     const mm = marketMult(p);
@@ -760,19 +829,21 @@ function genOrder() {
   else if (L >= 6) o = { k: "series", s: pick(BLAT_SER) };
   else o = { k: "tier", t: 1 };
   const base = o.k === "tier" ? TIERS[o.t].val * 1.8 : o.k === "digits" ? 700 : 4500;
-  o.reward = Math.round(base * (1 + 0.06 * L)); o.id = S.nid++; return o;
+  o.reward = Math.round(base * (1 + 0.06 * L)); o.id = S.nid++; o.who = pick(Object.keys(CLIENT_LINE)); return o;
 }
 function orderMatch(o, p) { return o.k === "tier" ? p.tier >= o.t : o.k === "digits" ? p.d === o.d : seriesOf(p) === o.s; }
 function orderText(o) { return o.k === "tier" ? L("Номер не ниже «{0}»", TIERS[o.t].name) : o.k === "digits" ? L("Номер с цифрами «{0}»", o.d) : L("Номер серии «{0}»", o.s); }
 function orderPlate(o) { return S.plates.filter(p => orderMatch(o, p)).sort((a, b) => a.val - b.val)[0]; }
-function ensureOrders() { if (S.lvl < 2) return; while (S.orders.length < 3) S.orders.push(genOrder()); }
+const ordersOpen = () => S.lvl >= 2 || S.story.ch >= 1;   // заказы открывает 2 уровень или глава «Первые клиенты»
+function ensureOrders() { if (!ordersOpen()) return; while (S.orders.length < 3) S.orders.push(genOrder()); }
 function renderOrders() {
-  if (S.lvl < 2) { $("tab-orders").innerHTML = `<h2>${L("📋 Заказы")}</h2><div class="hint">${L("Откроются на уровне 2")}</div>`; return; }
+  if (!ordersOpen()) { $("tab-orders").innerHTML = `<h2>${L("📋 Заказы")}</h2><div class="hint">${L("Откроются на уровне 2")}</div>`; return; }
   ensureOrders();
   let h = `<h2>${L("📋 Заказы клиентов")}</h2><p style="font-size:12px;color:#8d99b3;margin-top:-4px">${L("Отдай подходящий номер из гаража — получишь больше, чем при продаже.")}</p>`;
   S.orders.forEach(o => {
     const p = orderPlate(o);
-    h += `<div class="card ${p ? "done" : ""}"><h3>${orderText(o)}</h3><p>${L("Награда:")} <b style="color:#ffd23f">${fmt(o.reward)} 💰</b> · ${L("+15 опыта")}</p>
+    const who = CHARS[o.who] || CHARS.tamara;
+    h += `<div class="card ${p ? "done" : ""}"><div class="client"><span>${who.i}</span><b style="color:${who.c}">${who.n}</b><i>«${L(CLIENT_LINE[o.who] || CLIENT_LINE.tamara)}»</i></div><h3>${orderText(o)}</h3><p>${L("Награда:")} <b style="color:#ffd23f">${fmt(o.reward)} 💰</b> · ${L("+15 опыта")}</p>
       ${p ? plateHTML(p, "small") : ""}
       <button class="btn ${p ? "green ready" : "alt"}" data-act="orderDo" data-id="${o.id}" ${p ? "" : "disabled"}>${p ? L("Отдать номер") : L("Нет подходящего номера")}</button></div>`;
   });
@@ -790,7 +861,7 @@ function orderDo(id) {
 function orderReroll() {
   if (Date.now() < S.ordAt) return; S.orders = []; ensureOrders(); S.ordAt = Date.now() + 600000; Snd.whoosh(); renderOrders(); save();
 }
-function updateOrderDot() { $("orderDot").classList.toggle("on", S.lvl >= 2 && S.orders.some(o => orderPlate(o))); }
+function updateOrderDot() { $("orderDot").classList.toggle("on", ordersOpen() &&S.orders.some(o => orderPlate(o))); }
 
 // ===================== УЛУЧШЕНИЯ =====================
 function renderUps() {
@@ -824,13 +895,15 @@ function hideMenu() { $("menu").classList.add("hidden"); Mus.start(); }
 function showHowTo() {
   const P = [
     "🚘 Покупай бланки номеров. Табло крутится — и выпадает номер одной из 6 редкостей: обычный, красивый, редкий, блатной, легенда или суперлегенда.",
-    "💰 Продай номер сразу или поставь в 🏠 гараж — там он приносит доход каждую секунду, даже когда ты не в игре.",
+    "🏠 Ставь номера в гараж — там они приносят доход каждую секунду, даже когда ты не в игре.",
+    "⚡ Главное — слияние: несколько номеров одной редкости превращаются в 1 номер редкостью выше (обычные и красивые — по 3, редкие — по 4, блатные — по 5, легенды — по 8).",
+    "📚 Собирай наборы коллекции (во вкладке «Гараж»): за каждый собранный набор — награда и вечный бонус к доходу.",
     "🚕 Не хватает денег — жми «Таксовать».",
     "📋 Со 2-го уровня открываются заказы: отдай подходящий номер и получи больше, чем при продаже.",
-    "🔨 В тюнинге можно обменять несколько номеров на один более редкий.",
+    "🔨 В «Тюнинге» можно рискнуть: поставь номера и выбери цель подороже — стрелка решит, получишь ли ты её или потеряешь ставку.",
     "⚙ Апгрейды повышают шанс редких номеров, дают скидки на бланки и места в гараже.",
     "🎣 С 4-го уровня — мини-игра «Поймай номер», с 10-го — «Переезд в Москву»: начни заново с вечным бонусом.",
-    "📖 Шансы выпадения смотри под бланками, коллекцию серий и достижения — во вкладке «Ещё»."
+    "📖 Шансы выпадения смотри под бланками, достижения — во вкладке «Ещё»."
   ];
   openModal(`<h2>${L("📖 Как играть")}</h2><div class="howto">${P.map(p => `<p>${L(p)}</p>`).join("")}</div>
     <div class="row"><button class="btn alt" data-act="menuBack">${L("← В меню")}</button><button class="btn green" data-act="closeModal">${L("Играть")}</button></div>`);
@@ -841,20 +914,21 @@ function renderMore() {
   const miniWait = S.mini.next - Date.now(), canMini = S.lvl >= 4 && miniWait <= 0;
   let h = `<h2>${L("☰ Ещё")}</h2>
   <div class="row"><button class="btn alt" data-act="menuOpen">${L("☰ Главное меню")}</button><button class="btn alt" data-act="menuHow">${L("📖 Как играть")}</button></div>
+  ${achWaiting() ? `<div class="card achbox"><h3>${L("🏆 Награды за достижения")}</h3><p>${L("Готово к получению: {0}", achWaiting())}</p>
+    <button class="btn green ready" data-act="achClaimAll">${L("Забрать всё (+{0} 💰)", fmt(Object.keys(S.achClaim).reduce((s, id) => s + achReward(ACH.find(a => a.id === id) || { r: 0 }), 0)))}</button></div>` : ""}
   <div class="card"><h3>${L("🎣 Поймай номер")}</h3><p>${L("Мини-игра на 25 секунд: лови падающие номера тапом — блатные дороже! Но не трогай 🚔.")} ${L("Рекорд:")} <b>${fmt(S.mini.best)}</b></p>
     <button class="btn ${canMini ? "green ready" : "alt"}" data-act="miniStart" ${canMini ? "" : "disabled"}>${S.lvl < 4 ? L("🔒 Откроется на уровне {0}", 4) : miniWait > 0 ? L("Перезарядка") + ' <span class="timer" data-until="' + S.mini.next + '"></span>' : L("ИГРАТЬ")}</button>
     ${S.lvl >= 4 && miniWait > 0 && Platform.adsOK ? `<button class="btn alt" data-act="miniAd">${L("🎁 Сбросить перезарядку (📺 реклама)")}</button>` : ""}</div>`;
   const gain_ = prestigeGain();
   h += `<div class="card"><h3>${L("🏛 Переезд в Москву")} <small>${L("(престиж)")}</small></h3><p>${L("Сбрось деньги, гараж и апгрейды — и получи ⭐ «Связи»: каждая даёт навсегда +10% дохода и +3% к удаче.")} ${L("Сейчас ⭐ {0}. За этот забег:", S.pts)} <b style="color:#ffb300">+${gain_} ⭐</b></p>
     <button class="btn ${gain_ > 0 ? "red" : "alt"}" data-act="prestige" ${S.lvl >= 10 && gain_ > 0 ? "" : "disabled"}>${S.lvl < 10 ? L("🔒 Откроется на уровне {0}", 10) : gain_ > 0 ? L("Переехать (+{0} ⭐)", gain_) : L("Нужно заработать ещё (от {0} за забег)", fmt(1500000))}</button></div>`;
-  h += `<div class="card"><h3>${L("📖 Блатные серии")}</h3>`;
-  [...LEGEND_SER, ...BLAT_SER].forEach(s => { const ok = S.found["s:" + s]; h += `<div class="ser ${ok ? "" : "lock"}"><div class="nm t${LEGEND_SER.includes(s) ? 4 : 3}">${s}</div><div class="ds">${ok ? SERIES_INFO[s] : L("Ещё не выпадала")}</div><div>${ok ? "✅" : "🔒"}</div></div>`; });
-  SPECIAL_DIGITS.forEach(d => { const ok = S.found["d:" + d]; h += `<div class="ser ${ok ? "" : "lock"}"><div class="nm t2">${d}</div><div class="ds">${L("Красивые цифры")}</div><div>${ok ? "✅" : "🔒"}</div></div>`; });
-  ELITE_REG.forEach(r => { const ok = S.found["r:" + r]; h += `<div class="ser ${ok ? "" : "lock"}"><div class="nm t2">${L("рег. {0}", r)}</div><div class="ds">${L("Престижный регион")}</div><div>${ok ? "✅" : "🔒"}</div></div>`; });
-  h += `</div><div class="card"><h3>${L("🏆 Достижения")} <small>${Object.keys(S.ach).length}/${ACH.length}</small></h3>`;
-  ACH.forEach(a => { const ok = S.ach[a.id]; h += `<div class="ach ${ok ? "" : "lock"}"><div class="ai">${a.i}</div><div><b>${a.n}</b><small>${a.d}</small></div><div>${ok ? "✅" : "+" + fmt(achReward(a))}</div></div>`; });
+  h += `<div class="card"><h3>${L("📖 История")} <small>${Math.min(S.story.ch, STORY.length)}/${STORY.length}</small></h3>` +
+    STORY.map((c, i) => { const st = i < S.story.ch ? "✅" : i === S.story.ch ? "▶" : "🔒";
+      return `<div class="ach ${i > S.story.ch ? "lock" : ""}"><div class="ai">${st}</div><div><b>${L("Глава {0} · {1}", i + 1, i > S.story.ch ? "???" : L(c.t))}</b><small>${i <= S.story.ch && c.title ? L("титул «{0}»", L(c.title)) : ""}</small></div><div></div></div>`; }).join("") + `</div>`;
+  h += `<div class="card"><h3>${L("🏆 Достижения")} <small>${Object.keys(S.ach).length}/${ACH.length}</small></h3>`;
+  ACH.forEach(a => { const ok = S.ach[a.id], wait = S.achClaim[a.id]; h += `<div class="ach ${ok ? "" : "lock"}"><div class="ai">${a.i}</div><div><b>${a.n}</b><small>${a.d}</small></div><div>${wait ? `<button class="btn sm green ready" data-act="achClaim" data-id="${a.id}">${L("Забрать +{0}", fmt(achReward(a)))}</button>` : ok ? "✅" : "+" + fmt(achReward(a))}</div></div>`; });
   h += `</div><div class="card"><h3>${L("📊 Статистика")}</h3>
-    ${[["Куплено номеров", S.bought], ["Продано", S.sold], ["Всего заработано", fmt(S.earned)], ["Выпало: обычных", S.tc[0]], ["Выпало: красивых", S.tc[1]], ["Выпало: редких", S.tc[2]], ["Выпало: блатных", S.tc[3]], ["Выпало: легенд", S.tc[4]], ["Выпало: суперлегенд", S.tc[5]], ["Заказов выполнено", S.ordersDone], ["Попыток в мастерской", S.forge.tries], ["Удачных улучшений", S.forge.wins], ["Переездов", S.prest], ["Время в игре", L("{0} мин", Math.floor(S.playSec / 60))]]
+    ${[["Куплено номеров", S.bought], ["Продано", S.sold], ["Всего заработано", fmt(S.earned)], ["Выпало: обычных", S.tc[0]], ["Выпало: красивых", S.tc[1]], ["Выпало: редких", S.tc[2]], ["Выпало: блатных", S.tc[3]], ["Выпало: легенд", S.tc[4]], ["Выпало: суперлегенд", S.tc[5]], ["Слияний", S.merges], ["Наборов собрано", setsDone() + "/" + SETS.length],["Заказов выполнено", S.ordersDone], ["Попыток в мастерской", S.forge.tries], ["Удачных улучшений", S.forge.wins], ["Переездов", S.prest], ["Время в игре", L("{0} мин", Math.floor(S.playSec / 60))]]
       .map(r => `<div class="stat"><span>${L(r[0])}</span><b>${r[1]}</b></div>`).join("")}</div>
   <div class="card"><h3>${L("🔧 Настройки")}</h3>
     <div class="setrow"><span>${L("🎵 Музыка")}</span><button class="tog ${S.set.music ? "on" : ""}" data-act="toggle" data-k="music"></button></div>
@@ -870,7 +944,7 @@ function renderMore() {
 const prestigeGain = () => Math.floor(Math.sqrt(S.earnedRun / 1500000));
 function doPrestige() {
   const g = prestigeGain(); if (g < 1) return;
-  const keep = { drawn: S.drawn, goal: S.goal, forge: Object.assign({}, S.forge, { sel: [], coins: 0, target: null, lots: [], boost: false }), found: S.found, ach: S.ach, lvl: S.lvl, xp: S.xp, set: S.set, mini: S.mini, daily: S.daily, tc: S.tc, bought: S.bought, sold: S.sold, earned: S.earned, ordersDone: S.ordersDone, playSec: S.playSec, taxis: S.taxis, buyers: S.buyers };
+  const keep = { drawn: S.drawn, goal: S.goal, achClaim: S.achClaim, story: S.story, tut: S.tut, title: S.title, sets: S.sets, merges: S.merges, mergeBest: S.mergeBest, forge: Object.assign({}, S.forge, { sel: [], coins: 0, target: null, lots: [], boost: false }), found: S.found, ach: S.ach, lvl: S.lvl, xp: S.xp, set: S.set, mini: S.mini, daily: S.daily, tc: S.tc, bought: S.bought, sold: S.sold, earned: S.earned, ordersDone: S.ordersDone, playSec: S.playSec, taxis: S.taxis, buyers: S.buyers };
   const n = fresh(); Object.assign(n, keep); n.pts = S.pts + g; n.prest = S.prest + 1; n.nid = S.nid; n.coins = START_COINS + 200 * n.pts;
   S = n; pending = null; closeModal(); cinemaQueue.length = 0;
   enqueueCinema({ color: "#ffb300", bg: "#3a2a05", big: true, icon: "🏛", top: L("Переезд в Москву"), title: L("НОВАЯ ЖИЗНЬ"), value: g, valueLabel: L("СВЯЗИ ПОЛУЧЕНО"), valueIcon: "⭐",
@@ -987,44 +1061,53 @@ function claimDaily() {
 // ===================== ДОСТИЖЕНИЯ =====================
 const found = pre => Object.keys(S.found).filter(k => k.startsWith(pre)).length;
 const ACH = [
-  { id: "b1", i: "🛒", n: "Первый номер", d: "Купи номер", c: () => S.bought >= 1, r: 200 },
-  { id: "b2", i: "🧾", n: "Постоянный клиент", d: "Купи 50 номеров", c: () => S.bought >= 50, r: 1500 },
-  { id: "b3", i: "🏭", n: "Оптовик", d: "Купи 500 номеров", c: () => S.bought >= 500, r: 25000 },
-  { id: "t2", i: "💜", n: "Редкая находка", d: "Выбей редкий номер", c: () => S.tc[2] + S.tc[3] + S.tc[4] + S.tc[5] >= 1, r: 2000 },
-  { id: "t3", i: "⭐", n: "Блатной!", d: "Выбей блатной номер", c: () => S.tc[3] + S.tc[4] + S.tc[5] >= 1, r: 10000 },
-  { id: "t4", i: "🔥", n: "Легенда", d: "Выбей легендарный номер", c: () => S.tc[4] + S.tc[5] >= 1, r: 200000 },
-  { id: "t5", i: "🦅", n: "Спецсерия", d: "Выбей суперлегендарный номер", c: () => S.tc[5] >= 1, r: 2000000 },
-  { id: "s4", i: "📖", n: "Коллекционер", d: "Найди 4 блатные серии", c: () => found("s:") >= 4, r: 20000 },
-  { id: "s7", i: "📚", n: "Все серии", d: "Найди все 7 серий", c: () => found("s:") >= 7, r: 500000 },
-  { id: "g1", i: "🏠", n: "Полный гараж", d: "Заполни все места в гараже", c: () => S.plates.length >= slots(), r: 5000 },
-  { id: "e1", i: "💵", n: "Миллионер", d: "Заработай 1 млн за всё время", c: () => S.earned >= 1e6, r: 50000 },
-  { id: "e2", i: "💎", n: "Миллиардер", d: "Заработай 1 млрд за всё время", c: () => S.earned >= 1e9, r: 5e6 },
-  { id: "o1", i: "📋", n: "Исполнитель", d: "Выполни 10 заказов", c: () => S.ordersDone >= 10, r: 8000 },
-  { id: "m1", i: "🎣", n: "Ловец номеров", d: "Набери 2000 очков в мини-игре", c: () => S.mini.best >= 2000, r: 5000 },
-  { id: "l1", i: "🎖", n: "Опытный", d: "Достигни 10 уровня", c: () => S.lvl >= 10, r: 15000 },
-  { id: "p1", i: "🏛", n: "Новая жизнь", d: "Переедь в Москву", c: () => S.prest >= 1, r: 20000 },
-  { id: "x1", i: "🚕", n: "Таксист", d: "Тапни «Таксовать» 500 раз", c: () => S.taxis >= 500, r: 3000 },
-  { id: "f1", i: "🔨", n: "Мастер тюнинга", d: "Удачно улучши номер в мастерской", c: () => S.forge.wins >= 1, r: 4000 },
-  { id: "f2", i: "🎲", n: "Рискованный", d: "Сделай легенду в мастерской", c: () => S.forge.legend >= 1, r: 100000 },
-  { id: "f3", i: "🧯", n: "Упорство", d: "Сделай 20 попыток в мастерской", c: () => S.forge.tries >= 20, r: 8000 },
-  { id: "y1", i: "🚘", n: "Лови покупателя", d: "Поймай 5 богатых покупателей", c: () => S.buyers >= 5, r: 5000 }
+  { id: "b1", i: "🛒", n: "Первый номер", d: "Купи номер", c: () => S.bought >= 1, r: 50 },
+  { id: "b2", i: "🧾", n: "Постоянный клиент", d: "Купи 50 номеров", c: () => S.bought >= 50, r: 600 },
+  { id: "b3", i: "🏭", n: "Оптовик", d: "Купи 500 номеров", c: () => S.bought >= 500, r: 8000 },
+  { id: "t2", i: "💜", n: "Редкая находка", d: "Выбей редкий номер", c: () => S.tc[2] + S.tc[3] + S.tc[4] + S.tc[5] >= 1, r: 150 },
+  { id: "t3", i: "⭐", n: "Блатной!", d: "Выбей блатной номер", c: () => S.tc[3] + S.tc[4] + S.tc[5] >= 1, r: 1000 },
+  { id: "t4", i: "🔥", n: "Легенда", d: "Выбей легендарный номер", c: () => S.tc[4] + S.tc[5] >= 1, r: 6000 },
+  { id: "t5", i: "🦅", n: "Спецсерия", d: "Выбей суперлегендарный номер", c: () => S.tc[5] >= 1, r: 60000 },
+  { id: "s4", i: "📖", n: "Коллекционер", d: "Найди 4 блатные серии", c: () => found("s:") >= 4, r: 3000 },
+  { id: "s7", i: "📚", n: "Все серии", d: "Найди все 7 серий", c: () => found("s:") >= 7, r: 25000 },
+  { id: "g1", i: "🏠", n: "Полный гараж", d: "Заполни все места в гараже", c: () => S.plates.length >= slots(), r: 500 },
+  { id: "e1", i: "💵", n: "Миллионер", d: "Заработай 1 млн за всё время", c: () => S.earned >= 1e6, r: 10000 },
+  { id: "e2", i: "💎", n: "Миллиардер", d: "Заработай 1 млрд за всё время", c: () => S.earned >= 1e9, r: 1e6 },
+  { id: "o1", i: "📋", n: "Исполнитель", d: "Выполни 10 заказов", c: () => S.ordersDone >= 10, r: 1500 },
+  { id: "m1", i: "🎣", n: "Ловец номеров", d: "Набери 2000 очков в мини-игре", c: () => S.mini.best >= 2000, r: 1000 },
+  { id: "l1", i: "🎖", n: "Опытный", d: "Достигни 10 уровня", c: () => S.lvl >= 10, r: 3000 },
+  { id: "p1", i: "🏛", n: "Новая жизнь", d: "Переедь в Москву", c: () => S.prest >= 1, r: 5000 },
+  { id: "x1", i: "🚕", n: "Таксист", d: "Тапни «Таксовать» 500 раз", c: () => S.taxis >= 500, r: 500 },
+  { id: "f1", i: "🔨", n: "Мастер тюнинга", d: "Удачно улучши номер в мастерской", c: () => S.forge.wins >= 1, r: 300 },
+  { id: "f2", i: "🎲", n: "Рискованный", d: "Сделай легенду в мастерской", c: () => S.forge.legend >= 1, r: 5000 },
+  { id: "f3", i: "🧯", n: "Упорство", d: "Сделай 20 попыток в мастерской", c: () => S.forge.tries >= 20, r: 1000 },
+  { id: "y1", i: "🚘", n: "Лови покупателя", d: "Поймай 5 богатых покупателей", c: () => S.buyers >= 5, r: 500 }
 ];
 ACH.forEach(a => Lprops(a, "n", "d"));
-const achReward = a => Math.round(a.r * 0.4);
+const achReward = a => a.r;                  // награды — не больше стоимости самого достижения, чтобы не ломать экономику
+// достижения не всплывают на экране: награда копится, на вкладке «Ещё» горит точка, игрок забирает её сам
+const achWaiting = () => Object.keys(S.achClaim).length;
+function updateMoreDot() { $("moreDot").classList.toggle("on", achWaiting() > 0); }
 function checkAch() {
-  checkGoal();
+  checkSets(); renderGoal(); storyEvents();
   ACH.forEach(a => {
-    if (!S.ach[a.id] && a.c()) { const rw = achReward(a); S.ach[a.id] = true; gain(rw);
-      if (a.r >= 10000) enqueueCinema({ color: "#ffd23f", bg: "#2a2005", icon: a.i, top: L("Достижение разблокировано"), title: a.n.toUpperCase(), value: rw, valueLabel: L("НАГРАДА"), valueIcon: "💰", sub: a.d, big: a.r >= 100000 });
-      else { Snd.level(); toast("🏆 " + a.n + " · +" + fmt(rw) + " 💰"); fx.burst(innerWidth / 2, 120, 24, ["#ffd23f", "#fff"]); }
+    if (!S.ach[a.id] && a.c()) {
+      if (!achWaiting()) toast(L("🏆 Новое достижение — награда ждёт во вкладке «Ещё»"));   // одна подсказка на пачку, дальше хватает точки
+      S.ach[a.id] = true; S.achClaim[a.id] = 1; Snd.coin(); updateMoreDot();
       if (tab === "more") renderMore(); }
   });
+}
+function claimAch(ids) {
+  let sum = 0; ids.forEach(id => { const a = ACH.find(x => x.id === id); if (a && S.achClaim[id]) { sum += achReward(a); delete S.achClaim[id]; } });
+  if (!sum) return;
+  gain(sum); Snd.sell(); fx.fly(innerWidth / 2, innerHeight / 2, Math.min(20, 6 + ids.length * 2)); fx.confetti(30); toast("🏆 +" + fmt(sum) + " 💰");
+  updateMoreDot(); renderMore(); renderHeader(); save();
 }
 
 // ===================== МАСТЕРСКАЯ ТЮНИНГА («апгрейдер») =====================
 // Выбираешь номера (и можешь добавить монеты), выбираешь цель. Шанс = стоимость входа / стоимость цели × 0.9.
 // Чем дороже цель относительно входа — тем ниже шанс и выше награда. Стрелка падает в дугу — успех, иначе входные номера сгорают.
-const FORGE_EDGE = 0.9, FORGE_CAP = 0.85, FORGE_MIN = 0.01, GAUGE_C = 703.72;
+const FORGE_EDGE = 0.8, FORGE_CAP = 0.85, FORGE_MIN = 0.01, GAUGE_C = 703.72;
 let forging = false, forgeView = "mine", needleAng = 0;
 const selPlates = () => S.forge.sel.map(id => S.plates.find(p => p.id === id)).filter(Boolean);
 const curLot = () => S.forge.lots.find(l => l.id === S.forge.target) || null;
@@ -1044,7 +1127,8 @@ function makePlate(tier) {
 }
 function genLots() {                                     // цели для улучшения: 11 номеров разной цены
   const lots = [];
-  [[1, 3], [2, 3], [3, 3], [4, 2]].forEach(([tier, n]) => {
+  // дорогие цели открываются с уровнем: блатные — с 4-го, легенды — с 10-го, иначе тюнинг сразу даёт легенду
+  [[1, S.lvl >= 4 ? 3 : 5], [2, S.lvl >= 4 ? 3 : 5], [3, S.lvl >= 4 ? 3 : 0], [4, S.lvl >= 10 ? 2 : 0]].forEach(([tier, n]) => {
     for (let i = 0; i < n; i++) { const p = makePlate(tier); p.val = Math.round(TIERS[tier].val * (0.8 + Math.random() * 0.6)); lots.push({ id: S.nid++, plate: p, val: p.val }); }
   });
   S.forge.lots = lots.sort((a, b) => a.val - b.val); S.forge.lotsAt = Date.now() + 300000;
@@ -1076,7 +1160,7 @@ function forgeCardsHTML() {
 }
 function renderForge() {
   if (forging) return;
-  if (S.lvl < 5) { $("tab-forge").innerHTML = `<h2>${L("🔨 Мастерская тюнинга")}</h2><div class="hint">${L("Откроется на уровне {0}", 5)}</div>`; return; }
+  if (!S.drawn) { $("tab-forge").innerHTML = `<h2>${L("🔨 Мастерская тюнинга")}</h2><div class="hint">${L("Купи первый номер — и рискни улучшить его здесь")}</div>`; return; }
   if (!S.forge.lots.length || Date.now() > S.forge.lotsAt) genLots();
   S.forge.sel = S.forge.sel.filter(id => S.plates.some(p => p.id === id));
   const lot = curLot(), ps = selPlates();
@@ -1132,7 +1216,7 @@ function forgeSpin() {
   const ch = forgeChanceFor(inV, lot); if (ch < FORGE_MIN) return toast(L("Шанс меньше 1% — добавь номеров или монет"));
   if (S.coins < S.forge.coins) return Snd.err();
   ac(); Mus.start();
-  const win = Math.random() < ch;
+  const win = (S.forge.tries === 0 && lot.plate.tier <= 2) || Math.random() < ch;   // первая попытка (обучение) удачная, но только до редкого
   S.coins -= S.forge.coins; S.plates = S.plates.filter(x => !S.forge.sel.includes(x.id)); S.forge.tries++;
   const pend = { v2: true, win, chance: ch, inV, lot: win ? lot : null, refund: win ? 0 : Math.round(pSum * 0.1) };
   if (win) { S.forge.wins++; if (lot.plate.tier === 4) S.forge.legend++; S.forge.lots = S.forge.lots.filter(l => l.id !== lot.id); }
@@ -1161,7 +1245,7 @@ function applyForge(silent) {
   const pd = S.forgePend; forging = false; if (!pd) return; S.forgePend = null;
   if (pd.win && pd.lot) {
     const p = pd.lot.plate, col = TIERS[p.tier].color; p.got = Date.now();
-    markFound(p); S.tc[p.tier]++; lastRevealed = p; keepPlate(p); addXp(XP_TIER[p.tier] * 2);
+    markFound(p); lastRevealed = p; keepPlate(p); addXp(XP_TIER[p.tier] * 2);   // в «Выпало» не считаем: достижения за выпадение — только за бланки
     const modal = () => openModal(`<h2 style="color:#43c76b">${L("✅ Прокачка удалась!")}</h2><p style="font-size:13px;color:#8d99b3">${L("Вложено {0} → награда {1} · шанс был {2}%", fmt(pd.inV), fmt(p.val), (pd.chance * 100).toFixed(1))}</p>
       <div style="margin:14px 0">${plateHTML(p, "pop")}</div>
       <button class="btn" data-act="plateInfo" data-id="${p.id}">${L("📖 История номера")}</button><button class="btn alt" data-act="closeModal">${L("Отлично")}</button>`);
@@ -1179,38 +1263,223 @@ function applyForge(silent) {
   checkAch(); if (tab === "forge") renderForge(); renderHeader(); save();
 }
 
-// ===================== ЦЕЛИ (подсказки для новичка) =====================
-const upSum = () => UPS.reduce((a, u) => a + up(u.id), 0);
-const GOALS = [
-  { t: "Купи свой первый номер",         c: () => S.drawn >= 1, r: 50 },
-  { t: "Оставь номер в гараже",          c: () => S.plates.length >= 1, r: 50 },
-  { t: "Купи 10 номеров",                c: () => S.bought >= 10, r: 100, p: () => S.bought + "/10" },
-  { t: "Достигни 2 уровня",              c: () => S.lvl >= 2, r: 100 },
-  { t: "Выполни первый заказ (вкладка «Заказы»)", c: () => S.ordersDone >= 1, r: 150 },
-  { t: "Выбей блатной номер",            c: () => S.tc[3] + S.tc[4] + S.tc[5] >= 1, r: 300 },
-  { t: "Купи 3 улучшения",               c: () => upSum() >= 3, r: 300, p: () => upSum() + "/3" },
-  { t: "Заполни гараж",                  c: () => S.plates.length >= slots(), r: 500, p: () => S.plates.length + "/" + slots() },
-  { t: "Достигни 4 уровня",              c: () => S.lvl >= 4, r: 500 },
-  { t: "Улучши номер в мастерской (с 5 уровня)", c: () => S.forge.wins >= 1, r: 700 },
-  { t: "Найди 4 блатные серии",          c: () => found("s:") >= 4, r: 1500, p: () => found("s:") + "/4" },
-  { t: "Достигни 10 уровня и открой престиж", c: () => S.lvl >= 10, r: 3000 },
-  { t: "Выбей легендарный номер",        c: () => S.tc[4] + S.tc[5] >= 1, r: 10000 }
+// ===================== КОЛЛЕКЦИЯ: наборы номеров с вечным бонусом к доходу =====================
+// k: ключи из S.found (t: редкость, d: цифры, r: регион, s: серия); b: +% к доходу навсегда; r: разовая награда
+const SETS = [
+  { id: "start", n: "Первая коллекция",  k: ["t:0", "t:1", "t:2"],          b: 5,  r: 150 },
+  { id: "lucky", n: "Счастливые цифры",  k: ["d:777", "d:007", "d:001"],    b: 10, r: 700 },
+  { id: "even",  n: "Ровный счёт",       k: ["d:999", "d:888", "d:555"],    b: 10, r: 700 },
+  { id: "round", n: "Круглые и дерзкие", k: ["d:100", "d:666"],             b: 8,  r: 500 },
+  { id: "msk",   n: "Москва",            k: ["r:77", "r:97", "r:99"],       b: 10, r: 1000 },
+  { id: "msk2",  n: "Новая Москва",      k: ["r:177", "r:197", "r:199"],    b: 12, r: 1500 },
+  { id: "msk3",  n: "Трёхзначная столица", k: ["r:777", "r:799"],           b: 12, r: 1500 },
+  { id: "biz",   n: "Деловые серии",     k: ["s:ООО", "s:МОС", "s:ВОС"],    b: 15, r: 4000 },
+  { id: "vip",   n: "VIP-серии",         k: ["s:ААА", "s:ММР"],             b: 15, r: 4000 },
+  { id: "top",   n: "Вершина",           k: ["t:3", "t:4", "t:5"],          b: 25, r: 15000 },
+  { id: "leg",   n: "Легенды",           k: ["s:АМР", "s:ЕКХ"],             b: 30, r: 40000 }
 ];
-GOALS.forEach(g => Lprops(g, "t"));
-function renderGoal() {
-  const g = GOALS[S.goal], el = $("goal");
-  if (!g) { el.style.display = "none"; return; }
-  el.style.display = "flex";
-  el.innerHTML = `<span>🎯</span><div><b>${g.t}</b>${g.p ? " <small>(" + g.p() + ")</small>" : ""}<br><small>${L("Награда:")} ${fmt(g.r)} 💰</small></div>`;
+SETS.forEach(s => Lprops(s, "n"));
+const setBonus = () => SETS.reduce((a, s) => a + (S.sets[s.id] ? s.b : 0), 0) / 100;
+const setsDone = () => SETS.filter(s => S.sets[s.id]).length;
+const setHave = s => s.k.filter(k => S.found[k]).length;
+function keyLabel(k) {
+  const [t, v] = [k.slice(0, 1), k.slice(2)];
+  return t === "t" ? TIERS[+v].name : t === "d" ? v : t === "r" ? L("рег. {0}", v) : v;
 }
-function checkGoal() {
-  let moved = false;
-  while (GOALS[S.goal] && GOALS[S.goal].c()) {
-    const g = GOALS[S.goal]; gain(g.r); S.goal++; moved = true;
-    Snd.level(); toast(L("🎯 Цель выполнена: +{0} 💰", fmt(g.r))); fx.fly(innerWidth / 2, 160, 6);
+function setProgress(k) {                               // новый элемент коллекции: показываем, сколько осталось до набора
+  const s = SETS.find(x => !S.sets[x.id] && x.k.includes(k)); if (!s) return;
+  const have = setHave(s);
+  if (s.k.length - have === 1) toast(L("📚 Набору «{0}» не хватает одного номера!", s.n));   // о каждом новом номере не сообщаем — только когда набор почти собран
+}
+function checkSets() {
+  for (const s of SETS) {
+    if (S.sets[s.id] || setHave(s) < s.k.length) continue;
+    S.sets[s.id] = true; gain(s.r);
+    enqueueCinema({ color: "#7dff8a", bg: "#0c2a18", icon: "📚", cls: "long", top: L("Набор коллекции собран"), title: s.n.toUpperCase(), value: s.r, valueLabel: L("НАГРАДА"), valueIcon: "💰", sub: L("+{0}% к доходу гаража навсегда", s.b), confetti: 80 });
   }
-  if (moved || GOALS[S.goal]) renderGoal();
 }
+function setsHTML() {
+  let h = `<div class="card sets"><h3>${L("📚 Коллекция")} <small>${L("{0}/{1} наборов · +{2}% к доходу", setsDone(), SETS.length, Math.round(setBonus() * 100))}</small></h3>
+    <p class="sets-hint">${L("Собери все номера набора — получишь награду и вечный бонус к доходу. Новые номера дают покупки и слияния.")}</p>`;
+  SETS.forEach(s => {
+    const done = S.sets[s.id];
+    h += `<div class="set ${done ? "done" : ""}"><div class="set-h"><b>${s.n}</b><small>${done ? "✅ +" + s.b + "%" : "+" + s.b + "% · " + fmt(s.r) + " 💰"}</small></div>
+      <div class="set-k">${s.k.map(k => `<span class="${S.found[k] ? "on" : ""}">${S.found[k] ? keyLabel(k) : "?"}</span>`).join("")}</div></div>`;
+  });
+  return h + "</div>";
+}
+
+// ===================== СЮЖЕТ: персонажи, диалоги, обучение, главы =====================
+// Все персонажи вымышленные. Реплики — массивы [кто, текст]; текст переводится при показе.
+const upSum = () => UPS.reduce((a, u) => a + up(u.id), 0);
+const garageVal = () => S.plates.reduce((a, p) => a + p.val, 0);
+const hasBlat = () => S.tc[3] + S.tc[4] + S.tc[5] >= 1 || S.mergeBest >= 3;
+const hasLegend = () => S.tc[4] + S.tc[5] >= 1 || S.mergeBest >= 4;
+const CHARS = {
+  valera: { n: "Дядя Валера",      i: "👴", c: "#ffd23f" },
+  artur:  { n: "Артур «Номерной»", i: "😎", c: "#ff3d71" },
+  tamara: { n: "Тамара",           i: "👩‍🦰", c: "#4fc3f7" },
+  gosha:  { n: "Гоша-блогер",      i: "🤳", c: "#b388ff" },
+  sanych: { n: "Сан Саныч",        i: "🧔", c: "#7dff8a" },
+  liza:   { n: "Лиза",             i: "👩‍💼", c: "#ff9a3c" }
+};
+Object.values(CHARS).forEach(c => Lprops(c, "n"));
+const CLIENT_LINE = { tamara: "Чтобы как у людей!", gosha: "Для ролика, бро!", sanych: "На дачу ездить солидно", liza: "Клиенту в подарок" };
+const DUEL = 25000;                                     // стоимость гаража Артура в главе «Дуэль»
+// задание: c — условие, либо v/n — счётчик с прогресс-баром
+const STORY = [
+  { t: "Гараж на окраине", r: 300,
+    intro: [],
+    tasks: [{ t: "Пройди обучение у дяди Валеры", c: () => S.tut < 0 }],
+    outro: [["valera", "Ну всё, гараж твой. Держи на развитие — и не подведи старика!"]] },
+  { t: "Первые клиенты", r: 600,
+    intro: [["tamara", "Здравствуйте! Мне сказали, тут номера продают… Нужен красивый, чтобы как у людей!"],
+            ["valera", "Видал? Клиенты пошли. Заказы теперь во вкладке «Заказы» — платят больше, чем скупщики."]],
+    tasks: [{ t: "Выполни 2 заказа", v: () => S.ordersDone, n: 2 }, { t: "Сделай 3 слияния", v: () => S.merges, n: 3 }],
+    outro: [["tamara", "Ой, какая красота! Всем подругам расскажу!"], ["valera", "Сарафанное радио — лучшая реклама. Молодец!"]] },
+  { t: "Соперник", r: 1500, title: "Коллекционер",
+    intro: [["artur", "Это что, гараж? Я думал, сарай. И номера у тебя — как у курьера."],
+            ["valera", "Не слушай его, это Артур «Номерной», главный коллекционер района. Собери пару наборов и добудь блатной — пусть знает."]],
+    tasks: [{ t: "Собери 2 набора коллекции", v: setsDone, n: 2 }, { t: "Выбей или слей блатной номер", c: hasBlat }],
+    outro: [["artur", "Ладно, признаю: для новичка неплохо. Но до меня тебе далеко."]] },
+  { t: "Большая ставка", r: 3000, title: "Рисковый",
+    intro: [["artur", "Настоящие коллекционеры номера не копят — тюнингуют. Слабо рискнуть по-крупному?"],
+            ["valera", "Возьми его на слабо. Только с головой: ставь то, что не жалко."]],
+    tasks: [{ t: "Удачные улучшения в «Тюнинге»", v: () => S.forge.wins, n: 3 }, { t: "Купи улучшения", v: upSum, n: 5 }],
+    outro: [["artur", "…Хм, рука у тебя лёгкая. Но это ещё ничего не значит."]] },
+  { t: "Дуэль", r: 6000, title: "Гроза Артура",
+    intro: [["artur", "Давай по-честному: чей гараж дороже — тот и король района. Мой стоит 25 000."],
+            ["valera", "Номера в гараже считаются по стоимости. Сливай, тюнингуй — и обгони его!"]],
+    tasks: [{ t: "Гараж дороже, чем у Артура", v: garageVal, n: DUEL }, { t: "Достигни 8 уровня", v: () => S.lvl, n: 8 }],
+    outro: [["artur", "Не может быть… Ладно. Район твой. Но в Москве тебя съедят."], ["valera", "Слышал? Москва зовёт. Готовься к переезду."]] },
+  { t: "Переезд в Москву", r: 10000, title: "Столичный",
+    intro: [["valera", "В Москве номера дороже, а связи важнее денег. Переедешь — начнёшь с нуля, но со связями ⭐."],
+            ["valera", "Переезд — во вкладке «Ещё», с 10 уровня. А гараж я за тобой придержу."]],
+    tasks: [{ t: "Достигни 10 уровня", v: () => S.lvl, n: 10 }, { t: "Переезжай в Москву (престиж)", c: () => S.prest >= 1 }],
+    outro: [["valera", "Ну как столица? Говорят, там уже про тебя спрашивают."], ["artur", "Ты и тут? Ну, посмотрим, кто кого."]] },
+  { t: "Охота за АМР", r: 50000, title: "Король номеров",
+    intro: [["gosha", "Бро, ходит слух: где-то есть «АМР» 97-го с красивыми цифрами. Найдёшь — сниму про тебя ролик!"],
+            ["artur", "Я ищу его пять лет. Удачи, новичок."]],
+    tasks: [{ t: "Выбей или слей легенду", c: hasLegend }, { t: "Собери наборы коллекции", v: setsDone, n: 8 }, { t: "Добудь суперлегенду", c: () => S.tc[5] >= 1 || S.mergeBest >= 5 }],
+    outro: [["gosha", "Миллион просмотров за ночь! Ты теперь легенда, бро!"], ["artur", "…Снимаю шляпу. Король номеров — ты."], ["valera", "Я всегда знал. Горжусь, племяш!"]] }
+];
+const taskDone = t => t.c ? !!t.c() : t.v() >= t.n;
+function renderGoal() {                                 // блок над бланками: текущая глава и её задания
+  const el = $("goal"), C = STORY[S.story.ch]; let h;
+  if (!C) h = `<span>👑</span><div class="gbody"><b>${L("История пройдена!")}</b><br><small>${L("Ты — король номеров. Охоться за суперлегендами и собирай коллекцию дальше.")}</small></div>`;
+  else h = `<span>📖</span><div class="gbody"><small class="gch">${L("Глава {0} · {1}", S.story.ch + 1, L(C.t))}</small>` +
+    C.tasks.map(t => { const d = taskDone(t), v = t.v ? Math.min(t.v(), t.n) : 0;
+      return `<div class="gt ${d ? "ok" : ""}">${d ? "✅" : "▫️"} ${L(t.t)}${t.v && !d ? ` <small>(${fmt(v)}/${fmt(t.n)})</small>` : ""}</div>` +
+        (t.v && !d ? `<div class="gbar"><i style="width:${v / t.n * 100}%"></i></div>` : ""); }).join("") +
+    `<small>${L("Награда:")} ${fmt(C.r)} 💰${C.title ? " · " + L("титул «{0}»", L(C.title)) : ""}</small></div>`;
+  el.style.display = "flex"; el.dataset.act = "storyReplay";
+  if (el._h !== h) { el._h = h; el.innerHTML = h; }
+}
+function checkStory() {                                 // вступление главы → задания → финал с наградой
+  const C = STORY[S.story.ch]; if (!C) return;
+  if (!S.story.intro) { S.story.intro = true; save(); renderGoal(); if (C.intro.length) say(C.intro); return; }
+  if (!C.tasks.every(taskDone)) return;
+  const n = S.story.ch + 1;
+  S.story.ch++; S.story.intro = false; gain(C.r); if (C.title) S.title = C.title;   // награда записана сразу, сцены — следом
+  save(); renderGoal(); renderHeader(); syncNav();
+  say(C.outro, () => enqueueCinema({ color: "#ffd23f", bg: "#2a2005", icon: "📖", cls: "long", top: L("Глава {0} пройдена", n), title: L(C.t).toUpperCase(),
+    value: C.r, valueLabel: L("НАГРАДА"), valueIcon: "💰", sub: C.title ? L("Новый титул: «{0}»", L(C.title)) : "", confetti: 90 }));
+}
+function sayOnce(id, lines) { if (S.story.ev[id]) return; S.story.ev[id] = 1; say(lines); }
+function storyEvents() {                                // короткие реплики на яркие моменты
+  if (S.tut >= 0) return;
+  if (hasBlat()) sayOnce("blat", [["valera", "Вот это да, блатной! Я такой первый раз увидел через год таксования."]]);
+  if (hasLegend()) sayOnce("leg", [["valera", "Племяш… это легенда. Я такую видел один раз в жизни — и то издалека."], ["artur", "Откуда?! Ладно, не задавайся."]]);
+  if (S.forge.tries > S.forge.wins) sayOnce("ffail", [["valera", "Мастер дал — мастер взял. Не вешай нос, в следующий раз повезёт."]]);
+  if (S.ordersDone >= 5) sayOnce("ord5", [["gosha", "Бро, я про твой гараж пост запилил. Жди клиентов!"]]);
+  if (S.plates.length >= slots()) sayOnce("full", [["valera", "Гараж забит! Сливай одинаковые номера или купи места в «Апгрейдах»."]]);
+}
+
+// ---------- окно реплик ----------
+const Talk = { q: [], cur: null, i: 0, typeT: null, full: "" };
+const TK = { el: $("talk") }; ["dim", "hole", "finger", "box", "ava", "name", "text", "next", "skip"].forEach(k => TK[k] = TK.el.querySelector(".tk-" + k));
+function say(lines, then) { Talk.q.push({ lines: lines.slice(), then }); }
+const talkBusy = () => rolling || forging || miniRun || jpState || cinemaQueue.length || !$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden");
+function tkSet(who, text) {
+  const c = CHARS[who]; TK.box.style.setProperty("--cc", c.c); TK.ava.textContent = c.i; TK.name.textContent = c.n;
+  clearInterval(Talk.typeT); Talk.full = text; let i = 0; TK.text.textContent = "";
+  Talk.typeT = setInterval(() => { i += 2; TK.text.textContent = text.slice(0, i); if (i % 8 === 0) Snd.tick(i); if (i >= text.length) { clearInterval(Talk.typeT); Talk.typeT = null; } }, 22);
+}
+function tkFinish() { if (!Talk.typeT) return false; clearInterval(Talk.typeT); Talk.typeT = null; TK.text.textContent = Talk.full; return true; }
+function dlgLine() { const [who, text] = Talk.cur.lines[Talk.i]; tkSet(who, L(text)); }
+function dlgNext() {
+  if (tkFinish()) return;
+  if (++Talk.i < Talk.cur.lines.length) return dlgLine();
+  const then = Talk.cur.then; Talk.cur = null; TK.el.classList.add("hidden"); if (then) then();
+}
+function dlgStart(item) {
+  Talk.cur = item; Talk.i = 0; Tut.block = false; Tut.txt = "";
+  TK.el.className = "dlg"; TK.box.className = "tk-box bottom"; TK.next.style.display = ""; TK.skip.style.display = "none";
+  TK.hole.style.display = TK.finger.style.display = "none";   // подсветка от обучения в диалоге не нужна
+  dlgLine();
+}
+
+// ---------- обучение: дядя Валера подсвечивает нужную кнопку ----------
+// el — что подсветить (строка или функция), done — когда шаг пройден, next — шаг с кнопкой «Дальше», free — не блокировать другие нажатия
+const forgeEl = () => !S.forge.sel.length ? (forgeView === "mine" ? "#fgrid .fcard" : '[data-act="forgeView"][data-v="mine"]')
+  : !S.forge.target ? (forgeView === "targets" ? "#fgrid .fcard" : '[data-act="forgeView"][data-v="targets"]') : "#btnSpin";
+const TUT = [
+  { say: "Здорово, племяш! Я — дядя Валера. Отдаю тебе свой старый гараж: будешь собирать красивые номера. Я подскажу, что к чему.", next: true },
+  { say: "Вот бланк номера. Жми — посмотрим, что выпадет!", el: '[data-act="buy"][data-pack="basic"]', done: () => S.drawn >= 1 },
+  { say: "Есть! Ставь его в гараж — номера в гараже приносят деньги каждую секунду.", el: '[data-act="keepPending"]', done: () => S.plates.length >= 1 && !pending },
+  { say: () => L("Обычные номера — тоже не мусор. Купи ещё бланков, пока не наберётся три одинаковых ({0}/3).", Math.min(tierCount(0), 3)), el: '[data-act="buy"][data-pack="basic"]', done: () => !!document.querySelector(".mergebtn") },
+  { say: "А теперь фокус: три одинаковых номера сливаем в один получше. Жми!", el: ".mergebtn", done: () => S.merges >= 1 },
+  { say: "Загляни в гараж — там твоя коллекция.", el: 'nav button[data-tab="garage"]', done: () => tab === "garage" },
+  { say: "Собираешь наборы — получаешь награду и вечный бонус к доходу. Первый набор ты уже собрал!", el: "#tab-garage .sets .set", next: true, free: true },
+  { say: "Хочешь рискнуть? В «Тюнинге» номер можно поднять подороже… или потерять.", el: 'nav button[data-tab="forge"]', done: () => tab === "forge" },
+  { say: () => !S.forge.sel.length ? L(forgeView === "mine" ? "Отметь номер, который поставишь на кон." : "Открой «Мои номера» и отметь, что ставишь.")
+      : !S.forge.target ? L(forgeView === "targets" ? "Выбери, во что превратить. Чем дешевле цель — тем выше шанс." : "Теперь открой «Выбери цель».")
+      : L("Жми «Прокачать»! Первый раз мастер точно не подведёт."), el: forgeEl, free: true, done: () => S.forge.tries >= 1 },
+  { say: "Видал, как стрелка крутится? Но в другой раз может и не повезти. Возвращайся к бланкам.", el: 'nav button[data-tab="buy"]', done: () => tab === "buy" },
+  { say: "Кончатся деньги — таксуй, как я в молодости. Тапни пару раз!", el: "#btnTaxi", done: () => S.taxis >= Tut.base + 3 },
+  { say: "Всё, дальше сам. Над бланками будут задания — по ним и иди. Удачи, племяш!", next: true }
+];
+TUT.forEach(s => typeof s.say === "string" && Lprops(s, "say"));
+const Tut = { block: false, target: null, txt: "", base: 0, scrolled: -1 };
+const shown = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+function tutHide() { TK.el.classList.add("hidden"); Tut.block = false; Tut.target = null; }
+function tutGo(n) { S.tut = n; Tut.base = S.taxis; Tut.txt = ""; if (n >= TUT.length) S.tut = -1; save(); tutHide(); renderGoal(); }
+function tutTick() {
+  const st = TUT[S.tut]; if (!st) return tutGo(-1);
+  if (st.done && st.done()) return tutGo(S.tut + 1);
+  const sel = typeof st.el === "function" ? st.el() : st.el;
+  const tg = sel ? [...document.querySelectorAll(sel)].find(shown) : null;
+  if (sel && !tg) { tutHide(); return; }                // нужная кнопка ещё не на экране — ждём
+  if (tg && Tut.scrolled !== S.tut) { Tut.scrolled = S.tut; tg.scrollIntoView({ block: "center", behavior: "smooth" }); }
+  TK.el.className = tg ? "" : "dlg"; Tut.target = tg; Tut.block = !st.free;
+  TK.next.style.display = st.next ? "" : "none"; TK.skip.style.display = "";
+  const txt = typeof st.say === "function" ? st.say() : st.say;
+  if (txt !== Tut.txt) { Tut.txt = txt; tkSet("valera", txt); }
+  if (!tg) { TK.hole.style.display = TK.finger.style.display = "none"; TK.box.className = "tk-box bottom"; return; }
+  const r = tg.getBoundingClientRect(), pad = 6, low = r.top + r.height / 2 > innerHeight * 0.55;
+  Object.assign(TK.hole.style, { display: "block", left: r.left - pad + "px", top: r.top - pad + "px", width: r.width + pad * 2 + "px", height: r.height + pad * 2 + "px" });
+  TK.hole.classList.toggle("dim", !st.free);
+  TK.box.className = "tk-box " + (low ? "top" : "bottom");
+  TK.finger.style.display = "block"; TK.finger.textContent = low ? "👇" : "👆"; TK.finger.classList.toggle("up", !low);
+  TK.finger.style.left = r.left + r.width / 2 - 18 + "px"; TK.finger.style.top = (low ? r.top - 46 : r.bottom + 4) + "px";
+}
+TK.el.addEventListener("click", e => {
+  if (Talk.cur) return dlgNext();
+  if (e.target.closest(".tk-skip")) { tutGo(-1); toast(L("Обучение пропущено")); return; }
+  const st = TUT[S.tut]; if (st && st.next && !tkFinish()) tutGo(S.tut + 1);
+});
+document.addEventListener("click", e => {               // во время подсказки нажимается только подсвеченная кнопка
+  if (!Tut.block || TK.el.classList.contains("hidden") || e.target.closest("#talk")) return;
+  if (Tut.target && Tut.target.contains(e.target)) return;
+  e.stopPropagation(); e.preventDefault();
+}, true);
+setInterval(() => {
+  if (Talk.cur) return;
+  if (talkBusy()) { if (!TK.el.classList.contains("hidden")) tutHide(); return; }
+  if (Talk.q.length) return dlgStart(Talk.q.shift());
+  if (S.tut >= 0) return tutTick();
+  checkStory();
+}, 200);
 
 // ===================== ИСТОРИЯ НОМЕРА =====================
 // Все истории вымышленные: любые совпадения с реальными людьми и организациями случайны.
@@ -1419,7 +1688,9 @@ const ACTS = {
     toast(L("🔥 Доход ×2 на 5 минут!")); fx.confetti(50); vignette("#ffd23f"); Snd.level(); renderPills(); renderHeader(); save();
   }),
   ad: () => { if (Date.now() < S.adNext) return; rewardedAd(() => { const v = adReward(); gain(v); S.adNext = Date.now() + AD_GAP; toast("+" + fmt(v) + " 💰"); Snd.sell(); fx.fly(innerWidth / 2, innerHeight - 140, 12); renderHeader(); save(); }); },
-  sellPlate: d => sellPlate(+d.id), sellTier: d => sellTier(+d.t),
+  sellPlate: d => sellPlate(+d.id), sellTier: d => sellTier(+d.t), merge: d => doMerge(+d.t),
+  achClaim: d => claimAch([d.id]), achClaimAll: () => claimAch(Object.keys(S.achClaim)),
+  storyReplay: () => { const C = STORY[S.story.ch]; if (C && C.intro.length && !Talk.cur && S.tut < 0) say(C.intro); },   // тап по заданию — ещё раз послушать главу
   forgeToggle: d => {
     if (forging) return; const id = +d.id, i = S.forge.sel.indexOf(id);
     if (i >= 0) S.forge.sel.splice(i, 1); else S.forge.sel.push(id);
@@ -1486,7 +1757,7 @@ function renderTab() {
   if (tab === "garage") renderGarage(); else if (tab === "forge") renderForge(); else if (tab === "orders") renderOrders(); else if (tab === "up") renderUps(); else if (tab === "more") renderMore(); else renderPacks();
   refreshDisabled();
 }
-function renderAll() { renderHeader(); renderPills(); renderPacks(); updatePity(); renderTab(); updateOrderDot(); }
+function renderAll() { syncNav(); updateMoreDot(); renderHeader(); renderPills(); renderPacks(); updatePity(); renderTab(); updateOrderDot(); }
 
 // ===================== ГЛАВНЫЙ ЦИКЛ =====================
 let lastTick = Date.now(), botT = 0, saveT = 0;
@@ -1506,7 +1777,7 @@ setInterval(() => {
       botT = 0; const c = packPrice("basic");
       if (S.coins >= c * 3 && !rolling) {
         S.coins -= c; S.bought++; const r = drawPlate("basic"); markFound(r); S.tc[r.tier]++; addXp(3);
-        if (r.tier <= Math.max(S.set.auto, 0)) { gain(sellVal(r)); S.sold++; } else { keepPlate(r); toast(L("🤖 Помощник купил: {0} ({1})", r.l1 + r.d + r.l23 + " " + r.reg, TIERS[r.tier].name)); }
+        if (r.tier <= S.set.auto) { gain(sellVal(r)); S.sold++; } else { keepPlate(r); if (r.tier >= 1) toast(L("🤖 Помощник купил: {0} ({1})", r.l1 + r.d + r.l23 + " " + r.reg, TIERS[r.tier].name)); }
         updatePity(); renderPacks();
       }
     }
@@ -1517,6 +1788,7 @@ setInterval(() => {
   document.querySelectorAll("[data-until]").forEach(el => { const left = +el.dataset.until - now; if (left <= 0) { el.removeAttribute("data-until"); if (tab === "more") renderMore(); else if (tab === "orders") renderOrders(); } else el.textContent = mmss(left); });
   if (tab === "garage" && Math.floor(S.playSec) % 5 === 0) renderGarage();
   if (++saveT >= 5) { saveT = 0; checkAch(); save(); }
+  if (tab === "buy" && !rolling) renderMergeBar();
 }, 1000);
 addEventListener("pagehide", save);
 addEventListener("beforeunload", save);

@@ -34,11 +34,12 @@
         <div class="note" id="note"></div>
         <div class="pity"><div class="bar"><i id="pitybar"></i></div><small id="pitytxt"></small></div>
       </div>
-      <div class="goal" id="goal"></div>
       <div class="row" id="resolveRow" style="display:none">
         <button class="btn alt" data-act="sellPending" id="btnSell">Продать</button>
         <button class="btn green" data-act="keepPending" data-i18n>В гараж</button>
       </div>
+      <div id="mergeBar" style="display:none"></div>
+      <div class="goal" id="goal"></div>
       <div id="packs"></div>
       <div class="row">
         <button class="btn alt" id="btnTaxi" data-act="taxi">🚕 Таксовать</button>
@@ -61,7 +62,7 @@
     <button data-tab="forge"><span>🔨</span><b data-i18n>Тюнинг</b></button>
     <button data-tab="orders"><span>📋</span><b data-i18n>Заказы</b><em id="orderDot"></em></button>
     <button data-tab="up"><span>⚙</span><b data-i18n>Апгрейды</b></button>
-    <button data-tab="more"><span>☰</span><b data-i18n>Ещё</b></button>
+    <button data-tab="more"><span>☰</span><b data-i18n>Ещё</b><em id="moreDot"></em></button>
   </nav>
 </div>
 
@@ -73,6 +74,9 @@
 <div id="modal" class="hidden"><div class="mbox" id="mbox"></div></div>
 <div id="adwait" class="hidden">📺</div>
 <div id="menu" class="hidden"></div>
+<div id="talk" class="hidden"><div class="tk-dim"></div><div class="tk-hole"></div><div class="tk-finger">👆</div>
+  <div class="tk-box bottom"><div class="tk-ava"></div><div class="tk-body"><b class="tk-name"></b><p class="tk-text"></p></div>
+    <button class="tk-next" data-i18n>Дальше ▸</button><button class="tk-skip" data-i18n>Пропустить обучение</button></div></div>
 
 <script src="i18n.js"></script>
 <script src="platform.js"></script>
