@@ -136,6 +136,20 @@ small{color:var(--dim);font-size:11px}
 .subbar{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border-radius:12px;border:1px solid #ffd23f66;background:linear-gradient(135deg,#1f2a4a,#161b29);font-size:13px}
 .subbar span{flex:1;color:var(--gold);font-weight:bold}.subbar .btn{flex:0 0 auto;font-size:13px;padding:8px 10px;box-shadow:0 3px 0 #26803e}
 .subbtn{font-size:15px}.subbtn b{color:inherit;white-space:nowrap}
+.btn.star{background:linear-gradient(135deg,#ffd23f,#ff9a3c);box-shadow:0 4px 0 #a8620f;color:#3a2200}
+.shopbtn{display:flex;align-items:center;gap:10px;text-align:left}.shopbtn span{flex:1}.shopbtn small{display:block;font-weight:normal;font-size:12px;opacity:.85;margin-top:2px}
+#jpShare{width:70%;max-width:280px;opacity:0;pointer-events:none;transition:opacity .4s;margin-top:8px}
+#jpShare.on{opacity:1;pointer-events:auto}
+.sale{font-style:normal;font-size:11px;background:#e0475b;color:#fff;padding:2px 6px;border-radius:6px;vertical-align:middle}
+.toplist{text-align:left;padding:6px 10px}.toprow{display:flex;gap:8px;align-items:center;padding:7px 4px;border-bottom:1px solid #ffffff12;font-size:14px}
+.toprow span{width:28px;text-align:center}.toprow b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.toprow i{font-style:normal;color:var(--gold)}
+.toprow.me{background:#ffd23f22;border-radius:8px}
+.quests .qrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #ffffff12;text-align:left}
+.quests .qrow>div{flex:1}.quests .qrow b{font-size:14px}.quests .qrow small{display:block;font-size:12px;color:#8d99b3}
+.quests .bar{height:6px;background:#0005;border-radius:4px;margin:5px 0 2px;overflow:hidden}.quests .bar i{display:block;height:100%;background:var(--ok)}
+.quests .chest{border-bottom:0}
+.btn.star.shopbtn small{color:#5a3500;opacity:1}
+.shopbtn b{white-space:nowrap;background:#0006;color:#ffd23f;padding:6px 9px;border-radius:9px}
 .card.done{border-color:var(--ok)}
 .card p{margin:0 0 8px;font-size:12px;color:var(--dim);line-height:1.35}
 .card .btn{margin-top:4px}
