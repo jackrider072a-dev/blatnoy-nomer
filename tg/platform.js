@@ -165,6 +165,11 @@ const YA_ADAPTER = (() => {
 // CloudStorage хранит до 4096 символов на ключ, поэтому сохранение режется на куски, как в VK. Рекламы в Telegram нет — кнопки рекламы скрыты.
 const TG_ADAPTER = (() => {
   let tg = null, q = Promise.resolve();
+  const SERVER = "https://blatnoy-nomer.blatnoy.workers.dev";   // server/ — Cloudflare Worker: игроки и проверка подписки на канал
+  // запрос к серверу с подписанными данными запуска; null — сервер недоступен (сеть, блокировка) или нет данных Telegram
+  const api = path => !tg || !tg.initData ? Promise.resolve(null) :
+    Promise.race([fetch(SERVER + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ initData: tg.initData }) })
+      .then(r => r.json()).then(j => j && j.ok ? j : null), new Promise(r => setTimeout(() => r(null), 8000))]).catch(() => null);
   const call = (fn, ...a) => new Promise((ok, fail) => tg.CloudStorage[fn](...a, (e, r) => e ? fail(e) : ok(r)));
   const has = v => tg.isVersionAtLeast && tg.isVersionAtLeast(v);
   return {
@@ -205,6 +210,9 @@ const TG_ADAPTER = (() => {
     happytime() { try { tg.HapticFeedback.notificationOccurred("success"); } catch (e) {} },
     // t.me открывается внутри Telegram, остальные ссылки — во внешнем браузере (window.open в мини-аппе не работает)
     openLink(url) { try { /^https:\/\/t\.me\//.test(url) ? tg.openTelegramLink(url) : tg.openLink(url); } catch (e) { window.open(url, "_blank"); } },
+    // подписан ли игрок на канал: true/false — ответ сервера, null — проверить нельзя
+    hello: () => api("/api/hello").then(j => j && j.sub),
+    checkSub: () => api("/api/sub").then(j => j && j.sub),
     load() {
       return call("getItem", "bn_n").then(v => {
         const n = +v || 0;
@@ -268,6 +276,8 @@ const Platform = (() => {
     },
     happytime() { if (a.happytime) a.happytime(); },
     openLink(url) { if (a.openLink) a.openLink(url); else window.open(url, "_blank"); },
+    hello: () => a.hello ? a.hello() : Promise.resolve(null),
+    checkSub: () => a.checkSub ? a.checkSub() : Promise.resolve(null),
     // цель в Яндекс Метрике — счётчик есть только в сборке tg (metrika-tg.html), на других площадках ничего не делает
     track(goal, params) { try { if (window.ym && window.YM_ID) ym(YM_ID, "reachGoal", goal, params); } catch (e) {} },
     load: () => a.load ? a.load() : Promise.resolve(null),

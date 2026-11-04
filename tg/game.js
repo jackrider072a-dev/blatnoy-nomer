@@ -1648,7 +1648,11 @@ Platform.init({
   busy: b => $("adwait").classList.toggle("hidden", !b),
   ads: () => { renderPacks(); renderHeader(); if (tab === "more") renderMore(); if (tab === "forge") renderForge(); },   // реклама стала недоступна — прячем её кнопки
   lang: l => { if (I18N.set(l)) { applyLang(); if (!$("menu").classList.contains("hidden")) showMenu(); } }
-}).then(() => { renderSubs(); if (Platform.hasCloud) cloudLoad(); });
+}).then(() => {
+  renderSubs(); if (Platform.hasCloud) cloudLoad();
+  // Telegram: игрок регистрируется на сервере; уже подписан на канал (например, подписался и закрыл игру) — бонус сразу
+  if (Platform.name === "tg") Platform.hello().then(sub => { Platform.track(sub === null ? "srv_fail" : "srv_ok"); if (sub) setTimeout(() => subGrant("tg", 0), 2500); });
+});
 // в ВК при каждом запуске — стартовое меню (каталог ВК Игр, п. 4.2.10); на других площадках оно открывается из «Ещё»
 if (/[?&](vk_app_id|vk_user_id)=|[?&]platform=vk\b/.test(location.search)) showMenu();
 // ----- облачное сохранение (если площадка его даёт). localStorage остаётся запасным вариантом.
@@ -1693,13 +1697,28 @@ function renderSubs() {                               // компактная п
   const left = S.tut === -1 ? subsLeft() : [];
   $("subs").innerHTML = left.length ? `<div class="subbar"><span>🎁 ${L("За подписку")}</span>${left.map(s => `<button class="btn sm green" data-act="subGo" data-k="${s.k}">${s.ico} ${L(s.k === "tg" ? "Канал" : "ВК")} +${fmt(subReward())}</button>`).join("")}</div>` : "";
 }
+function subGrant(k, delay) {
+  if (S.subs[k]) return;
+  S.subs[k] = 1; save();
+  const v = subReward();
+  setTimeout(() => { gain(v); toast(L("Спасибо за подписку! +{0} 💰", fmt(v))); Snd.sell(); fx.confetti(40); save(); closeModal(); renderSubs(); renderHeader(); if (tab === "more") renderMore(); }, delay);
+}
+let subWait = 0, subBusy = false;
 function subGo(k) {
   const s = SUBS.find(x => x.k === k); if (!s || S.subs[k]) return;
   Platform.openLink(s.url); Platform.track("sub_" + k);
-  S.subs[k] = 1; save();                              // без сервера подписку не проверить — бонус приходит, когда игрок возвращается из паблика
-  const v = subReward();
-  setTimeout(() => { gain(v); toast(L("Спасибо за подписку! +{0} 💰", fmt(v))); Snd.sell(); fx.confetti(40); save(); closeModal(); renderSubs(); renderHeader(); if (tab === "more") renderMore(); }, 2500);
+  if (k === "tg") { subWait = Date.now(); closeModal(); return; }   // подписку на канал проверяет сервер (subPoll)
+  subGrant(k, 2500);                                  // группу ВК проверить нельзя — бонус приходит, когда игрок возвращается
 }
+setInterval(function subPoll() {                      // ждём подписку на канал до 2 минут после нажатия; сервер недоступен — верим на слово
+  if (!subWait || subBusy || document.hidden || S.subs.tg || Date.now() - subWait < 3000) return;
+  subBusy = true;
+  Platform.checkSub().then(ok => {
+    subBusy = false; if (!subWait) return;
+    if (ok !== false) { subWait = 0; Platform.track(ok ? "sub_tg_ok" : "sub_tg_nocheck"); subGrant("tg", 0); }
+    else if (Date.now() - subWait > 120000) { subWait = 0; toast(L("Подписка на канал не найдена — подпишись и нажми кнопку ещё раз")); }
+  });
+}, 3000);
 setInterval(() => {                                   // время от времени зовём подписаться: после обучения, раз в 4 минуты игры, не больше 6 раз
   if (!subsLeft().length || S.tut !== -1 || S.subs.n >= 6 || S.playSec - S.subs.at < 240) return;
   if (!$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden") || jpState || Talk.cur || rolling || pending || cinemaQueue.length) return;
