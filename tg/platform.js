@@ -167,8 +167,8 @@ const TG_ADAPTER = (() => {
   let tg = null, q = Promise.resolve();
   const SERVER = "https://blatnoy-nomer.blatnoy.workers.dev";   // server/ — Cloudflare Worker: игроки и проверка подписки на канал
   // запрос к серверу с подписанными данными запуска; null — сервер недоступен (сеть, блокировка) или нет данных Telegram
-  const api = path => !tg || !tg.initData ? Promise.resolve(null) :
-    Promise.race([fetch(SERVER + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ initData: tg.initData }) })
+  const api = (path, extra) => !tg || !tg.initData ? Promise.resolve(null) :
+    Promise.race([fetch(SERVER + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ initData: tg.initData }, extra)) })
       .then(r => r.json()).then(j => j && j.ok ? j : null), new Promise(r => setTimeout(() => r(null), 8000))]).catch(() => null);
   const call = (fn, ...a) => new Promise((ok, fail) => tg.CloudStorage[fn](...a, (e, r) => e ? fail(e) : ok(r)));
   const has = v => tg.isVersionAtLeast && tg.isVersionAtLeast(v);
@@ -210,9 +210,19 @@ const TG_ADAPTER = (() => {
     happytime() { try { tg.HapticFeedback.notificationOccurred("success"); } catch (e) {} },
     // t.me открывается внутри Telegram, остальные ссылки — во внешнем браузере (window.open в мини-аппе не работает)
     openLink(url) { try { /^https:\/\/t\.me\//.test(url) ? tg.openTelegramLink(url) : tg.openLink(url); } catch (e) { window.open(url, "_blank"); } },
-    // подписан ли игрок на канал: true/false — ответ сервера, null — проверить нельзя
-    hello: () => api("/api/hello").then(j => j && j.sub),
+    // hello → { sub: подписан на канал, notify: боту можно писать } или null; checkSub → true/false, null — проверить нельзя
+    hello: () => api("/api/hello"),
     checkSub: () => api("/api/sub").then(j => j && j.sub),
+    // состояние для напоминаний; text/plain + keepalive — дойдёт и при закрытии игры, без предварительного запроса CORS
+    state(obj) {
+      if (!tg || !tg.initData) return;
+      try { fetch(SERVER + "/api/state", { method: "POST", keepalive: true, headers: { "Content-Type": "text/plain" }, body: JSON.stringify(Object.assign({ initData: tg.initData }, obj)) }).catch(() => {}); } catch (e) {}
+    },
+    // системный запрос Telegram «разрешить боту писать вам»; true — разрешил
+    askNotify: () => new Promise(res => {
+      if (!tg || !has("6.9")) return res(false);
+      try { tg.requestWriteAccess(ok => { if (ok) api("/api/notify", { on: 1 }); res(!!ok); }); } catch (e) { res(false); }
+    }),
     load() {
       return call("getItem", "bn_n").then(v => {
         const n = +v || 0;
@@ -278,6 +288,8 @@ const Platform = (() => {
     openLink(url) { if (a.openLink) a.openLink(url); else window.open(url, "_blank"); },
     hello: () => a.hello ? a.hello() : Promise.resolve(null),
     checkSub: () => a.checkSub ? a.checkSub() : Promise.resolve(null),
+    state(obj) { if (a.state) a.state(obj); },
+    askNotify: () => a.askNotify ? a.askNotify() : Promise.resolve(false),
     // цель в Яндекс Метрике — счётчик есть только в сборке tg (metrika-tg.html), на других площадках ничего не делает
     track(goal, params) { try { if (window.ym && window.YM_ID) ym(YM_ID, "reachGoal", goal, params); } catch (e) {} },
     load: () => a.load ? a.load() : Promise.resolve(null),

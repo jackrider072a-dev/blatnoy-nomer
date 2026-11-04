@@ -1651,8 +1651,26 @@ Platform.init({
 }).then(() => {
   renderSubs(); if (Platform.hasCloud) cloudLoad();
   // Telegram: игрок регистрируется на сервере; уже подписан на канал (например, подписался и закрыл игру) — бонус сразу
-  if (Platform.name === "tg") Platform.hello().then(sub => { Platform.track(sub === null ? "srv_fail" : "srv_ok"); if (sub) setTimeout(() => subGrant("tg", 0), 2500); });
+  if (Platform.name === "tg") Platform.hello().then(j => {
+    Platform.track(j ? "srv_ok" : "srv_fail"); if (!j) return;
+    srvOK = true;
+    if (j.sub) setTimeout(() => subGrant("tg", 0), 2500);
+    if (j.notify && !S.subs.notif) { S.subs.notif = 1; save(); }   // уже нажимал /start в боте — напоминания и так включены, не спрашиваем
+    sendState();
+  });
 });
+// ----- напоминания от бота (только Telegram): сервер знает, сколько копит гараж, и пишет игроку, когда тот давно не заходил
+let srvOK = false;                                     // сервер ответил на hello — без него напоминания не работают, и спрашивать о них незачем
+function sendState() { if (Platform.name === "tg") Platform.state({ full: Math.round(income() * 1800), streak: S.daily.streak, lvl: S.lvl }); }   // 1800 = офлайн-доход за час (половина обычного)
+setInterval(sendState, 120000);
+document.addEventListener("visibilitychange", () => { if (document.hidden) sendState(); });
+setInterval(() => {                                   // один раз после обучения: «включить напоминания?», затем системный запрос Telegram
+  if (!srvOK || S.subs.notif || S.tut !== -1 || S.playSec < 120 || !S.plates.length) return;
+  if (!$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden") || jpState || Talk.cur || rolling || pending || cinemaQueue.length) return;
+  S.subs.notif = 1; save(); Platform.track("notif_ask");
+  openModal(`<h2>${L("🔔 Напоминания")}</h2><p>${L("Гараж копит деньги, пока тебя нет, но только час. Бот напишет, когда он заполнится и когда будет готов ежедневный бонус.")}</p>
+    <button class="btn green" data-act="notifOn">${L("🔔 Включить")}</button><button class="btn alt" data-act="closeModal">${L("Не надо")}</button>`);
+}, 10000);
 // в ВК при каждом запуске — стартовое меню (каталог ВК Игр, п. 4.2.10); на других площадках оно открывается из «Ещё»
 if (/[?&](vk_app_id|vk_user_id)=|[?&]platform=vk\b/.test(location.search)) showMenu();
 // ----- облачное сохранение (если площадка его даёт). localStorage остаётся запасным вариантом.
@@ -1731,6 +1749,7 @@ const ACTS = {
   buy: d => buy(d.pack), buy10: d => buyMany(d.pack),
   sellPending: () => resolvePending(true), keepPending: () => resolvePending(false),
   subGo: d => subGo(d.k),
+  notifOn: () => { closeModal(); Platform.askNotify().then(ok => { Platform.track(ok ? "notif_on" : "notif_off"); toast(ok ? L("🔔 Напоминания включены") : L("Напоминания выключены — их можно включить, нажав /start в боте")); if (ok) sendState(); }); },
   taxi: (d, e) => taxi(e),
   offlineDouble: (d, e, el) => {                      // удвоить офлайн-доход за рекламу (один раз на окно)
     if (el.dataset.used) return; el.dataset.used = 1; el.disabled = true;
