@@ -161,7 +161,7 @@ const YA_ADAPTER = (() => {
 })();
 
 // ----- Telegram Mini App: Telegram передаёт параметры запуска в адресе (#tgWebAppData=...), ?platform=tg — для проверки в обычном браузере.
-// telegram-web-app.js грузится уже после старта игры: тег в <head> блокировал бы страницу, пока telegram.org не ответит.
+// telegram-web-app.js лежит в сборке (telegram.org в РФ бывает недоступен) и грузится уже после старта игры, не задерживая страницу.
 // CloudStorage хранит до 4096 символов на ключ, поэтому сохранение режется на куски, как в VK. Рекламы в Telegram нет — кнопки рекламы скрыты.
 const TG_ADAPTER = (() => {
   let tg = null, q = Promise.resolve();
@@ -174,11 +174,12 @@ const TG_ADAPTER = (() => {
     adsOK: false,
     init(ctx) {
       if (window.Telegram && Telegram.WebApp) return this.start(ctx);
-      return new Promise((ok, fail) => {
+      const load = src => new Promise((ok, fail) => {
         const s = document.createElement("script");
-        s.src = "https://telegram.org/js/telegram-web-app.js"; s.onload = ok; s.onerror = fail;
+        s.src = src; s.onload = ok; s.onerror = fail;
         document.head.appendChild(s);
-      }).then(() => this.start(ctx));
+      });
+      return load("telegram-web-app.js").catch(() => load("https://telegram.org/js/telegram-web-app.js")).then(() => this.start(ctx));
     },
     start(ctx) {
       if (!window.Telegram || !Telegram.WebApp) return Promise.reject();
