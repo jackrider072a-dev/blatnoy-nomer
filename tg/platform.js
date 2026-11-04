@@ -169,7 +169,7 @@ const TG_ADAPTER = (() => {
   const has = v => tg.isVersionAtLeast && tg.isVersionAtLeast(v);
   return {
     name: "tg",
-    detect: () => /tgWebAppData=|tgWebAppVersion=/.test(location.hash) || /[?&]platform=tg\b/.test(location.search),
+    detect: () => window.TG_BUILD === true || /tgWebAppData=|tgWebAppVersion=/.test(location.hash) || /[?&]platform=tg\b/.test(location.search),
     noInterstitial: true,
     adsOK: false,
     init(ctx) {
@@ -179,10 +179,13 @@ const TG_ADAPTER = (() => {
         s.src = src; s.onload = ok; s.onerror = fail;
         document.head.appendChild(s);
       });
-      return load("telegram-web-app.js").catch(() => load("https://telegram.org/js/telegram-web-app.js")).then(() => this.start(ctx));
+      return load("telegram-web-app.js").catch(() => load("https://telegram.org/js/telegram-web-app.js")).catch(() => {}).then(() => this.start(ctx));
     },
     start(ctx) {
-      if (!window.Telegram || !Telegram.WebApp) return Promise.reject();
+      setTimeout(() => ctx.ads(), 0);                              // когда Platform уже переключится на этот адаптер — спрятать кнопки рекламы
+      if (!window.Telegram || !Telegram.WebApp) {                  // SDK не загрузился: остаёмся Telegram-версией без рекламы, но без облака
+        this.load = this.save = this.openLink = null; ctx.lang("ru"); return Promise.resolve();
+      }
       tg = Telegram.WebApp;
       const u = tg.initDataUnsafe && tg.initDataUnsafe.user;
       ctx.lang((u && u.language_code) || "ru");
@@ -194,7 +197,6 @@ const TG_ADAPTER = (() => {
         if (has("8.0")) { tg.onEvent("deactivated", () => ctx.pause(true)); tg.onEvent("activated", () => ctx.pause(false)); }
         if (has("6.1")) document.addEventListener("click", e => { if (e.target.closest("button")) tg.HapticFeedback.impactOccurred("light"); }, true);
       } catch (e) {}
-      setTimeout(() => ctx.ads(), 0);                              // когда Platform уже переключится на этот адаптер — спрятать кнопки рекламы
       if (!has("6.9")) this.load = this.save = null;               // старый клиент без облака — только localStorage
       return Promise.resolve();
     },
