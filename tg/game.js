@@ -86,13 +86,15 @@ const fresh = () => ({
   daily: { last: "", streak: 0 }, mini: { best: 0, next: 0, plays: 0 },
   set: { music: true, sfx: true, vib: true, auto: -1, city: true }, market: null, t: Date.now(), nid: 1,
   playSec: 0, ordersDone: 0, buffUntil: 0, buyers: 0, taxis: 0, botAcc: 0, adNext: 0,
-  subs: { at: 0, n: 0 }                                // бонусы за подписку (только Telegram): tg/vk — получено, at/n — когда и сколько раз звали
+  subs: { at: 0, n: 0 },                               // бонусы за подписку (только Telegram): tg/vk — получено, at/n — когда и сколько раз звали
+  paid: { x2: 0, got: [] }                             // покупки за звёзды (Telegram): x2 — доход ×2 навсегда, got — id уже выданных платежей
 });
 let S = fresh();
 function normalize(r) {                              // сохранение (локальное или облачное) → полное состояние игры
   const s = Object.assign(fresh(), r); s.set = Object.assign(fresh().set, r.set); s.mini = Object.assign(fresh().mini, r.mini); s.daily = Object.assign(fresh().daily, r.daily);
   s.forge = Object.assign(fresh().forge, r.forge);                        // мастерская: старые сейвы с другим форматом
   s.subs = Object.assign(fresh().subs, r.subs);
+  s.paid = Object.assign(fresh().paid, r.paid); if (!Array.isArray(s.paid.got)) s.paid.got = [];
   s.story = Object.assign(fresh().story, r.story); s.story.ev = Object.assign({}, s.story.ev);
   if (!r.story) s.tut = r.drawn > 0 ? -1 : 0;                              // сейв до сюжета: опытным игрокам обучение не показываем
   if (!Array.isArray(s.forge.sel)) s.forge.sel = [];
@@ -368,7 +370,7 @@ function markFound(p) {
 // ===================== ЭКОНОМИКА =====================
 function gain(n) { S.coins += n; S.earned += n; S.earnedRun += n; }
 const slots = () => 12 + 2 * up("slots");
-function incMult() { return (1 + 0.25 * up("park")) * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus()) * (Date.now() < S.buffUntil ? 2 : 1); }
+function incMult() { return (1 + 0.25 * up("park")) * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus()) * (Date.now() < S.buffUntil ? 2 : 1) * (S.paid.x2 ? 2 : 1); }
 function income() { let s = 0; for (const p of S.plates) s += p.val; return s / INC_DIV * incMult(); }
 const plateInc = p => p.val / INC_DIV * incMult();
 const packPrice = id => Math.max(60, Math.round(PACKS[id].price * Math.pow(0.93, up("disc"))));
@@ -773,6 +775,7 @@ function renderPacks() {
 // кнопки рекламы прячем, если площадка её не даёт (блокировщик, пробный запуск) — пустых кнопок быть не должно
 function syncAdButtons() {
   $("btnAd").style.display = Platform.adsOK ? "" : "none";
+  $("btnShop").style.display = Platform.canPay && S.tut === -1 ? "" : "none";   // магазин за звёзды — Telegram, после обучения
   $("btnBuff").style.display = Platform.adsOK && S.lvl >= 3 && S.plates.length ? "" : "none";   // доход ×2 имеет смысл, когда гараж уже приносит деньги
 }
 // вкладки открываются по мере роста, чтобы новичок не тонул в кнопках
@@ -919,6 +922,7 @@ function renderMore() {
   const miniWait = S.mini.next - Date.now(), canMini = S.lvl >= 4 && miniWait <= 0;
   let h = `<h2>${L("☰ Ещё")}</h2>
   <div class="row"><button class="btn alt" data-act="menuOpen">${L("☰ Главное меню")}</button><button class="btn alt" data-act="menuHow">${L("📖 Как играть")}</button></div>
+  ${Platform.canPay ? `<button class="btn star" data-act="shop">${L("⭐ Магазин — деньги, номера, ×2 навсегда")}</button>` : ""}
   ${subsLeft().length ? `<div class="card subcard"><h3>${L("🎁 Бонус за подписку")}</h3>${subsHTML("green")}</div>` : ""}
   ${achWaiting() ? `<div class="card achbox"><h3>${L("🏆 Награды за достижения")}</h3><p>${L("Готово к получению: {0}", achWaiting())}</p>
     <button class="btn green ready" data-act="achClaimAll">${L("Забрать всё (+{0} 💰)", fmt(Object.keys(S.achClaim).reduce((s, id) => s + achReward(ACH.find(a => a.id === id) || { r: 0 }), 0)))}</button></div>` : ""}
@@ -950,7 +954,7 @@ function renderMore() {
 const prestigeGain = () => Math.floor(Math.sqrt(S.earnedRun / 1500000));
 function doPrestige() {
   const g = prestigeGain(); if (g < 1) return;
-  const keep = { drawn: S.drawn, goal: S.goal, achClaim: S.achClaim, story: S.story, tut: S.tut, title: S.title, sets: S.sets, merges: S.merges, mergeBest: S.mergeBest, forge: Object.assign({}, S.forge, { sel: [], coins: 0, target: null, lots: [], boost: false }), found: S.found, ach: S.ach, lvl: S.lvl, xp: S.xp, set: S.set, mini: S.mini, daily: S.daily, tc: S.tc, bought: S.bought, sold: S.sold, earned: S.earned, ordersDone: S.ordersDone, playSec: S.playSec, taxis: S.taxis, buyers: S.buyers };
+  const keep = { drawn: S.drawn, goal: S.goal, achClaim: S.achClaim, story: S.story, tut: S.tut, title: S.title, sets: S.sets, merges: S.merges, mergeBest: S.mergeBest, forge: Object.assign({}, S.forge, { sel: [], coins: 0, target: null, lots: [], boost: false }), found: S.found, ach: S.ach, lvl: S.lvl, xp: S.xp, set: S.set, mini: S.mini, daily: S.daily, tc: S.tc, bought: S.bought, sold: S.sold, earned: S.earned, ordersDone: S.ordersDone, playSec: S.playSec, taxis: S.taxis, buyers: S.buyers, subs: S.subs, paid: S.paid };   // покупки и бонусы за подписку переезд не обнуляет
   const n = fresh(); Object.assign(n, keep); n.pts = S.pts + g; n.prest = S.prest + 1; n.nid = S.nid; n.coins = START_COINS + 200 * n.pts;
   S = n; pending = null; closeModal(); cinemaQueue.length = 0;
   enqueueCinema({ color: "#ffb300", bg: "#3a2a05", big: true, icon: "🏛", top: L("Переезд в Москву"), title: L("НОВАЯ ЖИЗНЬ"), value: g, valueLabel: L("СВЯЗИ ПОЛУЧЕНО"), valueIcon: "⭐",
@@ -1662,7 +1666,9 @@ Platform.init({
     if (j.sub) setTimeout(() => subGrant("tg", 0), 2500);
     if (j.notify && !S.subs.notif) { S.subs.notif = 1; save(); }   // уже нажимал /start в боте — напоминания и так включены, не спрашиваем
     sendState();
+    if (Platform.canPay) claimPaid(1);                 // покупки, оплаченные, когда игра была закрыта
   });
+  renderPacks();                                       // кнопка магазина зависит от площадки
 });
 // ----- напоминания от бота (только Telegram): сервер знает, сколько копит гараж, и пишет игроку, когда тот давно не заходил
 let srvOK = false;                                     // сервер ответил на hello — без него напоминания не работают, и спрашивать о них незачем
@@ -1749,11 +1755,61 @@ setInterval(() => {                                   // время от вре�
   openModal(`<h2>${L("🎁 Бонус за подписку")}</h2><p>${L("Подпишись на наши паблики — там новые номера, конкурсы и секреты игры. За каждую подписку:")} <b style="color:var(--gold)">+${fmt(subReward())} 💰</b></p>
     ${subsHTML("green")}<button class="btn alt" data-act="closeModal">${L("Позже")}</button>`);
 }, 10000);
+// ----- магазин за звёзды (только Telegram). Цены и выдача товара — на сервере (server/src/worker.js, ITEMS), игра только показывает и выдаёт.
+const SHOP = [
+  { k: "cash_s", st: 25, ico: "💰", n: "Пачка денег", d: () => L("+{0} 💰 — 30 минут дохода", fmt(shopCash("cash_s"))) },
+  { k: "blat", st: 49, ico: "🚘", n: "Блатной номер", d: () => L("Случайный блатной — сразу в гараж") },
+  { k: "cash_l", st: 99, ico: "💼", n: "Чемодан денег", d: () => L("+{0} 💰 — 3 часа дохода", fmt(shopCash("cash_l"))) },
+  { k: "legend", st: 149, ico: "👑", n: "Легенда", d: () => L("Случайный легендарный номер — сразу в гараж") },
+  { k: "x2", st: 199, ico: "🔥", n: "Доход ×2 навсегда", d: () => L("Гараж приносит вдвое больше — навсегда, даже после переезда") }
+];
+const shopCash = k => k === "cash_l" ? Math.max(20000, Math.round(income() * 10800 / 10) * 10) : Math.max(3000, Math.round(income() * 1800 / 10) * 10);
+function openShop() {
+  Platform.track("shop_open");
+  openModal(`<h2>${L("⭐ Магазин")}</h2><p>${L("Покупки за звёзды Telegram. Спасибо, что поддерживаешь игру!")}</p>
+    ${SHOP.filter(s => !(s.k === "x2" && S.paid.x2)).map(s => `<button class="btn ${s.k === "x2" ? "star" : "alt"} shopbtn" data-act="shopBuy" data-k="${s.k}"><span>${s.ico} ${L(s.n)}<small>${s.d()}</small></span><b>⭐ ${s.st}</b></button>`).join("")}
+    ${S.paid.x2 ? `<div class="hint">${L("🔥 Доход ×2 навсегда уже куплен")}</div>` : ""}
+    <div class="hint">${L("Условия покупок — /terms, помощь с оплатой — /paysupport в боте.")}</div>
+    <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
+}
+function shopGrant(item) {
+  if (item === "cash_s" || item === "cash_l") { const v = shopCash(item); gain(v); toast(L("⭐ Покупка: +{0} 💰", fmt(v))); Snd.sell(); fx.fly(innerWidth / 2, innerHeight / 2, 20); fx.confetti(80); }
+  else if (item === "blat" || item === "legend") { const p = makePlate(item === "blat" ? 3 : 4); markFound(p); keepPlate(p); jackpot(p); }
+  else if (item === "x2") { S.paid.x2 = 1; toast(L("🔥 Доход ×2 навсегда!")); vignette("#ffd23f"); fx.confetti(120); Snd.level(); }
+  else return;
+  Platform.track("paid_" + item); Platform.happytime();
+}
+// забрать оплаченное: при запуске (вдруг игру закрыли во время оплаты) и сразу после оплаты — вебхук может прийти на секунду позже
+let claimBusy = false;
+function claimPaid(tries, afterPay) {
+  if (claimBusy) return; claimBusy = true;
+  Platform.claim().then(items => {
+    claimBusy = false;
+    const got = (items || []).filter(x => !S.paid.got.includes(x.id));
+    if (got.length) {
+      got.forEach(x => { S.paid.got.push(x.id); shopGrant(x.item); });
+      S.paid.got = S.paid.got.slice(-50); save(); cloudFlush(true); renderAll();
+    } else if (tries > 1) setTimeout(() => claimPaid(tries - 1, afterPay), 2000);
+    else if (afterPay) toast(L("Оплата получена — покупка зачислится при следующем запуске игры"));
+  });
+}
+let shopBusy = false;
+function shopBuy(k) {
+  if (shopBusy) return; shopBusy = true; Platform.track("shop_try_" + k);
+  Platform.buy(k).then(st => {
+    shopBusy = false;
+    if (st === "paid") { closeModal(); claimPaid(8, true); }
+    else if (st === "pending") { closeModal(); toast(L("Оплата обрабатывается — покупка придёт сама")); claimPaid(15, true); }
+    else if (st === "noserver") toast(L("Магазин сейчас недоступен — проверь интернет и попробуй позже"));
+    else if (st === "failed") toast(L("Оплата не прошла"));
+  });
+}
 // ===================== ДЕЛЕГИРОВАНИЕ КЛИКОВ =====================
 const ACTS = {
   buy: d => buy(d.pack), buy10: d => buyMany(d.pack),
   sellPending: () => resolvePending(true), keepPending: () => resolvePending(false),
   subGo: d => subGo(d.k),
+  shop: () => openShop(), shopBuy: d => shopBuy(d.k),
   notifOn: () => { closeModal(); Platform.askNotify().then(ok => { Platform.track(ok ? "notif_on" : "notif_off"); toast(ok ? L("🔔 Напоминания включены") : L("Напоминания выключены — их можно включить, нажав /start в боте")); if (ok) sendState(); }); },
   taxi: (d, e) => taxi(e),
   offlineDouble: (d, e, el) => {                      // удвоить офлайн-доход за рекламу (один раз на окно)

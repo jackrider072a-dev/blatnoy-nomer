@@ -223,6 +223,12 @@ const TG_ADAPTER = (() => {
       if (!tg || !has("6.9")) return res(false);
       try { tg.requestWriteAccess(ok => { if (ok) api("/api/notify", { on: 1 }); res(!!ok); }); } catch (e) { res(false); }
     }),
+    // покупка за звёзды: счёт от сервера → окно оплаты Telegram → "paid" | "cancelled" | "failed" | "pending" | "noserver"
+    get canPay() { return !!(tg && tg.initData && has("6.1")); },
+    buy: item => api("/api/invoice", { item }).then(j => !j || !j.link ? "noserver" :
+      new Promise(res => { try { tg.openInvoice(j.link, st => res(st)); } catch (e) { res("failed"); } })),
+    // оплаченные, но ещё не выданные покупки: [{ id, item }]; null — сервер недоступен
+    claim: () => api("/api/claim").then(j => j ? j.items || [] : null),
     load() {
       return call("getItem", "bn_n").then(v => {
         const n = +v || 0;
@@ -290,6 +296,9 @@ const Platform = (() => {
     checkSub: () => a.checkSub ? a.checkSub() : Promise.resolve(null),
     state(obj) { if (a.state) a.state(obj); },
     askNotify: () => a.askNotify ? a.askNotify() : Promise.resolve(false),
+    get canPay() { return !!a.canPay; },                  // покупки за звёзды — только в Telegram
+    buy: item => a.buy ? a.buy(item) : Promise.resolve("noserver"),
+    claim: () => a.claim ? a.claim() : Promise.resolve(null),
     // цель в Яндекс Метрике — счётчик есть только в сборке tg (metrika-tg.html), на других площадках ничего не делает
     track(goal, params) { try { if (window.ym && window.YM_ID) ym(YM_ID, "reachGoal", goal, params); } catch (e) {} },
     load: () => a.load ? a.load() : Promise.resolve(null),
