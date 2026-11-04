@@ -132,6 +132,10 @@ small{color:var(--dim);font-size:11px}
 /* узкие телефоны (360px): номер и кнопка поменьше, иначе описание сжимается в колонку по слову */
 @media (max-width:400px){.item{gap:8px;padding:8px}.item .plate.small{--ph:28px;--pf:16px}.item button{max-width:84px;padding:8px}}
 .card{background:var(--card);border-radius:14px;padding:12px 14px;margin-bottom:10px;border:1px solid #232b40}
+.subcard{margin-top:10px;border-color:#ffd23f66;background:linear-gradient(135deg,#1f2a4a,#161b29)}.subcard h3{margin:0}.subcard p{margin:4px 0 0;font-size:13px;color:var(--dim)}
+.subbar{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border-radius:12px;border:1px solid #ffd23f66;background:linear-gradient(135deg,#1f2a4a,#161b29);font-size:13px}
+.subbar span{flex:1;color:var(--gold);font-weight:bold}.subbar .btn{flex:0 0 auto;font-size:13px;padding:8px 10px;box-shadow:0 3px 0 #26803e}
+.subbtn{font-size:15px}.subbtn b{color:inherit;white-space:nowrap}
 .card.done{border-color:var(--ok)}
 .card p{margin:0 0 8px;font-size:12px;color:var(--dim);line-height:1.35}
 .card .btn{margin-top:4px}

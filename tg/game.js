@@ -85,12 +85,14 @@ const fresh = () => ({
   tc: [0, 0, 0, 0, 0, 0], pity: 0, xp: 0, lvl: 1, pts: 0, prest: 0, orders: [], ordAt: 0, ach: {},
   daily: { last: "", streak: 0 }, mini: { best: 0, next: 0, plays: 0 },
   set: { music: true, sfx: true, vib: true, auto: -1, city: true }, market: null, t: Date.now(), nid: 1,
-  playSec: 0, ordersDone: 0, buffUntil: 0, buyers: 0, taxis: 0, botAcc: 0, adNext: 0
+  playSec: 0, ordersDone: 0, buffUntil: 0, buyers: 0, taxis: 0, botAcc: 0, adNext: 0,
+  subs: { at: 0, n: 0 }                                // бонусы за подписку (только Telegram): tg/vk — получено, at/n — когда и сколько раз звали
 });
 let S = fresh();
 function normalize(r) {                              // сохранение (локальное или облачное) → полное состояние игры
   const s = Object.assign(fresh(), r); s.set = Object.assign(fresh().set, r.set); s.mini = Object.assign(fresh().mini, r.mini); s.daily = Object.assign(fresh().daily, r.daily);
   s.forge = Object.assign(fresh().forge, r.forge);                        // мастерская: старые сейвы с другим форматом
+  s.subs = Object.assign(fresh().subs, r.subs);
   s.story = Object.assign(fresh().story, r.story); s.story.ev = Object.assign({}, s.story.ev);
   if (!r.story) s.tut = r.drawn > 0 ? -1 : 0;                              // сейв до сюжета: опытным игрокам обучение не показываем
   if (!Array.isArray(s.forge.sel)) s.forge.sel = [];
@@ -914,6 +916,7 @@ function renderMore() {
   const miniWait = S.mini.next - Date.now(), canMini = S.lvl >= 4 && miniWait <= 0;
   let h = `<h2>${L("☰ Ещё")}</h2>
   <div class="row"><button class="btn alt" data-act="menuOpen">${L("☰ Главное меню")}</button><button class="btn alt" data-act="menuHow">${L("📖 Как играть")}</button></div>
+  ${subsLeft().length ? `<div class="card subcard"><h3>${L("🎁 Бонус за подписку")}</h3>${subsHTML("green")}</div>` : ""}
   ${achWaiting() ? `<div class="card achbox"><h3>${L("🏆 Награды за достижения")}</h3><p>${L("Готово к получению: {0}", achWaiting())}</p>
     <button class="btn green ready" data-act="achClaimAll">${L("Забрать всё (+{0} 💰)", fmt(Object.keys(S.achClaim).reduce((s, id) => s + achReward(ACH.find(a => a.id === id) || { r: 0 }), 0)))}</button></div>` : ""}
   <div class="card"><h3>${L("🎣 Поймай номер")}</h3><p>${L("Мини-игра на 25 секунд: лови падающие номера тапом — блатные дороже! Но не трогай 🚔.")} ${L("Рекорд:")} <b>${fmt(S.mini.best)}</b></p>
@@ -1443,7 +1446,7 @@ TUT.forEach(s => typeof s.say === "string" && Lprops(s, "say"));
 const Tut = { block: false, target: null, txt: "", base: 0, scrolled: -1 };
 const shown = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
 function tutHide() { TK.el.classList.add("hidden"); Tut.block = false; Tut.target = null; }
-function tutGo(n) { S.tut = n; Tut.base = S.taxis; Tut.txt = ""; if (n >= TUT.length) S.tut = -1; save(); tutHide(); renderGoal(); }
+function tutGo(n) { S.tut = n; Tut.base = S.taxis; Tut.txt = ""; if (n >= TUT.length) S.tut = -1; save(); tutHide(); renderGoal(); renderSubs(); }
 function tutTick() {
   const st = TUT[S.tut]; if (!st) return tutGo(-1);
   if (st.done && st.done()) return tutGo(S.tut + 1);
@@ -1640,7 +1643,7 @@ Platform.init({
   busy: b => $("adwait").classList.toggle("hidden", !b),
   ads: () => { renderPacks(); renderHeader(); if (tab === "more") renderMore(); if (tab === "forge") renderForge(); },   // реклама стала недоступна — прячем её кнопки
   lang: l => { if (I18N.set(l)) { applyLang(); if (!$("menu").classList.contains("hidden")) showMenu(); } }
-}).then(() => { if (Platform.hasCloud) cloudLoad(); });
+}).then(() => { renderSubs(); if (Platform.hasCloud) cloudLoad(); });
 // в ВК при каждом запуске — стартовое меню (каталог ВК Игр, п. 4.2.10); на других площадках оно открывается из «Ещё»
 if (/[?&](vk_app_id|vk_user_id)=|[?&]platform=vk\b/.test(location.search)) showMenu();
 // ----- облачное сохранение (если площадка его даёт). localStorage остаётся запасным вариантом.
@@ -1673,10 +1676,37 @@ function rewardedAd(cb) {                             // локально (бе�
   Platform.rewarded().then(ok => { if (ok) cb(); else toast(L("Реклама недоступна")); });
 }
 const interstitial = () => Platform.interstitial();
+// ----- бонусы за подписку на паблики — только в Telegram (правила Яндекса запрещают внешние ссылки, у ВК бонусы за вступление под запретом)
+const SUBS = [
+  { k: "tg", url: "https://t.me/blatnoynomer_tg", ico: "✈️", name: "Telegram-канал" },
+  { k: "vk", url: "https://vk.ru/nomer_blatnoy", ico: "💙", name: "группу ВКонтакте" }
+];
+const subsLeft = () => Platform.name === "tg" ? SUBS.filter(s => !S.subs[s.k]) : [];
+const subReward = () => Math.max(500, Math.round(income() * 300 / 10) * 10);   // ~5 минут дохода гаража, но не меньше 500
+const subsHTML = cls => subsLeft().map(s => `<button class="btn ${cls} subbtn" data-act="subGo" data-k="${s.k}">${s.ico} ${L("Подпишись на {0}", L(s.name))} <b>+${fmt(subReward())} 💰</b></button>`).join("");
+function renderSubs() {                               // компактная полоска на главном экране (после обучения), пока есть неполученные бонусы
+  const left = S.tut === -1 ? subsLeft() : [];
+  $("subs").innerHTML = left.length ? `<div class="subbar"><span>🎁 ${L("За подписку")}</span>${left.map(s => `<button class="btn sm green" data-act="subGo" data-k="${s.k}">${s.ico} ${L(s.k === "tg" ? "Канал" : "ВК")} +${fmt(subReward())}</button>`).join("")}</div>` : "";
+}
+function subGo(k) {
+  const s = SUBS.find(x => x.k === k); if (!s || S.subs[k]) return;
+  Platform.openLink(s.url);
+  S.subs[k] = 1; save();                              // без сервера подписку не проверить — бонус приходит, когда игрок возвращается из паблика
+  const v = subReward();
+  setTimeout(() => { gain(v); toast(L("Спасибо за подписку! +{0} 💰", fmt(v))); Snd.sell(); fx.confetti(40); save(); closeModal(); renderSubs(); renderHeader(); if (tab === "more") renderMore(); }, 2500);
+}
+setInterval(() => {                                   // время от времени зовём подписаться: после обучения, раз в 4 минуты игры, не больше 6 раз
+  if (!subsLeft().length || S.tut !== -1 || S.subs.n >= 6 || S.playSec - S.subs.at < 240) return;
+  if (!$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden") || jpState || Talk.cur || rolling || pending || cinemaQueue.length) return;
+  S.subs.at = S.playSec; S.subs.n++; save();
+  openModal(`<h2>${L("🎁 Бонус за подписку")}</h2><p>${L("Подпишись на наши паблики — там новые номера, конкурсы и секреты игры. За каждую подписку:")} <b style="color:var(--gold)">+${fmt(subReward())} 💰</b></p>
+    ${subsHTML("green")}<button class="btn alt" data-act="closeModal">${L("Позже")}</button>`);
+}, 10000);
 // ===================== ДЕЛЕГИРОВАНИЕ КЛИКОВ =====================
 const ACTS = {
   buy: d => buy(d.pack), buy10: d => buyMany(d.pack),
   sellPending: () => resolvePending(true), keepPending: () => resolvePending(false),
+  subGo: d => subGo(d.k),
   taxi: (d, e) => taxi(e),
   offlineDouble: (d, e, el) => {                      // удвоить офлайн-доход за рекламу (один раз на окно)
     if (el.dataset.used) return; el.dataset.used = 1; el.disabled = true;
@@ -1757,7 +1787,7 @@ function renderTab() {
   if (tab === "garage") renderGarage(); else if (tab === "forge") renderForge(); else if (tab === "orders") renderOrders(); else if (tab === "up") renderUps(); else if (tab === "more") renderMore(); else renderPacks();
   refreshDisabled();
 }
-function renderAll() { syncNav(); updateMoreDot(); renderHeader(); renderPills(); renderPacks(); updatePity(); renderTab(); updateOrderDot(); }
+function renderAll() { syncNav(); updateMoreDot(); renderHeader(); renderPills(); renderPacks(); renderSubs(); updatePity(); renderTab(); updateOrderDot(); }
 
 // ===================== ГЛАВНЫЙ ЦИКЛ =====================
 let lastTick = Date.now(), botT = 0, saveT = 0;

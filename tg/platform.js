@@ -200,6 +200,8 @@ const TG_ADAPTER = (() => {
     rewarded: () => Promise.resolve(false),
     interstitial: () => Promise.resolve(),
     happytime() { try { tg.HapticFeedback.notificationOccurred("success"); } catch (e) {} },
+    // t.me открывается внутри Telegram, остальные ссылки — во внешнем браузере (window.open в мини-аппе не работает)
+    openLink(url) { try { /^https:\/\/t\.me\//.test(url) ? tg.openTelegramLink(url) : tg.openLink(url); } catch (e) { window.open(url, "_blank"); } },
     load() {
       return call("getItem", "bn_n").then(v => {
         const n = +v || 0;
@@ -262,6 +264,7 @@ const Platform = (() => {
       blocking(() => a.interstitial().catch(() => {}));
     },
     happytime() { if (a.happytime) a.happytime(); },
+    openLink(url) { if (a.openLink) a.openLink(url); else window.open(url, "_blank"); },
     load: () => a.load ? a.load() : Promise.resolve(null),
     save: (obj, now) => a.save ? a.save(obj, now) : Promise.resolve()
   };
