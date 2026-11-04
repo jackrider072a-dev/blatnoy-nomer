@@ -85,12 +85,14 @@ const fresh = () => ({
   tc: [0, 0, 0, 0, 0, 0], pity: 0, xp: 0, lvl: 1, pts: 0, prest: 0, orders: [], ordAt: 0, ach: {},
   daily: { last: "", streak: 0 }, mini: { best: 0, next: 0, plays: 0 },
   set: { music: true, sfx: true, vib: true, auto: -1, city: true }, market: null, t: Date.now(), nid: 1,
-  playSec: 0, ordersDone: 0, buffUntil: 0, buyers: 0, taxis: 0, botAcc: 0, adNext: 0
+  playSec: 0, ordersDone: 0, buffUntil: 0, buyers: 0, taxis: 0, botAcc: 0, adNext: 0,
+  subs: { at: 0, n: 0 }                                // бонусы за подписку (только Telegram): tg/vk — получено, at/n — когда и сколько раз звали
 });
 let S = fresh();
 function normalize(r) {                              // сохранение (локальное или облачное) → полное состояние игры
   const s = Object.assign(fresh(), r); s.set = Object.assign(fresh().set, r.set); s.mini = Object.assign(fresh().mini, r.mini); s.daily = Object.assign(fresh().daily, r.daily);
   s.forge = Object.assign(fresh().forge, r.forge);                        // мастерская: старые сейвы с другим форматом
+  s.subs = Object.assign(fresh().subs, r.subs);
   s.story = Object.assign(fresh().story, r.story); s.story.ev = Object.assign({}, s.story.ev);
   if (!r.story) s.tut = r.drawn > 0 ? -1 : 0;                              // сейв до сюжета: опытным игрокам обучение не показываем
   if (!Array.isArray(s.forge.sel)) s.forge.sel = [];
@@ -395,6 +397,7 @@ function addXp(n) {
   S.xp += n;
   while (S.xp >= xpNeed(S.lvl)) {
     S.xp -= xpNeed(S.lvl); S.lvl++;
+    if ([2, 3, 5, 7, 10, 15, 20, 30].includes(S.lvl)) Platform.track("lvl_" + S.lvl);   // воронка в Метрике (только Telegram)
     const r = 60 * S.lvl; gain(r);
     const ut = unlockText(S.lvl);
     if (ut) {                                        // уровни, которые что-то открывают, — полноэкранная сцена (покажется, когда игрок не занят)
@@ -425,6 +428,7 @@ function buy(id) {
   ac(); Mus.start();
   if (pending) resolvePending(false);
   S.coins -= c; S.bought++; addXp(P.xp);
+  if (S.bought === 1 || S.bought === 10 || S.bought === 100) Platform.track("buy_" + S.bought);
   const r = drawPlate(id);
   rolling = true; skipReel = false;
   Snd.whoosh();
@@ -539,6 +543,7 @@ function mergeTake(t) {                                 // без анимаци
   S.plates = S.plates.filter(p => !ids.includes(p.id));
   const r = makePlate(t + 1); r.merged = true;
   S.plates.push(r); markFound(r); S.merges++; S.mergeBest = Math.max(S.mergeBest, r.tier); addXp(XP_TIER[r.tier]);
+  if (S.merges === 1) Platform.track("merge_first");
   return { r, src, tier: r.tier };
 }
 function doMerge(t) {
@@ -610,7 +615,7 @@ function tierChanceText(r) {
 }
 function jackpot(r, opts = {}) {                         // выпал блатной, легенда или суперлегенда: праздничная сцена (рулетка уже была при покупке)
   const t = r.tier, legend = t >= 4, sup = t === 5;
-  if (legend) Platform.happytime();
+  if (legend) { Platform.happytime(); Platform.track(sup ? "superlegend" : "legend"); }
   if (legend && window.BgCity) BgCity.event("legend");     // на фоне по дороге проносится кортеж с мигалками
   cinema({
     color: TIERS[t].color, big: legend, bg: sup ? "#06243a" : undefined, cls: sup ? "super" : "",
@@ -914,6 +919,7 @@ function renderMore() {
   const miniWait = S.mini.next - Date.now(), canMini = S.lvl >= 4 && miniWait <= 0;
   let h = `<h2>${L("☰ Ещё")}</h2>
   <div class="row"><button class="btn alt" data-act="menuOpen">${L("☰ Главное меню")}</button><button class="btn alt" data-act="menuHow">${L("📖 Как играть")}</button></div>
+  ${subsLeft().length ? `<div class="card subcard"><h3>${L("🎁 Бонус за подписку")}</h3>${subsHTML("green")}</div>` : ""}
   ${achWaiting() ? `<div class="card achbox"><h3>${L("🏆 Награды за достижения")}</h3><p>${L("Готово к получению: {0}", achWaiting())}</p>
     <button class="btn green ready" data-act="achClaimAll">${L("Забрать всё (+{0} 💰)", fmt(Object.keys(S.achClaim).reduce((s, id) => s + achReward(ACH.find(a => a.id === id) || { r: 0 }), 0)))}</button></div>` : ""}
   <div class="card"><h3>${L("🎣 Поймай номер")}</h3><p>${L("Мини-игра на 25 секунд: лови падающие номера тапом — блатные дороже! Но не трогай 🚔.")} ${L("Рекорд:")} <b>${fmt(S.mini.best)}</b></p>
@@ -1127,8 +1133,10 @@ function makePlate(tier) {
 }
 function genLots() {                                     // цели для улучшения: 11 номеров разной цены
   const lots = [];
-  // дорогие цели открываются с уровнем: блатные — с 4-го, легенды — с 10-го, иначе тюнинг сразу даёт легенду
-  [[1, S.lvl >= 4 ? 3 : 5], [2, S.lvl >= 4 ? 3 : 5], [3, S.lvl >= 4 ? 3 : 0], [4, S.lvl >= 10 ? 2 : 0]].forEach(([tier, n]) => {
+  // дорогие цели открываются с уровнем: блатные — с 4-го, легенды — с 10-го (иначе тюнинг сразу даёт легенду);
+  // но если в гараже уже есть номер нужной редкости, цель на ступень выше доступна сразу — иначе его некуда улучшать
+  const has = t => S.plates.some(p => p.tier >= t);
+  [[1, S.lvl >= 4 ? 3 : 5], [2, S.lvl >= 4 ? 3 : 5], [3, S.lvl >= 4 || has(2) ? 3 : 0], [4, S.lvl >= 10 || has(3) ? 2 : 0]].forEach(([tier, n]) => {
     for (let i = 0; i < n; i++) { const p = makePlate(tier); p.val = Math.round(TIERS[tier].val * (0.8 + Math.random() * 0.6)); lots.push({ id: S.nid++, plate: p, val: p.val }); }
   });
   S.forge.lots = lots.sort((a, b) => a.val - b.val); S.forge.lotsAt = Date.now() + 300000;
@@ -1155,13 +1163,16 @@ function forgeCardsHTML() {
     return list.map(p => { const on = S.forge.sel.includes(p.id);
       return `<div class="fcard t${p.tier}b ${on ? "on" : ""}" data-act="forgeToggle" data-id="${p.id}"><div class="fv">${fmt(p.val)} <i>●</i></div>${plateHTML(p, "mini")}<div class="fn">${TIERS[p.tier].name}</div><div class="fchk">✓</div></div>`; }).join("");
   }
+  const lock = !S.forge.lots.some(l => l.plate.tier >= 4)   // почему нет легенд — иначе кажется, что улучшать дальше некуда
+    ? `<div class="hint" style="grid-column:1/3">${L("🔒 Легенды появятся в целях, когда в гараже будет блатной номер (или с {0} уровня)", 10)}</div>` : "";
   return S.forge.lots.map(l => { const on = S.forge.target === l.id;
-    return `<div class="fcard t${l.plate.tier}b ${on ? "on" : ""}" data-act="forgeTarget" data-id="${l.id}"><div class="fv">${fmt(l.val)} <i>●</i></div>${plateHTML(l.plate, "mini")}<div class="fn">${TIERS[l.plate.tier].name}</div><div class="fb" data-lotv="${l.val}">0%</div><div class="fchk">✓</div></div>`; }).join("");
+    return `<div class="fcard t${l.plate.tier}b ${on ? "on" : ""}" data-act="forgeTarget" data-id="${l.id}"><div class="fv">${fmt(l.val)} <i>●</i></div>${plateHTML(l.plate, "mini")}<div class="fn">${TIERS[l.plate.tier].name}</div><div class="fb" data-lotv="${l.val}">0%</div><div class="fchk">✓</div></div>`; }).join("") + lock;
 }
 function renderForge() {
   if (forging) return;
   if (!S.drawn) { $("tab-forge").innerHTML = `<h2>${L("🔨 Мастерская тюнинга")}</h2><div class="hint">${L("Купи первый номер — и рискни улучшить его здесь")}</div>`; return; }
-  if (!S.forge.lots.length || Date.now() > S.forge.lotsAt) genLots();
+  const legendsDue = !S.forge.lots.some(l => l.plate.tier >= 4) && (S.lvl >= 10 || S.plates.some(p => p.tier >= 3));   // появился блатной — легенды в целях сразу, а не через 5 минут
+  if (!S.forge.lots.length || Date.now() > S.forge.lotsAt || legendsDue) genLots();
   S.forge.sel = S.forge.sel.filter(id => S.plates.some(p => p.id === id));
   const lot = curLot(), ps = selPlates();
   const inHTML = ps.length ? ps.slice(0, 4).map(p => plateHTML(p, "mini")).join("") + (ps.length > 4 ? `<div class="fmore">${L("+{0} ещё", ps.length - 4)}</div>` : "") : `<div class="fempty">${L("Выбери номера<br>из гаража ⬇")}</div>`;
@@ -1381,6 +1392,7 @@ function checkStory() {                                 // вступление 
   if (!C.tasks.every(taskDone)) return;
   const n = S.story.ch + 1;
   S.story.ch++; S.story.intro = false; gain(C.r); if (C.title) S.title = C.title;   // награда записана сразу, сцены — следом
+  Platform.track("chapter_" + S.story.ch);
   save(); renderGoal(); renderHeader(); syncNav();
   say(C.outro, () => enqueueCinema({ color: "#ffd23f", bg: "#2a2005", icon: "📖", cls: "long", top: L("Глава {0} пройдена", n), title: L(C.t).toUpperCase(),
     value: C.r, valueLabel: L("НАГРАДА"), valueIcon: "💰", sub: C.title ? L("Новый титул: «{0}»", L(C.title)) : "", confetti: 90 }));
@@ -1443,7 +1455,8 @@ TUT.forEach(s => typeof s.say === "string" && Lprops(s, "say"));
 const Tut = { block: false, target: null, txt: "", base: 0, scrolled: -1 };
 const shown = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
 function tutHide() { TK.el.classList.add("hidden"); Tut.block = false; Tut.target = null; }
-function tutGo(n) { S.tut = n; Tut.base = S.taxis; Tut.txt = ""; if (n >= TUT.length) S.tut = -1; save(); tutHide(); renderGoal(); }
+function tutGo(n) { S.tut = n; Tut.base = S.taxis; Tut.txt = ""; if (n >= TUT.length) S.tut = -1;
+  if (S.tut === -1) Platform.track(n === -1 ? "tut_skip" : "tut_done"); else if (n > 0) Platform.track("tut_" + n); save(); tutHide(); renderGoal(); renderSubs(); }
 function tutTick() {
   const st = TUT[S.tut]; if (!st) return tutGo(-1);
   if (st.done && st.done()) return tutGo(S.tut + 1);
@@ -1640,7 +1653,29 @@ Platform.init({
   busy: b => $("adwait").classList.toggle("hidden", !b),
   ads: () => { renderPacks(); renderHeader(); if (tab === "more") renderMore(); if (tab === "forge") renderForge(); },   // реклама стала недоступна — прячем её кнопки
   lang: l => { if (I18N.set(l)) { applyLang(); if (!$("menu").classList.contains("hidden")) showMenu(); } }
-}).then(() => { if (Platform.hasCloud) cloudLoad(); });
+}).then(() => {
+  renderSubs(); if (Platform.hasCloud) cloudLoad();
+  // Telegram: игрок регистрируется на сервере; уже подписан на канал (например, подписался и закрыл игру) — бонус сразу
+  if (Platform.name === "tg") Platform.hello().then(j => {
+    Platform.track(j ? "srv_ok" : "srv_fail"); if (!j) return;
+    srvOK = true;
+    if (j.sub) setTimeout(() => subGrant("tg", 0), 2500);
+    if (j.notify && !S.subs.notif) { S.subs.notif = 1; save(); }   // уже нажимал /start в боте — напоминания и так включены, не спрашиваем
+    sendState();
+  });
+});
+// ----- напоминания от бота (только Telegram): сервер знает, сколько копит гараж, и пишет игроку, когда тот давно не заходил
+let srvOK = false;                                     // сервер ответил на hello — без него напоминания не работают, и спрашивать о них незачем
+function sendState() { if (Platform.name === "tg") Platform.state({ full: Math.round(income() * 1800), streak: S.daily.streak, lvl: S.lvl }); }   // 1800 = офлайн-доход за час (половина обычного)
+setInterval(sendState, 120000);
+document.addEventListener("visibilitychange", () => { if (document.hidden) sendState(); });
+setInterval(() => {                                   // один раз после обучения: «включить напоминания?», затем системный запрос Telegram
+  if (!srvOK || S.subs.notif || S.tut !== -1 || S.playSec < 120 || !S.plates.length) return;
+  if (!$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden") || jpState || Talk.cur || rolling || pending || cinemaQueue.length) return;
+  S.subs.notif = 1; save(); Platform.track("notif_ask");
+  openModal(`<h2>${L("🔔 Напоминания")}</h2><p>${L("Гараж копит деньги, пока тебя нет, но только час. Бот напишет, когда он заполнится и когда будет готов ежедневный бонус.")}</p>
+    <button class="btn green" data-act="notifOn">${L("🔔 Включить")}</button><button class="btn alt" data-act="closeModal">${L("Не надо")}</button>`);
+}, 10000);
 // в ВК при каждом запуске — стартовое меню (каталог ВК Игр, п. 4.2.10); на других площадках оно открывается из «Ещё»
 if (/[?&](vk_app_id|vk_user_id)=|[?&]platform=vk\b/.test(location.search)) showMenu();
 // ----- облачное сохранение (если площадка его даёт). localStorage остаётся запасным вариантом.
@@ -1673,10 +1708,53 @@ function rewardedAd(cb) {                             // локально (бе�
   Platform.rewarded().then(ok => { if (ok) cb(); else toast(L("Реклама недоступна")); });
 }
 const interstitial = () => Platform.interstitial();
+// ----- бонусы за подписку на паблики — только в Telegram (правила Яндекса запрещают внешние ссылки, у ВК бонусы за вступление под запретом)
+const SUBS = [
+  { k: "tg", url: "https://t.me/blatnoynomer_tg", ico: "✈️", name: "Telegram-канал" },
+  { k: "vk", url: "https://vk.ru/nomer_blatnoy", ico: "💙", name: "группу ВКонтакте" }
+];
+const subsLeft = () => Platform.name === "tg" ? SUBS.filter(s => !S.subs[s.k]) : [];
+const subReward = () => Math.max(500, Math.round(income() * 300 / 10) * 10);   // ~5 минут дохода гаража, но не меньше 500
+const subsHTML = cls => subsLeft().map(s => `<button class="btn ${cls} subbtn" data-act="subGo" data-k="${s.k}">${s.ico} ${L("Подпишись на {0}", L(s.name))} <b>+${fmt(subReward())} 💰</b></button>`).join("");
+function renderSubs() {                               // компактная полоска на главном экране (после обучения), пока есть неполученные бонусы
+  const left = S.tut === -1 ? subsLeft() : [];
+  $("subs").innerHTML = left.length ? `<div class="subbar"><span>🎁 ${L("За подписку")}</span>${left.map(s => `<button class="btn sm green" data-act="subGo" data-k="${s.k}">${s.ico} ${L(s.k === "tg" ? "Канал" : "ВК")} +${fmt(subReward())}</button>`).join("")}</div>` : "";
+}
+function subGrant(k, delay) {
+  if (S.subs[k]) return;
+  S.subs[k] = 1; save();
+  const v = subReward();
+  setTimeout(() => { gain(v); toast(L("Спасибо за подписку! +{0} 💰", fmt(v))); Snd.sell(); fx.confetti(40); save(); closeModal(); renderSubs(); renderHeader(); if (tab === "more") renderMore(); }, delay);
+}
+let subWait = 0, subBusy = false;
+function subGo(k) {
+  const s = SUBS.find(x => x.k === k); if (!s || S.subs[k]) return;
+  Platform.openLink(s.url); Platform.track("sub_" + k);
+  if (k === "tg") { subWait = Date.now(); closeModal(); return; }   // подписку на канал проверяет сервер (subPoll)
+  subGrant(k, 2500);                                  // группу ВК проверить нельзя — бонус приходит, когда игрок возвращается
+}
+setInterval(function subPoll() {                      // ждём подписку на канал до 2 минут после нажатия; сервер недоступен — верим на слово
+  if (!subWait || subBusy || document.hidden || S.subs.tg || Date.now() - subWait < 3000) return;
+  subBusy = true;
+  Platform.checkSub().then(ok => {
+    subBusy = false; if (!subWait) return;
+    if (ok !== false) { subWait = 0; Platform.track(ok ? "sub_tg_ok" : "sub_tg_nocheck"); subGrant("tg", 0); }
+    else if (Date.now() - subWait > 120000) { subWait = 0; toast(L("Подписка на канал не найдена — подпишись и нажми кнопку ещё раз")); }
+  });
+}, 3000);
+setInterval(() => {                                   // время от времени зовём подписаться: после обучения, раз в 4 минуты игры, не больше 6 раз
+  if (!subsLeft().length || S.tut !== -1 || S.subs.n >= 6 || S.playSec - S.subs.at < 240) return;
+  if (!$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden") || jpState || Talk.cur || rolling || pending || cinemaQueue.length) return;
+  S.subs.at = S.playSec; S.subs.n++; save(); Platform.track("sub_popup");
+  openModal(`<h2>${L("🎁 Бонус за подписку")}</h2><p>${L("Подпишись на наши паблики — там новые номера, конкурсы и секреты игры. За каждую подписку:")} <b style="color:var(--gold)">+${fmt(subReward())} 💰</b></p>
+    ${subsHTML("green")}<button class="btn alt" data-act="closeModal">${L("Позже")}</button>`);
+}, 10000);
 // ===================== ДЕЛЕГИРОВАНИЕ КЛИКОВ =====================
 const ACTS = {
   buy: d => buy(d.pack), buy10: d => buyMany(d.pack),
   sellPending: () => resolvePending(true), keepPending: () => resolvePending(false),
+  subGo: d => subGo(d.k),
+  notifOn: () => { closeModal(); Platform.askNotify().then(ok => { Platform.track(ok ? "notif_on" : "notif_off"); toast(ok ? L("🔔 Напоминания включены") : L("Напоминания выключены — их можно включить, нажав /start в боте")); if (ok) sendState(); }); },
   taxi: (d, e) => taxi(e),
   offlineDouble: (d, e, el) => {                      // удвоить офлайн-доход за рекламу (один раз на окно)
     if (el.dataset.used) return; el.dataset.used = 1; el.disabled = true;
@@ -1757,7 +1835,7 @@ function renderTab() {
   if (tab === "garage") renderGarage(); else if (tab === "forge") renderForge(); else if (tab === "orders") renderOrders(); else if (tab === "up") renderUps(); else if (tab === "more") renderMore(); else renderPacks();
   refreshDisabled();
 }
-function renderAll() { syncNav(); updateMoreDot(); renderHeader(); renderPills(); renderPacks(); updatePity(); renderTab(); updateOrderDot(); }
+function renderAll() { syncNav(); updateMoreDot(); renderHeader(); renderPills(); renderPacks(); renderSubs(); updatePity(); renderTab(); updateOrderDot(); }
 
 // ===================== ГЛАВНЫЙ ЦИКЛ =====================
 let lastTick = Date.now(), botT = 0, saveT = 0;

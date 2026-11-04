@@ -160,7 +160,94 @@ const YA_ADAPTER = (() => {
   };
 })();
 
-const ADAPTERS = [CG_ADAPTER, VK_ADAPTER, YA_ADAPTER];
+// ----- Telegram Mini App: Telegram передаёт параметры запуска в адресе (#tgWebAppData=...), ?platform=tg — для проверки в обычном браузере.
+// telegram-web-app.js лежит в сборке (telegram.org в РФ бывает недоступен) и грузится уже после старта игры, не задерживая страницу.
+// CloudStorage хранит до 4096 символов на ключ, поэтому сохранение режется на куски, как в VK. Рекламы в Telegram нет — кнопки рекламы скрыты.
+const TG_ADAPTER = (() => {
+  let tg = null, q = Promise.resolve();
+  const SERVER = "https://blatnoy-nomer.blatnoy.workers.dev";   // server/ — Cloudflare Worker: игроки и проверка подписки на канал
+  // запрос к серверу с подписанными данными запуска; null — сервер недоступен (сеть, блокировка) или нет данных Telegram
+  const api = (path, extra) => !tg || !tg.initData ? Promise.resolve(null) :
+    Promise.race([fetch(SERVER + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ initData: tg.initData }, extra)) })
+      .then(r => r.json()).then(j => j && j.ok ? j : null), new Promise(r => setTimeout(() => r(null), 8000))]).catch(() => null);
+  const call = (fn, ...a) => new Promise((ok, fail) => tg.CloudStorage[fn](...a, (e, r) => e ? fail(e) : ok(r)));
+  const has = v => tg.isVersionAtLeast && tg.isVersionAtLeast(v);
+  return {
+    name: "tg",
+    detect: () => window.TG_BUILD === true || /tgWebAppData=|tgWebAppVersion=/.test(location.hash) || /[?&]platform=tg\b/.test(location.search),
+    noInterstitial: true,
+    adsOK: false,
+    init(ctx) {
+      if (window.Telegram && Telegram.WebApp) return this.start(ctx);
+      const load = src => new Promise((ok, fail) => {
+        const s = document.createElement("script");
+        s.src = src; s.onload = ok; s.onerror = fail;
+        document.head.appendChild(s);
+      });
+      return load("telegram-web-app.js").catch(() => load("https://telegram.org/js/telegram-web-app.js")).catch(() => {}).then(() => this.start(ctx));
+    },
+    start(ctx) {
+      setTimeout(() => ctx.ads(), 0);                              // когда Platform уже переключится на этот адаптер — спрятать кнопки рекламы
+      if (!window.Telegram || !Telegram.WebApp) {                  // SDK не загрузился: остаёмся Telegram-версией без рекламы, но без облака
+        this.load = this.save = this.openLink = null; ctx.lang("ru"); return Promise.resolve();
+      }
+      tg = Telegram.WebApp;
+      const u = tg.initDataUnsafe && tg.initDataUnsafe.user;
+      ctx.lang((u && u.language_code) || "ru");
+      try {
+        tg.ready(); tg.expand();                                   // сразу на всю высоту, а не половину экрана
+        if (has("7.7")) tg.disableVerticalSwipes();                // свайп вниз по списку не сворачивает и не закрывает игру
+        if (has("6.1")) { tg.setHeaderColor("#1b2133"); tg.setBackgroundColor("#0b0e16"); }
+        if (has("7.10")) tg.setBottomBarColor("#121726");
+        if (has("8.0")) { tg.onEvent("deactivated", () => ctx.pause(true)); tg.onEvent("activated", () => ctx.pause(false)); }
+        if (has("6.1")) document.addEventListener("click", e => { if (e.target.closest("button")) tg.HapticFeedback.impactOccurred("light"); }, true);
+      } catch (e) {}
+      if (!has("6.9")) this.load = this.save = null;               // старый клиент без облака — только localStorage
+      return Promise.resolve();
+    },
+    rewarded: () => Promise.resolve(false),
+    interstitial: () => Promise.resolve(),
+    happytime() { try { tg.HapticFeedback.notificationOccurred("success"); } catch (e) {} },
+    // t.me открывается внутри Telegram, остальные ссылки — во внешнем браузере (window.open в мини-аппе не работает)
+    openLink(url) { try { /^https:\/\/t\.me\//.test(url) ? tg.openTelegramLink(url) : tg.openLink(url); } catch (e) { window.open(url, "_blank"); } },
+    // hello → { sub: подписан на канал, notify: боту можно писать } или null; checkSub → true/false, null — проверить нельзя
+    hello: () => api("/api/hello"),
+    checkSub: () => api("/api/sub").then(j => j && j.sub),
+    // состояние для напоминаний; text/plain + keepalive — дойдёт и при закрытии игры, без предварительного запроса CORS
+    state(obj) {
+      if (!tg || !tg.initData) return;
+      try { fetch(SERVER + "/api/state", { method: "POST", keepalive: true, headers: { "Content-Type": "text/plain" }, body: JSON.stringify(Object.assign({ initData: tg.initData }, obj)) }).catch(() => {}); } catch (e) {}
+    },
+    // системный запрос Telegram «разрешить боту писать вам»; true — разрешил
+    askNotify: () => new Promise(res => {
+      if (!tg || !has("6.9")) return res(false);
+      try { tg.requestWriteAccess(ok => { if (ok) api("/api/notify", { on: 1 }); res(!!ok); }); } catch (e) { res(false); }
+    }),
+    load() {
+      return call("getItem", "bn_n").then(v => {
+        const n = +v || 0;
+        if (!n) return null;
+        const keys = []; for (let i = 0; i < n; i++) keys.push("bn_" + i);
+        return call("getItems", keys).then(m => {
+          let str = ""; for (let i = 0; i < n; i++) str += m["bn_" + i] || "";
+          try { return JSON.parse(str); } catch (e) { return null; }
+        });
+      });
+    },
+    save(obj) {
+      const str = JSON.stringify(obj), parts = [];
+      for (let i = 0; i < str.length; i += 4000) parts.push(str.slice(i, i + 4000));
+      const job = q.then(async () => {
+        for (let i = 0; i < parts.length; i++) await call("setItem", "bn_" + i, parts[i]);
+        await call("setItem", "bn_n", String(parts.length));
+      });
+      q = job.catch(() => {});
+      return job;
+    }
+  };
+})();
+
+const ADAPTERS = [CG_ADAPTER, TG_ADAPTER, VK_ADAPTER, YA_ADAPTER];
 
 const Platform = (() => {
   const INTERSTITIAL_GAP = 120000;   // межстраничная реклама не чаще раза в 2 минуты после любой рекламы
@@ -175,7 +262,7 @@ const Platform = (() => {
   const blocking = show => { ctx.busy(true); return show().finally(() => { ctx.busy(false); lastAd = Date.now(); }); };
 
   return {
-    get name() { return a.name; },                        // "cg" | "ya" | "vk" | "" (локально)
+    get name() { return a.name; },                        // "cg" | "ya" | "vk" | "tg" | "" (локально)
     get hasCloud() { return !!(a.load && a.save); },
     get primary() { return !!a.primary; },
     get adsOK() { return a.adsOK !== false; },
@@ -198,6 +285,13 @@ const Platform = (() => {
       blocking(() => a.interstitial().catch(() => {}));
     },
     happytime() { if (a.happytime) a.happytime(); },
+    openLink(url) { if (a.openLink) a.openLink(url); else window.open(url, "_blank"); },
+    hello: () => a.hello ? a.hello() : Promise.resolve(null),
+    checkSub: () => a.checkSub ? a.checkSub() : Promise.resolve(null),
+    state(obj) { if (a.state) a.state(obj); },
+    askNotify: () => a.askNotify ? a.askNotify() : Promise.resolve(false),
+    // цель в Яндекс Метрике — счётчик есть только в сборке tg (metrika-tg.html), на других площадках ничего не делает
+    track(goal, params) { try { if (window.ym && window.YM_ID) ym(YM_ID, "reachGoal", goal, params); } catch (e) {} },
     load: () => a.load ? a.load() : Promise.resolve(null),
     save: (obj, now) => a.save ? a.save(obj, now) : Promise.resolve()
   };
