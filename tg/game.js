@@ -1133,8 +1133,10 @@ function makePlate(tier) {
 }
 function genLots() {                                     // цели для улучшения: 11 номеров разной цены
   const lots = [];
-  // дорогие цели открываются с уровнем: блатные — с 4-го, легенды — с 10-го, иначе тюнинг сразу даёт легенду
-  [[1, S.lvl >= 4 ? 3 : 5], [2, S.lvl >= 4 ? 3 : 5], [3, S.lvl >= 4 ? 3 : 0], [4, S.lvl >= 10 ? 2 : 0]].forEach(([tier, n]) => {
+  // дорогие цели открываются с уровнем: блатные — с 4-го, легенды — с 10-го (иначе тюнинг сразу даёт легенду);
+  // но если в гараже уже есть номер нужной редкости, цель на ступень выше доступна сразу — иначе его некуда улучшать
+  const has = t => S.plates.some(p => p.tier >= t);
+  [[1, S.lvl >= 4 ? 3 : 5], [2, S.lvl >= 4 ? 3 : 5], [3, S.lvl >= 4 || has(2) ? 3 : 0], [4, S.lvl >= 10 || has(3) ? 2 : 0]].forEach(([tier, n]) => {
     for (let i = 0; i < n; i++) { const p = makePlate(tier); p.val = Math.round(TIERS[tier].val * (0.8 + Math.random() * 0.6)); lots.push({ id: S.nid++, plate: p, val: p.val }); }
   });
   S.forge.lots = lots.sort((a, b) => a.val - b.val); S.forge.lotsAt = Date.now() + 300000;
@@ -1161,13 +1163,16 @@ function forgeCardsHTML() {
     return list.map(p => { const on = S.forge.sel.includes(p.id);
       return `<div class="fcard t${p.tier}b ${on ? "on" : ""}" data-act="forgeToggle" data-id="${p.id}"><div class="fv">${fmt(p.val)} <i>●</i></div>${plateHTML(p, "mini")}<div class="fn">${TIERS[p.tier].name}</div><div class="fchk">✓</div></div>`; }).join("");
   }
+  const lock = !S.forge.lots.some(l => l.plate.tier >= 4)   // почему нет легенд — иначе кажется, что улучшать дальше некуда
+    ? `<div class="hint" style="grid-column:1/3">${L("🔒 Легенды появятся в целях, когда в гараже будет блатной номер (или с {0} уровня)", 10)}</div>` : "";
   return S.forge.lots.map(l => { const on = S.forge.target === l.id;
-    return `<div class="fcard t${l.plate.tier}b ${on ? "on" : ""}" data-act="forgeTarget" data-id="${l.id}"><div class="fv">${fmt(l.val)} <i>●</i></div>${plateHTML(l.plate, "mini")}<div class="fn">${TIERS[l.plate.tier].name}</div><div class="fb" data-lotv="${l.val}">0%</div><div class="fchk">✓</div></div>`; }).join("");
+    return `<div class="fcard t${l.plate.tier}b ${on ? "on" : ""}" data-act="forgeTarget" data-id="${l.id}"><div class="fv">${fmt(l.val)} <i>●</i></div>${plateHTML(l.plate, "mini")}<div class="fn">${TIERS[l.plate.tier].name}</div><div class="fb" data-lotv="${l.val}">0%</div><div class="fchk">✓</div></div>`; }).join("") + lock;
 }
 function renderForge() {
   if (forging) return;
   if (!S.drawn) { $("tab-forge").innerHTML = `<h2>${L("🔨 Мастерская тюнинга")}</h2><div class="hint">${L("Купи первый номер — и рискни улучшить его здесь")}</div>`; return; }
-  if (!S.forge.lots.length || Date.now() > S.forge.lotsAt) genLots();
+  const legendsDue = !S.forge.lots.some(l => l.plate.tier >= 4) && (S.lvl >= 10 || S.plates.some(p => p.tier >= 3));   // появился блатной — легенды в целях сразу, а не через 5 минут
+  if (!S.forge.lots.length || Date.now() > S.forge.lotsAt || legendsDue) genLots();
   S.forge.sel = S.forge.sel.filter(id => S.plates.some(p => p.id === id));
   const lot = curLot(), ps = selPlates();
   const inHTML = ps.length ? ps.slice(0, 4).map(p => plateHTML(p, "mini")).join("") + (ps.length > 4 ? `<div class="fmore">${L("+{0} ещё", ps.length - 4)}</div>` : "") : `<div class="fempty">${L("Выбери номера<br>из гаража ⬇")}</div>`;
