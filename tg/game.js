@@ -397,6 +397,7 @@ function addXp(n) {
   S.xp += n;
   while (S.xp >= xpNeed(S.lvl)) {
     S.xp -= xpNeed(S.lvl); S.lvl++;
+    if ([2, 3, 5, 7, 10, 15, 20, 30].includes(S.lvl)) Platform.track("lvl_" + S.lvl);   // воронка в Метрике (только Telegram)
     const r = 60 * S.lvl; gain(r);
     const ut = unlockText(S.lvl);
     if (ut) {                                        // уровни, которые что-то открывают, — полноэкранная сцена (покажется, когда игрок не занят)
@@ -427,6 +428,7 @@ function buy(id) {
   ac(); Mus.start();
   if (pending) resolvePending(false);
   S.coins -= c; S.bought++; addXp(P.xp);
+  if (S.bought === 1 || S.bought === 10 || S.bought === 100) Platform.track("buy_" + S.bought);
   const r = drawPlate(id);
   rolling = true; skipReel = false;
   Snd.whoosh();
@@ -541,6 +543,7 @@ function mergeTake(t) {                                 // без анимаци
   S.plates = S.plates.filter(p => !ids.includes(p.id));
   const r = makePlate(t + 1); r.merged = true;
   S.plates.push(r); markFound(r); S.merges++; S.mergeBest = Math.max(S.mergeBest, r.tier); addXp(XP_TIER[r.tier]);
+  if (S.merges === 1) Platform.track("merge_first");
   return { r, src, tier: r.tier };
 }
 function doMerge(t) {
@@ -612,7 +615,7 @@ function tierChanceText(r) {
 }
 function jackpot(r, opts = {}) {                         // выпал блатной, легенда или суперлегенда: праздничная сцена (рулетка уже была при покупке)
   const t = r.tier, legend = t >= 4, sup = t === 5;
-  if (legend) Platform.happytime();
+  if (legend) { Platform.happytime(); Platform.track(sup ? "superlegend" : "legend"); }
   if (legend && window.BgCity) BgCity.event("legend");     // на фоне по дороге проносится кортеж с мигалками
   cinema({
     color: TIERS[t].color, big: legend, bg: sup ? "#06243a" : undefined, cls: sup ? "super" : "",
@@ -1384,6 +1387,7 @@ function checkStory() {                                 // вступление 
   if (!C.tasks.every(taskDone)) return;
   const n = S.story.ch + 1;
   S.story.ch++; S.story.intro = false; gain(C.r); if (C.title) S.title = C.title;   // награда записана сразу, сцены — следом
+  Platform.track("chapter_" + S.story.ch);
   save(); renderGoal(); renderHeader(); syncNav();
   say(C.outro, () => enqueueCinema({ color: "#ffd23f", bg: "#2a2005", icon: "📖", cls: "long", top: L("Глава {0} пройдена", n), title: L(C.t).toUpperCase(),
     value: C.r, valueLabel: L("НАГРАДА"), valueIcon: "💰", sub: C.title ? L("Новый титул: «{0}»", L(C.title)) : "", confetti: 90 }));
@@ -1446,7 +1450,8 @@ TUT.forEach(s => typeof s.say === "string" && Lprops(s, "say"));
 const Tut = { block: false, target: null, txt: "", base: 0, scrolled: -1 };
 const shown = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
 function tutHide() { TK.el.classList.add("hidden"); Tut.block = false; Tut.target = null; }
-function tutGo(n) { S.tut = n; Tut.base = S.taxis; Tut.txt = ""; if (n >= TUT.length) S.tut = -1; save(); tutHide(); renderGoal(); renderSubs(); }
+function tutGo(n) { S.tut = n; Tut.base = S.taxis; Tut.txt = ""; if (n >= TUT.length) S.tut = -1;
+  if (S.tut === -1) Platform.track(n === -1 ? "tut_skip" : "tut_done"); else if (n > 0) Platform.track("tut_" + n); save(); tutHide(); renderGoal(); renderSubs(); }
 function tutTick() {
   const st = TUT[S.tut]; if (!st) return tutGo(-1);
   if (st.done && st.done()) return tutGo(S.tut + 1);
@@ -1690,7 +1695,7 @@ function renderSubs() {                               // компактная п
 }
 function subGo(k) {
   const s = SUBS.find(x => x.k === k); if (!s || S.subs[k]) return;
-  Platform.openLink(s.url);
+  Platform.openLink(s.url); Platform.track("sub_" + k);
   S.subs[k] = 1; save();                              // без сервера подписку не проверить — бонус приходит, когда игрок возвращается из паблика
   const v = subReward();
   setTimeout(() => { gain(v); toast(L("Спасибо за подписку! +{0} 💰", fmt(v))); Snd.sell(); fx.confetti(40); save(); closeModal(); renderSubs(); renderHeader(); if (tab === "more") renderMore(); }, 2500);
@@ -1698,7 +1703,7 @@ function subGo(k) {
 setInterval(() => {                                   // время от времени зовём подписаться: после обучения, раз в 4 минуты игры, не больше 6 раз
   if (!subsLeft().length || S.tut !== -1 || S.subs.n >= 6 || S.playSec - S.subs.at < 240) return;
   if (!$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden") || jpState || Talk.cur || rolling || pending || cinemaQueue.length) return;
-  S.subs.at = S.playSec; S.subs.n++; save();
+  S.subs.at = S.playSec; S.subs.n++; save(); Platform.track("sub_popup");
   openModal(`<h2>${L("🎁 Бонус за подписку")}</h2><p>${L("Подпишись на наши паблики — там новые номера, конкурсы и секреты игры. За каждую подписку:")} <b style="color:var(--gold)">+${fmt(subReward())} 💰</b></p>
     ${subsHTML("green")}<button class="btn alt" data-act="closeModal">${L("Позже")}</button>`);
 }, 10000);

@@ -268,6 +268,8 @@ const Platform = (() => {
     },
     happytime() { if (a.happytime) a.happytime(); },
     openLink(url) { if (a.openLink) a.openLink(url); else window.open(url, "_blank"); },
+    // цель в Яндекс Метрике — счётчик есть только в сборке tg (metrika-tg.html), на других площадках ничего не делает
+    track(goal, params) { try { if (window.ym && window.YM_ID) ym(YM_ID, "reachGoal", goal, params); } catch (e) {} },
     load: () => a.load ? a.load() : Promise.resolve(null),
     save: (obj, now) => a.save ? a.save(obj, now) : Promise.resolve()
   };
