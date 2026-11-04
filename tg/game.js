@@ -926,6 +926,7 @@ function renderMore() {
   const miniWait = S.mini.next - Date.now(), canMini = S.lvl >= 4 && miniWait <= 0;
   let h = `<h2>${L("☰ Ещё")}</h2>
   <div class="row"><button class="btn alt" data-act="menuOpen">${L("☰ Главное меню")}</button><button class="btn alt" data-act="menuHow">${L("📖 Как играть")}</button></div>
+  ${isAdmin ? `<button class="btn red" data-act="admin">🛠 Админка</button>` : ""}
   ${Platform.canPay ? `<button class="btn star" data-act="shop">${L("⭐ Магазин — деньги, номера, ×2 навсегда")}</button>` : ""}
   ${questsHTML()}
   ${Platform.canShare ? `<div class="card"><h3>${L("🤝 Пригласи друга")}</h3><p>${L("Друг сразу получит блатной номер, а ты — блатной, когда друг дойдёт до 3 уровня. Друзей — без ограничений!")}</p>
@@ -1660,7 +1661,7 @@ function setPaused(p) {
   if (!p) { lastTick = Date.now(); }
 }
 document.addEventListener("visibilitychange", () => setPaused(document.hidden));
-document.addEventListener("contextmenu", e => e.preventDefault());   // ни правый клик, ни долгое нажатие не открывают меню браузера (Яндекс, п. 1.6.1.8 и 1.6.2.7)
+document.addEventListener("contextmenu", e => { if (!e.target.closest("input, textarea")) e.preventDefault(); });   // в полях ввода (админка) — можно вставить текст   // ни правый клик, ни долгое нажатие не открывают меню браузера (Яндекс, п. 1.6.1.8 и 1.6.2.7)
 Platform.init({
   pause: setPaused,
   mute: setMuted,
@@ -1676,6 +1677,7 @@ Platform.init({
     if (j.sub) setTimeout(() => subGrant("tg", 0), 2500);
     if (j.notify && !S.subs.notif) { S.subs.notif = 1; save(); }   // уже нажимал /start в боте — напоминания и так включены, не спрашиваем
     refs = { n: j.refs || 0, done: j.refsDone || 0 };
+    if (j.admin) { isAdmin = true; if (tab === "more") renderMore(); }   // владелец игры — кнопка админки во вкладке «Ещё»
     sendState();
     claimPaid(1);                                      // покупки, оплаченные, когда игра была закрыта, и подарки (друзья, рейтинг)
   });
@@ -1811,7 +1813,7 @@ function shopGrant(item, why) {
   else return;
   Platform.track((why ? "gift_" : "paid_") + item); Platform.happytime();
 }
-const GIFT_WHY = id => /^refnew_/.test(id) ? L("🎁 Подарок за то, что пришёл по приглашению друга!") : /^ref_/.test(id) ? L("🤝 Друг втянулся в игру — тебе награда!") : /^top_/.test(id) ? L("🏆 Награда за рейтинг недели!") : "";
+const GIFT_WHY = id => /^refnew_/.test(id) ? L("🎁 Подарок за то, что пришёл по приглашению друга!") : /^ref_/.test(id) ? L("🤝 Друг втянулся в игру — тебе награда!") : /^top_/.test(id) ? L("🏆 Награда за рейтинг недели!") : /^gift_/.test(id) ? L("🎁 Тебе подарок!") : "";
 // забрать оплаченное и подарки: при запуске, раз в 1,5 минуты и сразу после оплаты — вебхук может прийти на секунду позже.
 // Во время обучения не забираем — подарок дождётся на сервере.
 let claimBusy = false;
@@ -1918,12 +1920,106 @@ function questChest() {
   S.quests.chest = 1; const p = makePlate(3); markFound(p); keepPlate(p); jackpot(p); Platform.track("quest_chest");
   save(); renderMore(); updateMoreDot();
 }
+
+// ----- админка (только владелец): кнопка видна, если сервер в hello ответил admin; все данные отдаёт /api/admin, который проверяет ID.
+// Тексты без L(): админка только для владельца, на русском.
+let isAdmin = false, admTab = "stats";
+const ADM_TABS = [["stats", "📊 Сводка"], ["sales", "⭐ Покупки"], ["players", "👥 Игроки"], ["mail", "📢 Рассылка"], ["cheats", "🧪 Читы"]];
+const ITEM_NAME = { starter: "Набор новичка", cash_s: "Пачка денег", blat: "Блатной номер", cash_l: "Чемодан денег", legend: "Легенда", x2: "Доход ×2 навсегда" };
+const SRC_COLOR = ["#ffd23f", "#4fc3f7", "#43c76b", "#e0475b", "#b388ff", "#ff9a3c", "#8d99b3", "#f48fb1"];
+const admDate = s => { const d = new Date(s * 1000); return d.toLocaleDateString("ru", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }); };
+const admAgo = s => { const m = Math.floor((Date.now() / 1000 - s) / 60); return m < 2 ? "сейчас" : m < 60 ? m + " мин назад" : m < 1440 ? Math.floor(m / 60) + " ч назад" : Math.floor(m / 1440) + " д назад"; };
+const admBody = h => { const el = $("admBody"); if (el) el.innerHTML = h; };
+const admFail = j => admBody(`<p>❌ ${escapeHTML((j && j.error) || "Сервер не отвечает — попробуй ещё раз")}</p>`);
+function openAdmin(t) {
+  if (t) admTab = t;
+  openModal(`<h2>🛠 Админка</h2><div class="admtabs">${ADM_TABS.map(([k, n]) => `<button class="btn sm ${k === admTab ? "green" : "alt"}" data-act="admTab" data-t="${k}">${n}</button>`).join("")}</div>
+    <div id="admBody" class="adm"><p class="hint">Загружаю…</p></div><button class="btn alt" data-act="closeModal">Закрыть</button>`);
+  if (admTab === "cheats") return admBody(admCheatsHTML());
+  if (admTab === "mail") return admBody(admMailHTML());
+  if (admTab === "players") return admPlayers("");
+  Platform.admin(admTab).then(j => !j || !j.ok ? admFail(j) : admBody(admTab === "stats" ? admStatsHTML(j) : admSalesHTML(j.list)));
+}
+function admStatsHTML(j) {
+  const p = j.p, s = j.s, kpi = (v, n) => `<div class="kpi"><b>${fmt(v || 0)}</b><small>${n}</small></div>`;
+  // новые игроки по дням (14 дней), столбики разбиты по источникам
+  const srcs = [...new Set(j.days.map(r => r.s))], col = k => SRC_COLOR[srcs.indexOf(k) % SRC_COLOR.length];
+  const days = []; for (let d = j.today - 13; d <= j.today; d++) days.push(d);
+  const per = d => j.days.filter(r => r.d === d), tot = d => per(d).reduce((a, r) => a + r.c, 0), max = Math.max(1, ...days.map(tot));
+  const st = d => (j.stars.find(r => r.d === d) || {}).st || 0;
+  const label = d => new Date(d * 864e5).toLocaleDateString("ru", { day: "numeric", month: "numeric", timeZone: "UTC" });
+  const chart = `<div class="chart">${days.map(d => `<div class="col" title="${label(d)}: ${tot(d)}"><i class="num">${tot(d) || ""}</i><div class="stack" style="height:${tot(d) / max * 100}%">${per(d).map(r => `<span style="flex:${r.c};background:${col(r.s)}"></span>`).join("")}</div><small>${label(d).split(".")[0]}</small>${st(d) ? `<em>⭐${st(d)}</em>` : ""}</div>`).join("")}</div>
+    <div class="legend">${srcs.map(k => `<span><i style="background:${col(k)}"></i>${escapeHTML(k)}</span>`).join("") || "<small>новых игроков за 2 недели нет</small>"}</div>`;
+  const totalSrc = j.src.reduce((a, r) => a + r.c, 0) || 1;
+  return `<div class="kpis">${kpi(p.n, "игроков всего")}${kpi(p.fresh, "новых сегодня")}${kpi(p.act, "заходили сегодня")}${kpi(p.act7, "заходили за 7 дней")}${kpi(p.sub, "подписаны на канал")}${kpi(p.cw, "получают напоминания")}${kpi(s.st, "⭐ заработано")}${kpi(s.today, "⭐ сегодня")}${kpi(s.payers, "платящих игроков")}</div>
+    <h3>Новые игроки за 2 недели</h3>${chart}
+    <h3>Откуда пришли</h3>${j.src.map(r => `<div class="admrow"><span>${escapeHTML(r.s)}</span><b>${r.c}</b><small>${Math.round(r.c / totalSrc * 100)}%</small></div>`).join("")}
+    <h3>Что покупают</h3>${j.items.map(r => `<div class="admrow"><span>${ITEM_NAME[r.item] || r.item}</span><b>${r.c} шт.</b><small>⭐ ${r.st}</small></div>`).join("") || "<p class='hint'>Покупок пока нет</p>"}
+    <h3>🏆 Неделя</h3>${j.top.map((r, i) => `<div class="admrow"><span>${i + 1}. ${escapeHTML(r.name || "?")}</span><b>${fmt(r.sc)} 💰</b></div>`).join("") || "<p class='hint'>Пока пусто</p>"}
+    ${j.outbox ? `<p class="hint">📢 В очереди рассылки: ${j.outbox}</p>` : ""}`;
+}
+function admSalesHTML(list) {
+  if (!list.length) return `<p class="hint">Покупок пока нет</p>`;
+  return list.map(r => `<div class="admrow sale"><div><b>${ITEM_NAME[r.item] || r.item} · ⭐ ${r.stars}</b><small>${admDate(r.at)} · ${escapeHTML(r.name || "?")}${r.username ? " @" + escapeHTML(r.username) : ""}</small></div>
+    ${r.refunded ? `<small>возвращено</small>` : `<button class="btn sm alt" data-act="admRefund" data-id="${escapeHTML(r.id)}">Вернуть</button>`}</div>`).join("");
+}
+function admPlayers(q) {
+  admBody(`<div class="admsearch"><input id="admQ" placeholder="Имя, @ник или ID" value="${escapeHTML(q)}"><button class="btn sm green" data-act="admSearch">Найти</button></div><div id="admList"><p class="hint">Загружаю…</p></div>`);
+  Platform.admin("players", { q }).then(j => {
+    const el = $("admList"); if (!el) return;
+    if (!j || !j.ok) { el.innerHTML = `<p>❌ ${escapeHTML((j && j.error) || "Сервер не отвечает")}</p>`; return; }
+    el.innerHTML = j.list.length ? j.list.map(r => `<div class="admrow player" data-act="admPlayer" data-uid="${r.id}"><div><b>${escapeHTML(r.name || "?")}${r.username ? ` <small>@${escapeHTML(r.username)}</small>` : ""}</b>
+      <small>ур. ${r.lvl || 0} · ${escapeHTML(r.src)} · заходов ${r.visits} · ${admAgo(r.last_seen)}${r.paid ? ` · ⭐ ${r.paid}` : ""}${r.invited ? ` · позвал ${r.invited}` : ""}${r.sub_tg ? " · ✅ канал" : ""}${r.can_write ? " · 🔔" : ""}</small></div><span>🎁</span></div>
+      <div class="gifts hidden" id="gifts-${r.id}">${Object.keys(ITEM_NAME).filter(k => k !== "starter").map(k => `<button class="btn sm alt" data-act="admGift" data-uid="${r.id}" data-item="${k}">${ITEM_NAME[k]}</button>`).join("")}<small>ID ${r.id} · с нами с ${admDate(r.first_seen)}</small></div>`).join("") : `<p class="hint">Никого не нашёл</p>`;
+  });
+}
+function admMailHTML() {
+  return `<p class="hint">Сообщение от бота всем, кто разрешил ему писать. С кнопкой, которая открывает игру. Сначала отправь себе и посмотри, как выглядит.</p>
+    <textarea id="admText" rows="6" placeholder="Например: 🔥 В выходные шанс легенды ×2! Залетай 👇"></textarea>
+    <input id="admBtn" value="🎮 Играть" placeholder="Текст кнопки">
+    <button class="btn alt" data-act="admSend" data-mode="test">👀 Отправить себе</button>
+    <button class="btn red" data-act="admSend" data-mode="broadcast">📢 Разослать всем</button>
+    <p class="hint">Первые 40 сообщений уходят сразу, остальные — по 15 каждые 10 минут, с 10:00 до 22:00 по Москве.</p>`;
+}
+const CHEATS = [
+  ["money", "💰 +1 млн (не идёт в рейтинг)"], ["income", "💰 +1 час дохода"], ["t2", "🎫 Редкий номер"], ["t3", "🚘 Блатной номер"], ["t4", "👑 Легенда"], ["t5", "💎 Суперлегенда"],
+  ["lvl", "⭐ +1 уровень"], ["quests", "📅 Новые задания дня"], ["starter", "🎁 Снова показать набор новичка"], ["subs", "📢 Сбросить бонусы подписки"], ["mini", "🎣 Сбросить перезарядку мини-игры"]
+];
+function admCheatsHTML() {
+  return `<p class="hint">Действуют только на твой прогресс — чтобы проверять игру. Деньги из читов не попадают в рейтинг недели.</p>
+    <div class="cheats">${CHEATS.map(([k, n]) => `<button class="btn sm alt" data-act="admCheat" data-k="${k}">${n}</button>`).join("")}</div>`;
+}
+function admCheat(k) {
+  if (k === "money") S.coins += 1e6;
+  else if (k === "income") S.coins += Math.max(1000, income() * 3600);
+  else if (/^t\d$/.test(k)) { const p = makePlate(+k[1]); markFound(p); keepPlate(p); closeModal(); if (p.tier >= 3) jackpot(p); }
+  else if (k === "lvl") { S.lvl++; S.xp = 0; }
+  else if (k === "quests") S.quests.day = "";
+  else if (k === "starter") { S.paid.starter = 0; S.paid.starterUntil = 0; }
+  else if (k === "subs") S.subs = Object.assign(fresh().subs, { notif: S.subs.notif });
+  else if (k === "mini") S.mini.next = 0;
+  toast("🧪 Готово"); save(); renderAll();
+}
 // ===================== ДЕЛЕГИРОВАНИЕ КЛИКОВ =====================
 const ACTS = {
   buy: d => buy(d.pack), buy10: d => buyMany(d.pack),
   sellPending: () => resolvePending(true), keepPending: () => resolvePending(false),
   subGo: d => subGo(d.k),
   shop: () => openShop(), shopBuy: d => shopBuy(d.k),
+  admin: () => openAdmin(), admTab: d => openAdmin(d.t), admCheat: d => admCheat(d.k),
+  admSearch: () => admPlayers(($("admQ") || {}).value || ""),
+  admPlayer: d => { const g = $("gifts-" + d.uid); if (g) g.classList.toggle("hidden"); },
+  admGift: (d, e, el) => { el.disabled = true; Platform.admin("gift", { uid: +d.uid, item: d.item, note: 1 }).then(j => { toast(j && j.ok ? "🎁 " + j.msg : "❌ " + ((j && j.error) || "сервер не отвечает")); el.disabled = false; }); },
+  admRefund: (d, e, el) => {                           // возврат — только со второго нажатия
+    if (!el.dataset.sure) { el.dataset.sure = 1; el.textContent = "Точно вернуть?"; el.classList.replace("alt", "red"); return; }
+    el.disabled = true; Platform.admin("refund", { id: d.id }).then(j => { toast(j && j.ok ? j.msg : "❌ " + ((j && j.error) || "сервер не отвечает")); openAdmin("sales"); });
+  },
+  admSend: (d, e, el) => {                             // рассылка: себе — сразу, всем — со второго нажатия
+    const text = (($("admText") || {}).value || "").trim(), btn = (($("admBtn") || {}).value || "").trim() || "🎮 Играть";
+    if (!text) return toast("Напиши текст сообщения");
+    if (d.mode === "broadcast" && !el.dataset.sure) { el.dataset.sure = 1; el.textContent = "Точно разослать ВСЕМ? Нажми ещё раз"; return; }
+    el.disabled = true; Platform.admin(d.mode, { text, btn }).then(j => { toast(j && j.ok ? j.msg : "❌ " + ((j && j.error) || "сервер не отвечает")); el.disabled = false; delete el.dataset.sure; if (d.mode === "broadcast") el.textContent = "📢 Разослать всем"; });
+  },
   invite: () => invite(), top: () => openTop(), questClaim: d => questClaim(+d.i), questChest: () => questChest(),
   brag: d => brag(S.plates.find(x => x.id === +d.id) || (lastRevealed && lastRevealed.id === +d.id ? lastRevealed : null)),
   notifOn: () => { closeModal(); Platform.askNotify().then(ok => { Platform.track(ok ? "notif_on" : "notif_off"); toast(ok ? L("🔔 Напоминания включены") : L("Напоминания выключены — их можно включить, нажав /start в боте")); if (ok) sendState(); }); },

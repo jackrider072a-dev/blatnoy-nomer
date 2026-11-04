@@ -167,9 +167,10 @@ const TG_ADAPTER = (() => {
   let tg = null, q = Promise.resolve();
   const SERVER = "https://blatnoy-nomer.blatnoy.workers.dev";   // server/ — Cloudflare Worker: игроки и проверка подписки на канал
   // запрос к серверу с подписанными данными запуска; null — сервер недоступен (сеть, блокировка) или нет данных Telegram
-  const api = (path, extra) => !tg || !tg.initData ? Promise.resolve(null) :
+  // raw — вернуть ответ как есть, даже с ошибкой (админке нужен текст ошибки)
+  const api = (path, extra, raw) => !tg || !tg.initData ? Promise.resolve(null) :
     Promise.race([fetch(SERVER + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ initData: tg.initData }, extra)) })
-      .then(r => r.json()).then(j => j && j.ok ? j : null), new Promise(r => setTimeout(() => r(null), 8000))]).catch(() => null);
+      .then(r => r.json()).then(j => raw ? j : j && j.ok ? j : null), new Promise(r => setTimeout(() => r(null), raw ? 20000 : 8000))]).catch(() => null);
   const call = (fn, ...a) => new Promise((ok, fail) => tg.CloudStorage[fn](...a, (e, r) => e ? fail(e) : ok(r)));
   const has = v => tg.isVersionAtLeast && tg.isVersionAtLeast(v);
   return {
@@ -226,6 +227,7 @@ const TG_ADAPTER = (() => {
     // ссылка-приглашение: друг попадает прямо в игру, сервер узнаёт, кто позвал (startapp=ref_ID)
     get refLink() { const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user; return u ? `https://t.me/blatnoy_nomerbot/play?startapp=ref_${u.id}` : ""; },
     top: () => api("/api/top"),
+    admin: (a, extra) => api("/api/admin", Object.assign({ a }, extra), true),   // админка: сервер пускает только владельца (ADMIN_ID)
     // поделиться: красивое сообщение с кнопкой (Telegram 8.0+), иначе — обычное окно «переслать» со ссылкой
     share(text) {
       const plain = () => { try { tg.openTelegramLink("https://t.me/share/url?url=" + encodeURIComponent(this.refLink) + "&text=" + encodeURIComponent(text)); return true; } catch (e) { return false; } };
@@ -314,6 +316,7 @@ const Platform = (() => {
     get refLink() { return a.refLink || ""; },
     share: text => a.share ? a.share(text) : Promise.resolve(false),
     top: () => a.top ? a.top() : Promise.resolve(null),
+    admin: (act, extra) => a.admin ? a.admin(act, extra) : Promise.resolve(null),
     // цель в Яндекс Метрике — счётчик есть только в сборке tg (metrika-tg.html), на других площадках ничего не делает
     track(goal, params) { try { if (window.ym && window.YM_ID) ym(YM_ID, "reachGoal", goal, params); } catch (e) {} },
     load: () => a.load ? a.load() : Promise.resolve(null),
