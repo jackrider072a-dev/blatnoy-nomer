@@ -227,6 +227,9 @@ const TG_ADAPTER = (() => {
     // ссылка-приглашение: друг попадает прямо в игру, сервер узнаёт, кто позвал (startapp=ref_ID)
     get refLink() { const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user; return u ? `https://t.me/blatnoy_nomerbot/play?startapp=ref_${u.id}` : ""; },
     top: () => api("/api/top"),
+    garage: who => api("/api/garage", who),                     // who: { top: место } или { uid: друг }
+    respect: who => api("/api/respect", who),
+    friends: () => api("/api/friends").then(j => j ? j.list || [] : null),
     admin: (a, extra) => api("/api/admin", Object.assign({ a }, extra), true),   // админка: сервер пускает только владельца (ADMIN_ID)
     // поделиться: красивое сообщение с кнопкой (Telegram 8.0+), иначе — обычное окно «переслать» со ссылкой
     share(text) {
@@ -241,7 +244,7 @@ const TG_ADAPTER = (() => {
     buy: item => api("/api/invoice", { item }).then(j => !j || !j.link ? "noserver" :
       new Promise(res => { try { tg.openInvoice(j.link, st => res(st)); } catch (e) { res("failed"); } })),
     // оплаченные, но ещё не выданные покупки: [{ id, item }]; null — сервер недоступен
-    claim: () => api("/api/claim").then(j => j ? j.items || [] : null),
+    claim: () => api("/api/claim").then(j => j ? Object.assign(j.items || [], { ev: j.ev }) : null),   // ev — событие из админки (×доход/×удача)
     load() {
       return call("getItem", "bn_n").then(v => {
         const n = +v || 0;
@@ -316,6 +319,9 @@ const Platform = (() => {
     get refLink() { return a.refLink || ""; },
     share: text => a.share ? a.share(text) : Promise.resolve(false),
     top: () => a.top ? a.top() : Promise.resolve(null),
+    garage: who => a.garage ? a.garage(who) : Promise.resolve(null),
+    respect: who => a.respect ? a.respect(who) : Promise.resolve(null),
+    friends: () => a.friends ? a.friends() : Promise.resolve(null),
     admin: (act, extra) => a.admin ? a.admin(act, extra) : Promise.resolve(null),
     // цель в Яндекс Метрике — счётчик есть только в сборке tg (metrika-tg.html), на других площадках ничего не делает
     track(goal, params) { try { if (window.ym && window.YM_ID) ym(YM_ID, "reachGoal", goal, params); } catch (e) {} },
