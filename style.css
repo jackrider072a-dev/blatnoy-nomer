@@ -437,3 +437,33 @@ small{color:var(--dim);font-size:11px}
 .gifts .admline,.gifts>input,.gifts>textarea{margin-bottom:2px}.adm input[type=checkbox]{width:20px;height:20px;flex:0 0 auto;margin:0!important;padding:0}.chk{display:flex;align-items:center;gap:6px;white-space:nowrap}
 .gifts>input,.gifts>textarea{flex:1 1 100%}.admline .btn{flex:0 0 auto;white-space:nowrap}
 .adm .chart+h3{margin-top:30px}
+/* профиль */
+.pcard{background:linear-gradient(135deg,var(--f1),var(--f2));border:2px solid var(--f1);border-radius:18px;padding:14px;text-align:left;margin:6px 0 10px;position:relative;overflow:hidden;box-shadow:0 6px 24px #0007}
+.pcard::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,#ffffff14 45%,transparent 60%);pointer-events:none}
+.pcard.f-vip,.pcard.f-gold{box-shadow:0 0 22px color-mix(in srgb,var(--f1) 60%,transparent)}
+.pcard.f-vip::after,.pcard.f-gold::after,.pcard.f-ice::after,.pcard.f-neon::after{background:linear-gradient(115deg,transparent 30%,#ffffff30 45%,transparent 60%);background-size:250% 100%;animation:pshine 3.5s linear infinite}
+@keyframes pshine{0%{background-position:150% 0}100%{background-position:-100% 0}}
+.ptop{display:flex;gap:12px;align-items:center}
+.pava{width:62px;height:62px;flex:0 0 62px;border-radius:50%;background:#0006;border:3px solid var(--f1);display:flex;align-items:center;justify-content:center;font-size:34px}
+.pname{min-width:0;flex:1}.pname b{display:block;font-size:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pname small{display:block;color:#ffffffb0;font-size:12px}.pname i{display:block;font-size:13px;color:#fff;margin-top:3px;word-break:break-word}
+.pbadges{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}.pbadges span{font-size:11px;background:#0006;border-radius:10px;padding:3px 8px;color:#fff}
+.ppins{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:10px}
+.pstats{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px;font-size:12px;color:#ffffffb0}.pstats b{color:#fff}
+.pcard.sm{padding:10px}.pcard.sm .pava{width:48px;height:48px;flex-basis:48px;font-size:26px}.pcard.sm .pname b{font-size:17px}
+.profbox{cursor:pointer}
+.pfedit{text-align:left}.pfedit label{display:block;font-size:13px;color:#8d99b3;margin:12px 0 5px}
+.pfedit input{width:100%;box-sizing:border-box;background:#0006;color:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:15px;user-select:text;-webkit-user-select:text}
+.pfavas{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.pfavas button{font-size:22px;padding:6px 0;border-radius:10px;background:#0005;border:2px solid transparent;color:#fff}
+.pfavas button.on{border-color:var(--gold);background:#ffd23f22}.pfavas button.lock{opacity:.45;font-size:16px}
+.pfframes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.pfframes button{background:linear-gradient(135deg,var(--f1),var(--f2));border:2px solid transparent;border-radius:10px;padding:10px 4px;color:#fff;font:inherit;font-size:12px}
+.pfframes button.on{border-color:#fff;box-shadow:0 0 10px #fff6}.pfframes button.lock{opacity:.5}.pfframes small{display:block;font-size:9.5px;opacity:.85;margin-top:2px}
+.pfpins{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-height:260px;overflow:auto}.pfpins button{background:none;border:2px solid transparent;border-radius:10px;padding:3px}
+.pfpins button.on{border-color:var(--gold);background:#ffd23f22}
+/* друзья */
+.fava{width:30px;height:30px;flex:0 0 30px;border-radius:50%;background:#0006;border:2px solid var(--f1,#2a3350);display:inline-flex;align-items:center;justify-content:center;font-size:16px}
+.toprow span.fava{width:30px}
+.fcode{text-align:center}.fcode b{display:block;font-size:30px;letter-spacing:6px;color:var(--gold);margin:4px 0 8px;user-select:text;-webkit-user-select:text}.fcode small{color:#8d99b3;font-size:12px;display:block;margin-top:6px}
+#frCode{user-select:text;-webkit-user-select:text;flex:1;background:#0006;color:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:15px}
+.badge{background:#e0475b;color:#fff;border-radius:10px;padding:1px 7px;font-size:12px;margin-left:4px}
+.toprow .btn.sm{flex:0 0 auto;padding:6px 10px}.fcode .row{gap:6px}.fcode .row .btn{flex:1 1 0;min-width:0;padding-left:6px;padding-right:6px;font-size:13px}

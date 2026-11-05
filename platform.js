@@ -229,7 +229,8 @@ const TG_ADAPTER = (() => {
     top: () => api("/api/top"),
     garage: who => api("/api/garage", who),                     // who: { top: место } или { uid: друг }
     respect: who => api("/api/respect", who),
-    friends: () => api("/api/friends").then(j => j ? j.list || [] : null),
+    friends: () => api("/api/friends"),                         // { list, inc: заявки мне, out, code }
+    friend: (a, extra) => api("/api/friend", Object.assign({ a }, extra), true),   // raw: текст ошибки («код не найден») — для игрока   // add (code | top) | accept | decline | cancel | remove
     admin: (a, extra) => api("/api/admin", Object.assign({ a }, extra), true),   // админка: сервер пускает только владельца (ADMIN_ID)
     // поделиться: красивое сообщение с кнопкой (Telegram 8.0+), иначе — обычное окно «переслать» со ссылкой
     share(text) {
@@ -322,6 +323,7 @@ const Platform = (() => {
     garage: who => a.garage ? a.garage(who) : Promise.resolve(null),
     respect: who => a.respect ? a.respect(who) : Promise.resolve(null),
     friends: () => a.friends ? a.friends() : Promise.resolve(null),
+    friend: (act, extra) => a.friend ? a.friend(act, extra) : Promise.resolve(null),
     admin: (act, extra) => a.admin ? a.admin(act, extra) : Promise.resolve(null),
     // цель в Яндекс Метрике — счётчик есть только в сборке tg (metrika-tg.html), на других площадках ничего не делает
     track(goal, params) { try { if (window.ym && window.YM_ID) ym(YM_ID, "reachGoal", goal, params); } catch (e) {} },
