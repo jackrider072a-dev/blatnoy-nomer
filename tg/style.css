@@ -467,3 +467,14 @@ small{color:var(--dim);font-size:11px}
 #frCode{user-select:text;-webkit-user-select:text;flex:1;background:#0006;color:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:15px}
 .badge{background:#e0475b;color:#fff;border-radius:10px;padding:1px 7px;font-size:12px;margin-left:4px}
 .toprow .btn.sm{flex:0 0 auto;padding:6px 10px}.fcode .row{gap:6px}.fcode .row .btn{flex:1 1 0;min-width:0;padding-left:6px;padding-right:6px;font-size:13px}
+/* замок номера и помощник */
+.lockbtn{flex:0 0 auto;width:38px;padding:8px 0!important;background:#0005!important;border:1px solid #2a3350!important;font-size:16px}.lockbtn.on{background:#ffd23f22!important;border-color:#ffd23f88!important}
+.sold-lock{opacity:.55;font-size:12px}
+.botrow{margin:4px 0 8px}.botrow .btn small{opacity:.75;font-size:11px}
+.botcard .setrow span small{display:block;font-size:12px;color:#8d99b3;font-weight:normal}
+.botpacks{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.botpacks .btn{display:flex;flex-direction:column;padding:8px 4px;font-size:12px}.botpacks small{font-size:10.5px;opacity:.85;margin-top:2px}
+#mbox select[data-bot],.wishadd select{width:100%;background:#0006;color:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:14px}
+.wishadd{display:flex;gap:6px;margin-top:8px}.wishadd select{flex:1.3}.wishadd input{flex:1;min-width:0;background:#0006;color:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:15px;text-transform:uppercase;user-select:text;-webkit-user-select:text}
+.wishonce{font-size:13px;color:#8d99b3;margin:8px 0 4px;justify-content:center}.wishonce input{width:18px;height:18px}
+.botlog{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}.botlog>div{position:relative}.botlog i{position:absolute;top:-8px;left:-6px;font-style:normal;font-size:14px;z-index:1}.botpacks{margin-bottom:12px}.botpacks .btn{white-space:normal;min-width:0}#mbox select[data-bot]{margin-bottom:12px}.botlog i{font-size:11px;top:-6px;left:-4px}
+.botpacks .btn.green small{color:#0b3d1d;opacity:1}
