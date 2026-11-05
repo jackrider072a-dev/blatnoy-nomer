@@ -2148,7 +2148,7 @@ function openFriends() {
     const rows = j.list.map(f => `<div class="toprow" data-act="garageOf" data-uid="${f.uid}">${ava(f)}<b>${escapeHTML(f.n)}<small> · ${L("ур. {0}", f.lvl)}${f.inv ? " · " + L("пригласил тебя") : f.mine ? " · " + L("по твоей ссылке") : ""}</small></b><i>${f.v ? fmt(f.v) + " 💰" : ""}</i><em>›</em></div>`).join("");
     $("mbox").innerHTML = `<h2>${L("👥 Друзья")} <small>${j.list.length}</small></h2>
       <div class="card fcode"><small>${L("Твой код друга")}</small><b>${escapeHTML(myCode)}</b>
-        <div class="row"><button class="btn sm alt" data-act="frCopy">${L("📋 Скопировать")}</button><button class="btn sm green" data-act="invite">${L("📤 Позвать по ссылке")}</button></div>
+        <div class="row"><button class="btn sm alt" data-act="frCopy">${L("📋 Копировать")}</button><button class="btn sm green" data-act="invite">${L("📤 Позвать")}</button></div>
         <small>${L("Друг вводит твой код — или просто открывает игру по твоей ссылке, и вы сразу друзья")}</small></div>
       <div class="admsearch"><input id="frCode" maxlength="8" placeholder="${L("Код друга")}" style="text-transform:uppercase"><button class="btn sm green" data-act="frAdd">${L("➕ Добавить")}</button></div>
       ${inc ? `<h3>${L("📨 Заявки в друзья")}</h3><div class="card toplist">${inc}</div>` : ""}
