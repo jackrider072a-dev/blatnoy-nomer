@@ -148,6 +148,22 @@ small{color:var(--dim);font-size:11px}
 .quests .qrow>div{flex:1}.quests .qrow b{font-size:14px}.quests .qrow small{display:block;font-size:12px;color:#8d99b3}
 .quests .bar{height:6px;background:#0005;border-radius:4px;margin:5px 0 2px;overflow:hidden}.quests .bar i{display:block;height:100%;background:var(--ok)}
 .quests .chest{border-bottom:0}
+.admtabs{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:6px 0 10px}.admtabs .btn{box-shadow:none}
+.adm{text-align:left}.adm h3{margin:16px 0 6px;font-size:15px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.kpi{background:#0004;border-radius:10px;padding:8px 6px;text-align:center}
+.kpi b{display:block;font-size:18px;color:var(--gold)}.kpi small{font-size:11px;color:#8d99b3;line-height:1.2;display:block}
+.chart{display:flex;align-items:flex-end;gap:3px;height:140px;padding-top:16px;border-bottom:1px solid #ffffff22}
+.chart .col{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;position:relative}
+.chart .stack{width:100%;display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden;min-height:0}.chart .stack span{display:block;min-height:2px}
+.chart .num{font-style:normal;font-size:10px;color:#cfd6e6}.chart small{position:absolute;bottom:-16px;font-size:9px;color:#8d99b3}
+.chart em{position:absolute;bottom:-29px;font-style:normal;font-size:8px;color:var(--gold);white-space:nowrap}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:34px;font-size:12px}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:middle}
+.admrow{display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid #ffffff12;font-size:14px}
+.admrow>span:first-child,.admrow>div{flex:1;min-width:0}.admrow small{color:#8d99b3;font-size:12px}.admrow>div small{display:block}
+.admrow.player{cursor:pointer}.gifts{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0 10px}.gifts small{width:100%;color:#8d99b3}
+.admsearch{display:flex;gap:6px}.admsearch input,.adm textarea,.adm input{flex:1;width:100%;background:#0006;color:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:14px;margin-bottom:8px;box-sizing:border-box}
+.adm input,.adm textarea{user-select:text;-webkit-user-select:text}
+.cheats{display:flex;flex-wrap:wrap;gap:6px}.cheats .btn{flex:1 1 45%}
 .btn.star.shopbtn small{color:#5a3500;opacity:1}
 .shopbtn b{white-space:nowrap;background:#0006;color:#ffd23f;padding:6px 9px;border-radius:9px}
 .card.done{border-color:var(--ok)}
@@ -392,3 +408,32 @@ small{color:var(--dim);font-size:11px}
 .goal .gbar{margin:3px 0 4px}
 .client{display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:4px}
 .client span{font-size:18px}.client i{color:var(--dim)}
+
+/* событие из админки */
+.pill.ev{background:linear-gradient(90deg,#5a1a6e,#7a2a1a);color:#ffe28a;box-shadow:0 0 12px #ff9a3c66}
+/* альбом номеров */
+.albumbtn{margin:8px 0}.albumbtn small{opacity:.8}
+.atabs{display:flex;flex-wrap:wrap;gap:5px;justify-content:center}.atabs .btn{flex:1 1 18%;padding:7px 4px;font-size:12px}
+.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:5px;margin:10px 0}
+.acell{background:#0d111c;border:1px dashed #2a3350;border-radius:9px;padding:6px 3px;text-align:center;color:#4a5370;min-height:38px;display:flex;flex-direction:column;justify-content:center}
+.acell b{font-size:14px;letter-spacing:.5px}.acell small{font-size:8.5px;line-height:1.1;margin-top:2px;opacity:.85}
+.acell.on{color:#7dff8a;border:1px solid #7dff8a66;background:#11261a}
+.acell.on.t-s,.acell.on.t-g{color:#ffd23f;border-color:#ffd23f88;background:#2a2108}
+/* чужой гараж */
+.ggrid{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0}
+.toprow[data-act]{cursor:pointer}.toprow em{font-style:normal;font-size:12px;opacity:.6}.toprow b small{font-weight:normal;color:#8d99b3;font-size:12px}
+/* админка: удержание и панель игрока */
+.rettable{overflow-x:auto}.rettable table{width:100%;border-collapse:collapse;font-size:12px}
+.rettable th{color:#8d99b3;font-weight:normal;padding:4px 3px;text-align:center;border-bottom:1px solid #ffffff22}
+.rettable td{padding:5px 3px;text-align:center;border-bottom:1px solid #ffffff10}.rettable td:first-child{text-align:left}
+.rettable .na,.rettable tr.na td{color:#4a5370}
+.lvrow{display:flex;align-items:center;gap:8px;font-size:12px;margin:3px 0}.lvrow span{width:28px;text-align:right;color:#cfd6e6}
+.lvrow small{width:96px;color:#8d99b3}.lvbar{flex:1;height:12px;position:relative;background:#0004;border-radius:4px;overflow:hidden}
+.lvbar i{position:absolute;left:0;top:0;bottom:0;background:#4fc3f7}.lvbar b{position:absolute;left:0;top:0;bottom:0;background:#e0475b}
+.admgift{display:flex;flex-wrap:wrap;gap:5px;width:100%}.admgift .btn{flex:1 1 30%}
+.admline{display:flex;gap:6px;align-items:center;width:100%;font-size:13px;color:#cfd6e6}.admline input,.admline select{margin-bottom:0!important}
+.admline select,.adm select{background:#0006;color:#fff;border:1px solid var(--line);border-radius:10px;padding:9px;font:inherit;font-size:14px}
+.adm>select,.adm>input{margin-bottom:8px}.adm>select{width:100%}
+.gifts .admline,.gifts>input,.gifts>textarea{margin-bottom:2px}.adm input[type=checkbox]{width:20px;height:20px;flex:0 0 auto;margin:0!important;padding:0}.chk{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.gifts>input,.gifts>textarea{flex:1 1 100%}.admline .btn{flex:0 0 auto;white-space:nowrap}
+.adm .chart+h3{margin-top:30px}
