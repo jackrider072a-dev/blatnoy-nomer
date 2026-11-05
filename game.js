@@ -92,6 +92,7 @@ const fresh = () => ({
   quests: { day: "", list: [], chest: 0 },              // задания дня: list — [{ k, n, base, got, nt }], chest — сундук за все три забран
   album: { got: {}, rw: {} },                           // альбом номеров: got — собранные клетки ("r:77", "d:777"…), rw — забранные награды страниц ("reg1" — половина, "reg2" — вся)
   soc: { resp: 0 },                                     // сколько респектов гаражу игрок уже видел (Telegram)
+  bot: { on: true, pack: "basic", sell: -2, merge: -1, reserve: 0, wish: [], log: [], n: 0, found: 0 },   // помощник: вкл, бланк, что продавать (-2 — как авто-продажа), автослияние до редкости (-1 — нет), запас денег, «ищу номер», журнал
   prof: { nick: "", ava: "😎", frame: "base", bio: "", pins: [] }   // профиль: ник, аватар, рамка, статус, закреплённые номера (id, до 3)
 });
 let S = fresh();
@@ -103,6 +104,7 @@ function normalize(r) {                              // сохранение (л
   s.quests = Object.assign(fresh().quests, r.quests); if (!Array.isArray(s.quests.list)) s.quests.list = [];
   s.album = Object.assign(fresh().album, r.album); s.album.got = Object.assign({}, s.album.got); s.album.rw = Object.assign({}, s.album.rw);
   s.soc = Object.assign(fresh().soc, r.soc);
+  s.bot = Object.assign(fresh().bot, r.bot); if (!Array.isArray(s.bot.wish)) s.bot.wish = []; if (!Array.isArray(s.bot.log)) s.bot.log = [];
   s.prof = Object.assign(fresh().prof, r.prof); if (!Array.isArray(s.prof.pins)) s.prof.pins = [];
   s.story = Object.assign(fresh().story, r.story); s.story.ev = Object.assign({}, s.story.ev);
   if (!r.story) s.tut = r.drawn > 0 ? -1 : 0;                              // сейв до сюжета: опытным игрокам обучение не показываем
@@ -378,7 +380,7 @@ function markFound(p) {
   if (SPECIAL_DIGITS.includes(p.d)) keys.push("d:" + p.d);
   if (ELITE_REG.includes(p.reg)) keys.push("r:" + p.reg);
   for (const k of keys) if (!S.found[k]) { S.found[k] = true; setProgress(k); }
-  albumAdd(p);
+  albumAdd(p); wishCheck(p);
 }
 
 // ===================== ЭКОНОМИКА =====================
@@ -523,7 +525,7 @@ function reveal(r) {
   addXp(XP_TIER[r.tier]);
   updatePity();
   if (r.gift) { $("note").textContent = L("🎁 Подарок новичку! {0}", plateNote(r)); toast(L("🎁 Подарок новичку — повезло!")); }
-  if (r.tier <= S.set.auto) {                       // авто-продажа по порогу
+  if (r.tier <= S.set.auto && !isLocked(r)) {       // авто-продажа по порогу (номер из «Ищу» — никогда)
     const v = sellVal(r); gain(v); S.sold++;
     $("note").textContent = L("{0} — продан за {1}", plateNote(r), fmt(v));
     fx.fly(cx, cy, 4); Snd.sell();
@@ -537,8 +539,9 @@ function reveal(r) {
 function keepPlate(p) {   // кладём в гараж; если полон — сначала сливаем тройку, иначе вытесняем самый дешёвый
   if (S.plates.length >= slots()) { const t = mergeTiers()[0]; if (t != null) { const m = mergeTake(t); toast(L("Гараж полон: слито {2} × «{0}» → «{1}»", TIERS[t].name, TIERS[m.tier].name, MERGE_NEED[t])); } }
   if (S.plates.length < slots()) { S.plates.push(p); return "kept"; }
-  const worst = S.plates.reduce((a, b) => a.val <= b.val ? a : b);
-  if (worst.val < p.val) { S.plates = S.plates.filter(x => x.id !== worst.id); gain(sellVal(worst)); S.sold++; S.plates.push(p); toast(L("Гараж полон: продан самый дешёвый номер")); return "swapped"; }
+  const free = S.plates.filter(x => !isLocked(x)), worst = free.length ? free.reduce((a, b) => a.val <= b.val ? a : b) : null;
+  if (isLocked(p) && !worst) { S.plates.push(p); toast(L("🔒 Гараж переполнен запертыми номерами — купи места в улучшениях")); return "kept"; }
+  if (worst && (worst.val < p.val || isLocked(p))) { S.plates = S.plates.filter(x => x.id !== worst.id); gain(sellVal(worst)); S.sold++; S.plates.push(p); toast(L("Гараж полон: продан самый дешёвый номер")); return "swapped"; }
   gain(sellVal(p)); S.sold++; toast(L("Гараж полон: номер продан. Купи места в улучшениях!")); return "sold";
 }
 function resolvePending(sell) {
@@ -552,10 +555,13 @@ function resolvePending(sell) {
 
 // ===================== СЛИЯНИЕ: несколько номеров одной редкости → 1 номер редкостью выше =====================
 // Так любой выпавший номер — шаг вперёд: три обычных дают красивый, три красивых — редкий и т.д. до суперлегенды.
-const tierCount = t => S.plates.filter(p => p.tier === t).length + (pending && pending.tier === t ? 1 : 0);
-const mergeTiers = () => { const r = []; for (let t = 0; t < TOP; t++) if (S.plates.filter(p => p.tier === t).length >= MERGE_NEED[t]) r.push(t); return r; };
+// 🔒 запертые номера (и закреплённые в профиле) не сливаются, не продаются пачкой, не отдаются в заказы и тюнинг
+const isLocked = p => !!(p && (p.lock || (S.prof && S.prof.pins.includes(p.id))));
+const freeOf = t => S.plates.filter(p => p.tier === t && !isLocked(p));
+const tierCount = t => freeOf(t).length + (pending && pending.tier === t && !isLocked(pending) ? 1 : 0);
+const mergeTiers = () => { const r = []; for (let t = 0; t < TOP; t++) if (freeOf(t).length >= MERGE_NEED[t]) r.push(t); return r; };
 function mergeTake(t) {                                 // без анимации: убрать три номера, положить новый
-  const src = S.plates.filter(p => p.tier === t).slice(0, MERGE_NEED[t]), ids = src.map(p => p.id);
+  const src = freeOf(t).sort((a, b) => a.id - b.id).slice(0, MERGE_NEED[t]), ids = src.map(p => p.id);
   S.plates = S.plates.filter(p => !ids.includes(p.id));
   const r = makePlate(t + 1); r.merged = true;
   S.plates.push(r); markFound(r); S.merges++; S.mergeBest = Math.max(S.mergeBest, r.tier); addXp(XP_TIER[r.tier]);
@@ -565,7 +571,7 @@ function mergeTake(t) {                                 // без анимаци
 function doMerge(t) {
   if (rolling || forging) return;
   if (pending) resolvePending(false);
-  if (S.plates.filter(p => p.tier === t).length < MERGE_NEED[t]) return Snd.err();
+  if (freeOf(t).length < MERGE_NEED[t]) { Snd.err(); return toast(L("Не хватает номеров без замка 🔒")); }
   const { r, src } = mergeTake(t), col = TIERS[r.tier].color;
   Snd.rise(0.9); buzz(30);
   openModal(`<h2 style="color:${col}">${L("⚡ Слияние!")}</h2>
@@ -607,7 +613,7 @@ function buyMany(id) {
   let soldSum = 0, soldN = 0, kept = 0, best = 0;
   res.forEach(r => {
     markFound(r); S.tc[r.tier]++; best = Math.max(best, r.tier); addXp(XP_TIER[r.tier]);
-    if (r.tier <= S.set.auto) { const v = sellVal(r); gain(v); S.sold++; soldSum += v; soldN++; } else { keepPlate(r); kept++; }
+    if (r.tier <= S.set.auto && !isLocked(r)) { const v = sellVal(r); gain(v); S.sold++; soldSum += v; soldN++; } else { keepPlate(r); kept++; }
   });
   if (res.some(r => r.tier >= 3)) S.pity = 0;
   const chips = [...res].sort((a, b) => b.tier - a.tier).map(r => plateHTML(r, "mini")).join("");
@@ -819,8 +825,11 @@ function renderGarage() {
   let h = `<h2>${L("🏠 Гараж")} <small>${L("{0}/{1} мест · доход {2}/сек", S.plates.length, slots(), fmt(income()))}</small></h2>
     <div class="chips"><small style="align-self:center">${L("Продать всё ниже:")}</small>
     ${[0, 1, 2].map(t => `<button class="chip" data-act="sellTier" data-t="${t}" style="color:${TIERS[t].color}">≤ ${TIERS[t].name}</button>`).join("")}</div>`;
-  h += `<div class="mergegrid">${TIERS.slice(0, TOP).map((tr, t) => { const n = S.plates.filter(p => p.tier === t).length, ok = n >= MERGE_NEED[t];
-    return `<button class="mcell ${ok ? "ready" : ""}" data-act="merge" data-t="${t}" ${ok ? "" : "disabled"} style="--mc:${tr.color}"><b>${tr.name}</b><small>${Math.min(n, 99)}/${MERGE_NEED[t]} → ${TIERS[t + 1].name}</small></button>`; }).join("")}</div>`;
+  const locked = S.plates.filter(isLocked).length;
+  h += `<div class="row botrow"><button class="btn alt" data-act="botOpen">${L("🤖 Помощник")}${up("bot") ? ` <small>${S.bot.on ? L("работает") : L("выключен")}</small>` : ""}</button><button class="btn alt" data-act="botOpen" data-sec="wish">${L("🎯 Ищу номер")}${S.bot.wish.length ? ` <small>${S.bot.wish.length}</small>` : ""}</button></div>`;
+  h += `<div class="mergegrid">${TIERS.slice(0, TOP).map((tr, t) => { const n = freeOf(t).length, lk = S.plates.filter(p => p.tier === t && isLocked(p)).length, ok = n >= MERGE_NEED[t];
+    return `<button class="mcell ${ok ? "ready" : ""}" data-act="merge" data-t="${t}" ${ok ? "" : "disabled"} style="--mc:${tr.color}"><b>${tr.name}</b><small>${Math.min(n, 99)}/${MERGE_NEED[t]} → ${TIERS[t + 1].name}${lk ? " · 🔒" + lk : ""}</small></button>`; }).join("")}</div>`;
+  if (locked) h += `<p class="hint" style="margin:4px 0">${L("🔒 Под замком: {0} — они не сливаются и не продаются. Замок — кнопка у номера.", locked)}</p>`;
   const ar = albumReady();
   h += `<button class="btn ${ar ? "green ready" : "alt"} albumbtn" data-act="album">${L("📒 Альбом номеров · {0}/{1}", albumCount(), ALBUM_TOTAL)}${ar ? " 🎁" : ""}${albumBonus() ? ` <small>+${Math.round(albumBonus() * 100)}%</small>` : ""}</button>`;
   h += setsHTML();
@@ -828,18 +837,20 @@ function renderGarage() {
   list.slice(0, 100).forEach(p => {
     const mm = marketMult(p);
     h += `<div class="item"><span data-act="plateInfo" data-id="${p.id}" style="cursor:pointer">${plateHTML(p, "small")}</span><div class="info" data-act="plateInfo" data-id="${p.id}" style="cursor:pointer"><b style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}</b>${mm > 1 ? " 📈" : ""} ℹ<br>${L("+{0}/сек", plateInc(p).toFixed(2))}<br><small>${L("нажми — история номера")}</small></div>
-      <button data-act="sellPlate" data-id="${p.id}">${L("Продать {0}", fmt(sellVal(p)))}</button></div>`;
+      <button class="lockbtn ${isLocked(p) ? "on" : ""}" data-act="lockPlate" data-id="${p.id}" title="${L("Замок: не сливать и не продавать")}">${isLocked(p) ? "🔒" : "🔓"}</button>
+      ${isLocked(p) ? `<button class="sold-lock" disabled>${L("Под замком")}</button>` : `<button data-act="sellPlate" data-id="${p.id}">${L("Продать {0}", fmt(sellVal(p)))}</button>`}</div>`;
   });
   $("tab-garage").innerHTML = h;
 }
 function sellPlate(id) {
   const p = S.plates.find(x => x.id === id); if (!p) return;
+  if (isLocked(p)) return toast(L("🔒 Номер под замком — сначала сними замок"));
   S.plates = S.plates.filter(x => x.id !== id); gain(sellVal(p)); S.sold++; Snd.sell();
   fx.fly(innerWidth / 2, innerHeight / 2, 4); renderGarage(); renderHeader(); save();
 }
 function sellTier(t) {
   let sum = 0, n = 0; const keep = [];
-  S.plates.forEach(p => { if (p.tier <= t) { sum += sellVal(p); n++; } else keep.push(p); });
+  S.plates.forEach(p => { if (p.tier <= t && !isLocked(p)) { sum += sellVal(p); n++; } else keep.push(p); });
   if (!n) return toast(L("Нечего продавать"));
   S.plates = keep; gain(sum); S.sold += n; Snd.sell(); fx.fly(innerWidth / 2, innerHeight / 2, 10);
   toast(L("Продано {0} шт. на {1}", n, fmt(sum))); renderGarage(); renderHeader(); save();
@@ -859,7 +870,7 @@ function genOrder() {
 }
 function orderMatch(o, p) { return o.k === "tier" ? p.tier >= o.t : o.k === "digits" ? p.d === o.d : seriesOf(p) === o.s; }
 function orderText(o) { return o.k === "tier" ? L("Номер не ниже «{0}»", TIERS[o.t].name) : o.k === "digits" ? L("Номер с цифрами «{0}»", o.d) : L("Номер серии «{0}»", o.s); }
-function orderPlate(o) { return S.plates.filter(p => orderMatch(o, p)).sort((a, b) => a.val - b.val)[0]; }
+function orderPlate(o) { return S.plates.filter(p => orderMatch(o, p) && !isLocked(p)).sort((a, b) => a.val - b.val)[0]; }
 const ordersOpen = () => S.lvl >= 2 || S.story.ch >= 1;   // заказы открывает 2 уровень или глава «Первые клиенты»
 function ensureOrders() { if (!ordersOpen()) return; while (S.orders.length < 3) S.orders.push(genOrder()); }
 function renderOrders() {
@@ -895,7 +906,7 @@ function renderUps() {
   UPS.forEach(u => {
     const lvl = up(u.id), maxed = lvl >= u.max, cost = upCost(u);
     h += `<div class="card"><h3>${u.name} <small>${L("ур. {0}", lvl)}${maxed ? L(" (макс.)") : "/" + u.max}</small></h3><p>${u.desc}</p>
-      <button class="btn" data-act="buyUp" data-id="${u.id}" data-cost="${maxed ? 1e300 : cost}" ${maxed ? "disabled" : ""}>${maxed ? L("МАКСИМУМ") : L("Улучшить — {0} 💰", fmt(cost))}</button></div>`;
+      <button class="btn" data-act="buyUp" data-id="${u.id}" data-cost="${maxed ? 1e300 : cost}" ${maxed ? "disabled" : ""}>${maxed ? L("МАКСИМУМ") : L("Улучшить — {0} 💰", fmt(cost))}</button>${u.id === "bot" && lvl ? `<button class="btn alt" data-act="botOpen">${L("⚙ Настроить помощника")}</button>` : ""}</div>`;
   });
   $("tab-up").innerHTML = h; refreshDisabled();
 }
@@ -981,7 +992,7 @@ function renderMore() {
 const prestigeGain = () => Math.floor(Math.sqrt(S.earnedRun / 1500000));
 function doPrestige() {
   const g = prestigeGain(); if (g < 1) return;
-  const keep = { drawn: S.drawn, goal: S.goal, achClaim: S.achClaim, story: S.story, tut: S.tut, title: S.title, sets: S.sets, merges: S.merges, mergeBest: S.mergeBest, forge: Object.assign({}, S.forge, { sel: [], coins: 0, target: null, lots: [], boost: false }), found: S.found, ach: S.ach, lvl: S.lvl, xp: S.xp, set: S.set, mini: S.mini, daily: S.daily, tc: S.tc, bought: S.bought, sold: S.sold, earned: S.earned, ordersDone: S.ordersDone, playSec: S.playSec, taxis: S.taxis, buyers: S.buyers, subs: S.subs, paid: S.paid, quests: S.quests, album: S.album, soc: S.soc, prof: Object.assign({}, S.prof, { pins: [] }) };   // покупки и бонусы за подписку переезд не обнуляет
+  const keep = { drawn: S.drawn, goal: S.goal, achClaim: S.achClaim, story: S.story, tut: S.tut, title: S.title, sets: S.sets, merges: S.merges, mergeBest: S.mergeBest, forge: Object.assign({}, S.forge, { sel: [], coins: 0, target: null, lots: [], boost: false }), found: S.found, ach: S.ach, lvl: S.lvl, xp: S.xp, set: S.set, mini: S.mini, daily: S.daily, tc: S.tc, bought: S.bought, sold: S.sold, earned: S.earned, ordersDone: S.ordersDone, playSec: S.playSec, taxis: S.taxis, buyers: S.buyers, subs: S.subs, paid: S.paid, quests: S.quests, album: S.album, soc: S.soc, bot: Object.assign({}, S.bot, { log: [] }), prof: Object.assign({}, S.prof, { pins: [] }) };   // покупки и бонусы за подписку переезд не обнуляет
   const n = fresh(); Object.assign(n, keep); n.pts = S.pts + g; n.prest = S.prest + 1; n.nid = S.nid; n.coins = START_COINS + 200 * n.pts;
   S = n; pending = null; closeModal(); cinemaQueue.length = 0;
   enqueueCinema({ color: "#ffb300", bg: "#3a2a05", big: true, icon: "🏛", top: L("Переезд в Москву"), title: L("НОВАЯ ЖИЗНЬ"), value: g, valueLabel: L("СВЯЗИ ПОЛУЧЕНО"), valueIcon: "⭐",
@@ -1434,6 +1445,81 @@ function albumBackfill() {
   for (const k of Object.keys(S.found)) if (/^[sdr]:/.test(k) && ALBUM.some(pg => pg.k.includes(k))) S.album.got[k] = 1;
 }
 
+// ===================== ПОМОЩНИК И «ИЩУ НОМЕР» =====================
+// Помощник (апгрейд «🤖 Помощник») сам покупает бланки. Настройки: какой бланк, что сразу продавать, автослияние до нужной
+// редкости, запас денег, который он не тратит. «Ищу номер» — список желаемого (регион, цифры, серия, три буквы): такой номер
+// при любой покупке (своей или помощника), слиянии и подарке сразу запирается 🔒 — его не продаст и не сольёт никто.
+const plateStr = p => p.l1 + p.d + p.l23 + " " + p.reg;
+const WISH_KINDS = [["reg", "Регион", "77"], ["dig", "Цифры", "777"], ["ser", "Серия — 3 буквы", "АМР"], ["let", "Три одинаковые буквы", "А"]];
+const wishLabel = w => w.k === "reg" ? L("регион {0}", w.v) + (REGION_NAME[w.v] ? " · " + L(REGION_NAME[w.v]) : "") : w.k === "dig" ? L("цифры {0}", w.v) : w.k === "ser" ? L("серия {0}", w.v) : L("буквы {0}", w.v + "…" + w.v + w.v);
+const wishMatch = (w, p) => w.k === "reg" ? p.reg === w.v : w.k === "dig" ? p.d === w.v : w.k === "ser" ? seriesOf(p) === w.v : p.l1 === w.v && p.l23 === w.v + w.v;
+function wishCheck(p) {
+  if (!S.bot.wish.length || p.wc) return;
+  const w = S.bot.wish.find(x => wishMatch(x, p)); if (!w) return;
+  p.wc = 1; p.lock = true; p.wish = 1; w.got = (w.got || 0) + 1; S.bot.found++;
+  setTimeout(() => { toast(L("🎯 Выбит номер из «Ищу»: {0} — он под замком 🔒", plateStr(p))); vignette("#43c76b"); fx.confetti(60); }, 400);
+  Platform.track("wish_found");
+  if (w.once) S.bot.wish = S.bot.wish.filter(x => x !== w);
+}
+const botEvery = () => 25 / (1 + 0.5 * up("bot"));
+const botPack = () => PACKS[S.bot.pack] && S.lvl >= PACKS[S.bot.pack].lvl ? S.bot.pack : "basic";
+function botLog(p, a) { S.bot.log.unshift({ p: [p.l1 + p.d + p.l23, p.reg, p.tier], a }); S.bot.log = S.bot.log.slice(0, 12); }
+function botBuy() {
+  const pk = botPack(), c = packPrice(pk);
+  if (S.coins - c < Math.max(c * 2, S.bot.reserve)) return;                 // запас денег не трогает
+  S.coins -= c; S.bought++; S.bot.n++;
+  const r = drawPlate(pk); markFound(r); S.tc[r.tier]++; addXp(PACKS[pk].xp);
+  const sellT = S.bot.sell === -2 ? S.set.auto : S.bot.sell;
+  if (r.tier <= sellT && !isLocked(r)) { gain(sellVal(r)); S.sold++; botLog(r, "sold"); }
+  else {
+    keepPlate(r); botLog(r, r.wish ? "wish" : "kept");
+    if (r.tier >= 1 && !r.wish) toast(L("🤖 Помощник купил: {0} ({1})", plateStr(r), TIERS[r.tier].name));
+  }
+  let merged = 0;                                                            // автослияние — только незапертых и не выше выбранной редкости
+  if (S.bot.merge >= 1) for (let i = 0; i < 8; i++) { const t = mergeTiers().find(x => x + 1 <= S.bot.merge); if (t == null) break; botLog(mergeTake(t).r, "merge"); merged++; }
+  if (merged) toast(L("🤖 Помощник сделал слияний: {0}", merged));
+  updatePity(); renderPacks();
+}
+function openBot(sec) {
+  const b = S.bot, lv = up("bot");
+  const opt = (k, list) => `<select data-bot="${k}">${list.map(([v, n]) => `<option value="${v}" ${b[k] === v ? "selected" : ""}>${L(n)}</option>`).join("")}</select>`;
+  const packs = Object.keys(PACKS).map(k => { const P = PACKS[k], ok = S.lvl >= P.lvl;
+    return `<button class="btn sm ${botPack() === k ? "green" : "alt"}" data-act="botSet" data-k="pack" data-v="${k}" ${ok ? "" : "disabled"}>${P.icon} ${P.name.split(/[ -]/)[0]}<small>${ok ? fmt(packPrice(k)) + " 💰" : L("🔒 ур. {0}", P.lvl)}</small></button>`; }).join("");
+  const ico = { sold: "💰", kept: "🏠", wish: "🎯", merge: "⚡" };
+  openModal(`<h2>${L("🤖 Помощник")}</h2>
+    ${lv ? `<div class="card botcard"><div class="setrow"><span><b>${b.on ? L("Работает") : L("Выключен")}</b><small>${L("Ур. {0} · покупает раз в {1} с · куплено {2}", lv, botEvery().toFixed(1), b.n)}</small></span><button class="tog ${b.on ? "on" : ""}" data-act="botSet" data-k="on"></button></div></div>
+    <h3>${L("Какой бланк покупать")}</h3><div class="botpacks">${packs}</div>
+    <h3>${L("Что сразу продавать")}</h3>${opt("sell", [[-2, "Как «Авто-продажа» в настройках"], [-1, "Ничего — всё в гараж"], [0, "Обычные"], [1, "Обычные и красивые"], [2, "Всё до редких включительно"]])}
+    <h3>${L("Автослияние")}</h3>${opt("merge", [[-1, "Выключено — сливаю сам"], [1, "До красивых"], [2, "До редких"], [3, "До блатных"], [4, "До легенд"], [5, "До суперлегенд"]])}
+    <h3>${L("Не тратить ниже")}</h3>${opt("reserve", [[0, "Тратить всё"], [1e4, "10 тыс"], [1e5, "100 тыс"], [1e6, "1 млн"], [1e7, "10 млн"], [1e8, "100 млн"], [1e9, "1 млрд"]])}
+    <p class="hint">${L("Номера под замком 🔒 помощник не продаёт и не сливает.")}</p>`
+    : `<div class="card"><p>${L("Помощника ещё нет — его можно купить во вкладке «⚙ Улучшения» → «🤖 Помощник». Он сам покупает бланки, продаёт ненужное и сливает номера.")}</p><p class="hint">${L("«Ищу номер» работает уже сейчас — и для твоих покупок.")}</p></div>`}
+    <h3 id="wishSec">${L("🎯 Ищу номер")} <small>${L("найдено: {0}", b.found)}</small></h3>
+    <p class="hint" style="margin-top:0">${L("Номер из списка сразу ставится под замок 🔒 — его не продаст ни помощник, ни авто-продажа, и он не сольётся.")}</p>
+    ${b.wish.length ? `<div class="card toplist">${b.wish.map((w, i) => `<div class="toprow"><span>🎯</span><b>${escapeHTML(wishLabel(w))}<small>${w.once ? " · " + L("один раз") : ""}${w.got ? " · " + L("выбито: {0}", w.got) : ""}</small></b><button class="btn sm alt" data-act="wishDel" data-i="${i}">✖</button></div>`).join("")}</div>` : ""}
+    <div class="wishadd"><select id="wK">${WISH_KINDS.map(([k, n]) => `<option value="${k}">${L(n)}</option>`).join("")}</select><input id="wV" maxlength="3" placeholder="${L("например 77, 777, АМР")}"><button class="btn sm green" data-act="wishAdd">➕</button></div>
+    <label class="chk wishonce"><input type="checkbox" id="wOnce" checked> ${L("убрать из списка, когда выбьется")}</label>
+    ${lv && b.log.length ? `<h3>${L("Последние покупки помощника")}</h3><div class="botlog">${b.log.map(x => `<div><i>${ico[x.a] || ""}</i>${plateHTML(snapPlate(x.p), "mini")}</div>`).join("")}</div><p class="hint">${L("💰 продал · 🏠 в гараж · 🎯 нашёл из списка · ⚡ слил")}</p>` : ""}
+    <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
+  document.querySelectorAll("#mbox [data-bot]").forEach(s => s.onchange = () => { S.bot[s.dataset.bot] = +s.value; save(); toast(L("🤖 Сохранено")); });
+  if (sec === "wish") setTimeout(() => { const e = $("wishSec"); if (e) e.scrollIntoView({ block: "start" }); }, 30);
+}
+function wishAdd() {
+  const k = ($("wK") || {}).value; let v = ((($("wV") || {}).value) || "").trim().toUpperCase().replace(/\s/g, "").replace(/[ABEKMHOPCTYX]/g, c => LAT2CYR[c]);
+  if (k === "reg") { if (!ALL_REG.includes(v)) return toast(L("Такого региона в игре нет. Есть: {0}", ALL_REG.join(", "))); }
+  else if (k === "dig") { if (!/^\d{3}$/.test(v)) return toast(L("Цифры — ровно три, например 777")); }
+  else if (k === "ser") { if (!/^[АВЕКМНОРСТУХ]{3}$/.test(v)) return toast(L("Серия — три буквы из: {0}", LETTERS.join(" "))); }
+  else { v = v.slice(0, 1); if (!LETTERS.includes(v)) return toast(L("Буква — одна из: {0}", LETTERS.join(" "))); }
+  if (S.bot.wish.some(w => w.k === k && w.v === v)) return toast(L("Уже в списке"));
+  if (S.bot.wish.length >= 10) return toast(L("Не больше 10 номеров в списке"));
+  const w = { k, v, once: !!($("wOnce") || {}).checked, got: 0 };
+  const have = S.plates.filter(p => wishMatch(w, p));
+  have.forEach(p => { p.lock = true; p.wish = 1; });
+  if (have.length && w.once) toast(L("Такой уже есть в гараже ({0} шт.) — поставил замок 🔒", have.length));
+  else { S.bot.wish.push(w); toast(have.length ? L("🎯 Добавлено. В гараже уже есть {0} шт. — они под замком 🔒", have.length) : L("🎯 Добавлено — ищем!")); }
+  Platform.track("wish_add_" + k); save(); openBot("wish");
+}
+
 // ===================== СЮЖЕТ: персонажи, диалоги, обучение, главы =====================
 // Все персонажи вымышленные. Реплики — массивы [кто, текст]; текст переводится при показе.
 const upSum = () => UPS.reduce((a, u) => a + up(u.id), 0);
@@ -1734,8 +1820,9 @@ function plateInfo(p, canSell) {
     <div class="card" style="text-align:left"><h3>${L("📜 История")} <small>${L("(вымышленная)")}</small></h3>${tl.map(x => `<div class="tl">${x}</div>`).join("")}</div>
     <div class="card" style="text-align:left"><h3>${L("🗣 Слухи")}</h3>${rum.map(x => `<p style="margin:0 0 6px;font-size:13px;color:#cfd6e6">• ${x}</p>`).join("")}</div>
     ${Platform.canShare && t >= 2 ? `<button class="btn alt" data-act="brag" data-id="${p.id}">${L("📤 Похвастаться другу")}</button>` : ""}
+    ${canSell ? `<button class="btn ${isLocked(p) ? "green" : "alt"}" data-act="lockPlate" data-id="${p.id}" data-info="1">${p.lock ? L("🔒 Под замком — не сливать и не продавать (снять)") : S.prof.pins.includes(p.id) ? L("🔒 Защищён: закреплён в профиле") : L("🔓 Поставить замок: не сливать и не продавать")}</button>` : ""}
     ${canSell ? `<button class="btn alt" data-act="pinPlate" data-id="${p.id}">${S.prof.pins.includes(p.id) ? L("📌 Открепить из профиля") : L("📌 Закрепить в профиле")}</button>` : ""}
-    ${canSell ? `<button class="btn green" data-act="sellFromInfo" data-id="${p.id}">${L("Продать за {0}", fmt(sellVal(p)))}</button>` : ""}
+    ${canSell && !isLocked(p) ? `<button class="btn green" data-act="sellFromInfo" data-id="${p.id}">${L("Продать за {0}", fmt(sellVal(p)))}</button>` : ""}
     <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`;
 }
 let lastRevealed = null;
@@ -2445,6 +2532,11 @@ const ACTS = {
   garageOf: d => d.top != null ? openGarageOf({ top: +d.top }, "top") : d.me ? openGarageOf({ uid: myUid }, "friends") : openGarageOf({ uid: +d.uid }, d.back || "friends"),
   garageBack: () => garageBack === "top" ? openTop() : garageBack === "admin" ? openAdmin("players") : openFriends(),
   respect: (d, e, el) => giveRespect(el), friends: () => openFriends(),
+  lockPlate: d => { const p = S.plates.find(x => x.id === +d.id); if (!p) return; if (!p.lock && S.prof.pins.includes(p.id)) return toast(L("Номер закреплён в профиле — он и так под защитой"));
+    p.lock = !p.lock; if (!p.lock) delete p.wish; Snd.keep(); toast(p.lock ? L("🔒 Под замком: не сольётся и не продастся") : L("🔓 Замок снят")); save();
+    if (d.info) showInfo(p.id); else if (tab === "garage") renderGarage(); renderMergeBar(); },
+  botOpen: d => openBot(d.sec), botSet: d => { if (d.k === "on") S.bot.on = !S.bot.on; else S.bot[d.k] = d.v; save(); openBot(); },
+  wishAdd: () => wishAdd(), wishDel: d => { S.bot.wish.splice(+d.i, 1); save(); openBot("wish"); },
   profile: () => { pfDraft = null; openProfile(); }, pfCancel: () => { pfDraft = null; closeModal(); }, pfSave: () => pfSave(),
   pfAva: d => { pfSync(); if (!avaOk(d.v)) { const x = AVAS.find(v => Array.isArray(v) && v[0] === d.v); return toast(L("🔒 Откроется: {0}", x ? L(x[2]) : "")); } pfDraft.ava = d.v; openProfile(); },
   pfFrame: d => { pfSync(); const f = frameOf(d.v); if (!f.ok()) return toast(L("🔒 Рамка «{0}» откроется: {1}", f.n, L(f.need))); pfDraft.frame = f.id; openProfile(); },
@@ -2486,6 +2578,7 @@ const ACTS = {
   storyReplay: () => { const C = STORY[S.story.ch]; if (C && C.intro.length && !Talk.cur && S.tut < 0) say(C.intro); },   // тап по заданию — ещё раз послушать главу
   forgeToggle: d => {
     if (forging) return; const id = +d.id, i = S.forge.sel.indexOf(id);
+    if (i < 0 && isLocked(S.plates.find(p => p.id === id))) return toast(L("🔒 Номер под замком — в тюнинг не пойдёт"));
     if (i >= 0) S.forge.sel.splice(i, 1); else S.forge.sel.push(id);
     const el = document.querySelector(`.fcard[data-id="${id}"]`); if (el) el.classList.toggle("on", i < 0);
     renderForge();
@@ -2564,17 +2657,7 @@ setInterval(() => {
   if (hidden) return;
   S.playSec += dt; gain(income() * dt);
   // помощник покупает бланки сам
-  if (up("bot") > 0) {
-    botT += dt;
-    if (botT >= 25 / (1 + 0.5 * up("bot"))) {
-      botT = 0; const c = packPrice("basic");
-      if (S.coins >= c * 3 && !rolling) {
-        S.coins -= c; S.bought++; const r = drawPlate("basic"); markFound(r); S.tc[r.tier]++; addXp(3);
-        if (r.tier <= S.set.auto) { gain(sellVal(r)); S.sold++; } else { keepPlate(r); if (r.tier >= 1) toast(L("🤖 Помощник купил: {0} ({1})", r.l1 + r.d + r.l23 + " " + r.reg, TIERS[r.tier].name)); }
-        updatePity(); renderPacks();
-      }
-    }
-  }
+  if (up("bot") > 0 && S.bot.on) { botT += dt; if (botT >= botEvery()) { botT = 0; if (!rolling) botBuy(); } }
   refreshMarket();
   renderHeader(); refreshDisabled(); updateOrderDot();
   if ($("pills").children.length || S.market) renderPills();
