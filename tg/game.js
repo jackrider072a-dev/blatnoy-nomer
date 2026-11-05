@@ -91,7 +91,8 @@ const fresh = () => ({
   paid: { x2: 0, got: [], starter: 0, starterUntil: 0 }, // покупки за звёзды (Telegram): x2 — доход ×2 навсегда, got — id уже выданных платежей, набор новичка
   quests: { day: "", list: [], chest: 0 },              // задания дня: list — [{ k, n, base, got, nt }], chest — сундук за все три забран
   album: { got: {}, rw: {} },                           // альбом номеров: got — собранные клетки ("r:77", "d:777"…), rw — забранные награды страниц ("reg1" — половина, "reg2" — вся)
-  soc: { resp: 0 }                                      // сколько респектов гаражу игрок уже видел (Telegram)
+  soc: { resp: 0 },                                     // сколько респектов гаражу игрок уже видел (Telegram)
+  prof: { nick: "", ava: "😎", frame: "base", bio: "", pins: [] }   // профиль: ник, аватар, рамка, статус, закреплённые номера (id, до 3)
 });
 let S = fresh();
 function normalize(r) {                              // сохранение (локальное или облачное) → полное состояние игры
@@ -102,6 +103,7 @@ function normalize(r) {                              // сохранение (л
   s.quests = Object.assign(fresh().quests, r.quests); if (!Array.isArray(s.quests.list)) s.quests.list = [];
   s.album = Object.assign(fresh().album, r.album); s.album.got = Object.assign({}, s.album.got); s.album.rw = Object.assign({}, s.album.rw);
   s.soc = Object.assign(fresh().soc, r.soc);
+  s.prof = Object.assign(fresh().prof, r.prof); if (!Array.isArray(s.prof.pins)) s.prof.pins = [];
   s.story = Object.assign(fresh().story, r.story); s.story.ev = Object.assign({}, s.story.ev);
   if (!r.story) s.tut = r.drawn > 0 ? -1 : 0;                              // сейв до сюжета: опытным игрокам обучение не показываем
   if (!Array.isArray(s.forge.sel)) s.forge.sel = [];
@@ -938,13 +940,15 @@ function renderMore() {
   const miniWait = S.mini.next - Date.now(), canMini = S.lvl >= 4 && miniWait <= 0;
   let h = `<h2>${L("☰ Ещё")}</h2>
   <div class="row"><button class="btn alt" data-act="menuOpen">${L("☰ Главное меню")}</button><button class="btn alt" data-act="menuHow">${L("📖 Как играть")}</button></div>
+  <div class="profbox" data-act="profile">${myCard(true)}</div>
+  <div class="row"><button class="btn alt" data-act="profile">${L("✏️ Мой профиль")}</button>${Platform.canShare ? `<button class="btn ${reqsN ? "green ready" : "alt"}" data-act="friends">${L("👥 Друзья")}${reqsN ? ` <b class="badge">${reqsN}</b>` : ""}</button>` : ""}</div>
   ${isAdmin ? `<button class="btn red" data-act="admin">🛠 Админка</button>` : ""}
   ${Platform.canPay ? `<button class="btn star" data-act="shop">${L("⭐ Магазин — деньги, номера, ×2 навсегда")}</button>` : ""}
   ${questsHTML()}
   ${Platform.canShare ? `<div class="card"><h3>${L("🤝 Пригласи друга")}</h3><p>${L("Друг сразу получит блатной номер, а ты — блатной, когда друг дойдёт до 3 уровня. Друзей — без ограничений!")}</p>
     ${refs.n ? `<p style="font-size:13px;color:#8d99b3">${L("Пришли по твоей ссылке: {0} · втянулись: {1}", refs.n, refs.done)}</p>` : ""}
     ${refs.respect ? `<p style="font-size:13px;color:#8d99b3">${L("👍 Респектов твоему гаражу: {0}", refs.respect)}</p>` : ""}
-    <div class="row"><button class="btn green" data-act="invite">${L("📤 Пригласить")}</button><button class="btn alt" data-act="friends">${L("👥 Друзья{0}", refs.n + (refs.inviter ? 1 : 0) ? " (" + (refs.n + (refs.inviter ? 1 : 0)) + ")" : "")}</button></div></div>
+    <button class="btn green" data-act="invite">${L("📤 Пригласить друга")}</button></div>
     <button class="btn alt" data-act="top">${L("🏆 Рейтинг недели — призы каждый понедельник")}</button>` : ""}
   ${subsLeft().length ? `<div class="card subcard"><h3>${L("🎁 Бонус за подписку")}</h3>${subsHTML("green")}</div>` : ""}
   ${achWaiting() ? `<div class="card achbox"><h3>${L("🏆 Награды за достижения")}</h3><p>${L("Готово к получению: {0}", achWaiting())}</p>
@@ -977,7 +981,7 @@ function renderMore() {
 const prestigeGain = () => Math.floor(Math.sqrt(S.earnedRun / 1500000));
 function doPrestige() {
   const g = prestigeGain(); if (g < 1) return;
-  const keep = { drawn: S.drawn, goal: S.goal, achClaim: S.achClaim, story: S.story, tut: S.tut, title: S.title, sets: S.sets, merges: S.merges, mergeBest: S.mergeBest, forge: Object.assign({}, S.forge, { sel: [], coins: 0, target: null, lots: [], boost: false }), found: S.found, ach: S.ach, lvl: S.lvl, xp: S.xp, set: S.set, mini: S.mini, daily: S.daily, tc: S.tc, bought: S.bought, sold: S.sold, earned: S.earned, ordersDone: S.ordersDone, playSec: S.playSec, taxis: S.taxis, buyers: S.buyers, subs: S.subs, paid: S.paid, quests: S.quests, album: S.album, soc: S.soc };   // покупки и бонусы за подписку переезд не обнуляет
+  const keep = { drawn: S.drawn, goal: S.goal, achClaim: S.achClaim, story: S.story, tut: S.tut, title: S.title, sets: S.sets, merges: S.merges, mergeBest: S.mergeBest, forge: Object.assign({}, S.forge, { sel: [], coins: 0, target: null, lots: [], boost: false }), found: S.found, ach: S.ach, lvl: S.lvl, xp: S.xp, set: S.set, mini: S.mini, daily: S.daily, tc: S.tc, bought: S.bought, sold: S.sold, earned: S.earned, ordersDone: S.ordersDone, playSec: S.playSec, taxis: S.taxis, buyers: S.buyers, subs: S.subs, paid: S.paid, quests: S.quests, album: S.album, soc: S.soc, prof: Object.assign({}, S.prof, { pins: [] }) };   // покупки и бонусы за подписку переезд не обнуляет
   const n = fresh(); Object.assign(n, keep); n.pts = S.pts + g; n.prest = S.prest + 1; n.nid = S.nid; n.coins = START_COINS + 200 * n.pts;
   S = n; pending = null; closeModal(); cinemaQueue.length = 0;
   enqueueCinema({ color: "#ffb300", bg: "#3a2a05", big: true, icon: "🏛", top: L("Переезд в Москву"), title: L("НОВАЯ ЖИЗНЬ"), value: g, valueLabel: L("СВЯЗИ ПОЛУЧЕНО"), valueIcon: "⭐",
@@ -1120,7 +1124,7 @@ ACH.forEach(a => Lprops(a, "n", "d"));
 const achReward = a => a.r;                  // награды — не больше стоимости самого достижения, чтобы не ломать экономику
 // достижения не всплывают на экране: награда копится, на вкладке «Ещё» горит точка, игрок забирает её сам
 const achWaiting = () => Object.keys(S.achClaim).length;
-function updateMoreDot() { $("moreDot").classList.toggle("on", achWaiting() > 0 || questsReady() > 0); }
+function updateMoreDot() { $("moreDot").classList.toggle("on", achWaiting() > 0 || questsReady() > 0 || reqsN > 0); }
 function checkAch() {
   checkSets(); renderGoal(); storyEvents();
   ACH.forEach(a => {
@@ -1730,6 +1734,7 @@ function plateInfo(p, canSell) {
     <div class="card" style="text-align:left"><h3>${L("📜 История")} <small>${L("(вымышленная)")}</small></h3>${tl.map(x => `<div class="tl">${x}</div>`).join("")}</div>
     <div class="card" style="text-align:left"><h3>${L("🗣 Слухи")}</h3>${rum.map(x => `<p style="margin:0 0 6px;font-size:13px;color:#cfd6e6">• ${x}</p>`).join("")}</div>
     ${Platform.canShare && t >= 2 ? `<button class="btn alt" data-act="brag" data-id="${p.id}">${L("📤 Похвастаться другу")}</button>` : ""}
+    ${canSell ? `<button class="btn alt" data-act="pinPlate" data-id="${p.id}">${S.prof.pins.includes(p.id) ? L("📌 Открепить из профиля") : L("📌 Закрепить в профиле")}</button>` : ""}
     ${canSell ? `<button class="btn green" data-act="sellFromInfo" data-id="${p.id}">${L("Продать за {0}", fmt(sellVal(p)))}</button>` : ""}
     <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`;
 }
@@ -1773,6 +1778,9 @@ Platform.init({
     if (j.sub) setTimeout(() => subGrant("tg", 0), 2500);
     if (j.notify && !S.subs.notif) { S.subs.notif = 1; save(); }   // уже нажимал /start в боте — напоминания и так включены, не спрашиваем
     refs = { n: j.refs || 0, done: j.refsDone || 0, inviter: !!j.inviter, respect: j.respect || 0 }; myUid = j.uid || 0;
+    tgName = j.name || ""; myCode = j.code || ""; reqsN = j.reqs || 0; updateMoreDot();
+    if (reqsN) setTimeout(() => toast(L("📨 Заявки в друзья: {0} — загляни в «Ещё» → «Друзья»", reqsN)), 6000);
+    if (j.profReset) { S.prof.nick = ""; S.prof.bio = ""; profAck = true; save(); setTimeout(() => toast(L("Ник и статус сброшены модератором — придумай новые в профиле")), 5000); }
     if (j.admin) { isAdmin = true; }                   // владелец игры — кнопка админки во вкладке «Ещё»
     if (refs.respect > S.soc.resp) { const d = refs.respect - S.soc.resp; S.soc.resp = refs.respect; save(); setTimeout(() => toast(L("👍 Твоему гаражу поставили респектов: +{0} (всего {1})", d, refs.respect)), 4000); }
     setEvent(j.ev);
@@ -1784,7 +1792,7 @@ Platform.init({
 });
 // ----- напоминания от бота (только Telegram): сервер знает, сколько копит гараж, и пишет игроку, когда тот давно не заходил
 let srvOK = false;                                     // сервер ответил на hello — без него напоминания не работают, и спрашивать о них незачем
-function sendState() { if (Platform.name === "tg") Platform.state({ full: Math.round(income() * 1800), streak: S.daily.streak, lvl: S.lvl, earned: Math.round(S.earned), garage: garageSnap() }); }   // garage — снимок для друзей и рейтинга   // earned — для рейтинга недели   // 1800 = офлайн-доход за час (половина обычного)
+function sendState() { if (Platform.name === "tg") Platform.state({ full: Math.round(income() * 1800), streak: S.daily.streak, lvl: S.lvl, earned: Math.round(S.earned), garage: garageSnap(), prof: profOut(), profAck: profAck || undefined }); profAck = false; }   // garage — снимок для друзей и рейтинга   // earned — для рейтинга недели   // 1800 = офлайн-доход за час (половина обычного)
 setInterval(sendState, 120000);
 document.addEventListener("visibilitychange", () => { if (document.hidden) sendState(); });
 setInterval(() => {                                   // один раз после обучения: «включить напоминания?», затем системный запрос Telegram
@@ -1920,6 +1928,7 @@ function shopGrant(item, why) {
   else if (/^pts_\d+$/.test(item)) { S.pts += +item.slice(4); toast(L("⭐ +{0} связей: доход и удача выше навсегда", item.slice(4))); vignette("#ffd23f"); fx.confetti(60); }
   else if (/^buff_\d+$/.test(item)) { S.buffUntil = Math.max(S.buffUntil, Date.now()) + +item.slice(5) * 3600000; toast(L("🔥 Доход ×2 на {0} ч!", item.slice(5))); vignette("#ffd23f"); renderPills(); }
   else return;
+  if (!why) S.paid.buys = (S.paid.buys || 0) + 1;      // для рамки «VIP» в профиле
   Platform.track((why ? "gift_" : "paid_") + item.split("_")[0]); Platform.happytime();
 }
 const GIFT_WHY = id => /^refnew_/.test(id) ? L("🎁 Подарок за то, что пришёл по приглашению друга!") : /^ref_/.test(id) ? L("🤝 Друг втянулся в игру — тебе награда!") : /^top_/.test(id) ? L("🏆 Награда за рейтинг недели!") : /^gift_/.test(id) ? L("🎁 Тебе подарок!") : "";
@@ -1975,43 +1984,137 @@ function openTop() {
     $("mbox").innerHTML = `<h2>${L("🏆 Рейтинг недели")}</h2>
       <p style="font-size:13px;color:#8d99b3;margin-top:-4px">${L("Кто больше заработает с понедельника. Итоги — в понедельник днём.")} ${L("До конца:")} <span class="timer" data-until="${j.ends * 1000}"></span></p>
       <p style="font-size:13px">${L("🥇 1 место — легенда · 🥈🥉 2–3 — блатной · 4–10 — чемодан денег")}</p>
-      <div class="card toplist">${j.top.length ? j.top.map((r, i) => `<div class="toprow ${r.me ? "me" : ""}" data-act="garageOf" data-top="${i}"><span>${medal(i)}</span><b>${escapeHTML(r.n)}</b><i>${fmt(r.s)} 💰</i><em>🏠</em></div>`).join("") : `<p>${L("Пока пусто — будь первым!")}</p>`}</div>
+      <div class="card toplist">${j.top.length ? j.top.map((r, i) => `<div class="toprow ${r.me ? "me" : ""}" data-act="garageOf" data-top="${i}"><span>${medal(i)}</span><span class="fava" style="--f1:${frameOf(r.f).c1}">${escapeHTML(r.a || "😎")}</span><b>${escapeHTML(r.n)}</b><i>${fmt(r.s)} 💰</i><em>🏠</em></div>`).join("") : `<p>${L("Пока пусто — будь первым!")}</p>`}</div>
       ${j.top.length ? `<p class="hint" style="margin-top:-4px">${L("Нажми на игрока — посмотришь его гараж")}</p>` : ""}
       <p>${j.rank ? L("Ты на {0} месте: {1} 💰", j.rank, fmt(j.score)) : L("Ты пока не в рейтинге — заработай что-нибудь на этой неделе")}</p>
       <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`;
   });
 }
-// ----- гараж другого игрока (Telegram): снимок гаража уходит на сервер вместе с состоянием (sendState), смотреть можно
-// игроков из рейтинга недели и друзей. За чужой гараж можно поставить «👍 респект» — раз в день.
+// ----- профиль и друзья (Telegram; редактор профиля — на всех площадках, это просто украшение)
+// Снимок гаража и профиля уходит на сервер вместе с состоянием (sendState). Смотреть чужой профиль можно у игроков
+// из рейтинга недели, у друзей и у тех, кто прислал заявку. За чужой гараж — «👍 респект» раз в день.
+const AVAS = ["😎", "🤠", "🧔", "👨‍💼", "👩‍💼", "🕵️", "👮", "🧑‍🔧", "👩", "👨", "🦁", "🐺", "🐯", "🦊", "🐻", "🦅", "🔥", "⚡", "🚘", "🏎️", "🚓", "🛻", "🏍️", "🎩",
+  ["💰", () => S.earned >= 1e6, "заработать 1 млн"], ["👑", () => S.lvl >= 15, "15 уровень"], ["🐉", () => albumCount() >= 60, "60 клеток альбома"], ["💎", () => S.tc[5] >= 1 || S.mergeBest >= 5, "суперлегенда"]];
+const FRAMES = [
+  { id: "base", n: "Асфальт", c1: "#2a3350", c2: "#121726", ok: () => true },
+  { id: "night", n: "Ночной город", c1: "#2b3f8f", c2: "#0b0e1f", ok: () => S.lvl >= 3, need: "3 уровень" },
+  { id: "green", n: "Кэш", c1: "#1f7a43", c2: "#08180e", ok: () => S.earned >= 1e6, need: "заработать 1 млн" },
+  { id: "gold", n: "Золото", c1: "#c9961a", c2: "#2a1f05", ok: () => S.lvl >= 10, need: "10 уровень" },
+  { id: "neon", n: "Неон", c1: "#a020f0", c2: "#16072a", ok: () => albumCount() >= 40, need: "40 клеток альбома" },
+  { id: "fire", n: "Огонь", c1: "#e0401e", c2: "#2a0905", ok: () => S.tc[4] + S.tc[5] >= 1 || S.mergeBest >= 4, need: "выбить легенду" },
+  { id: "ice", n: "Лёд", c1: "#3ec8f0", c2: "#06202a", ok: () => S.tc[5] >= 1 || S.mergeBest >= 5, need: "суперлегенда" },
+  { id: "resp", n: "Уважаемый", c1: "#43c76b", c2: "#0c2a18", ok: () => (refs.respect || 0) >= 10, need: "10 респектов" },
+  { id: "vip", n: "VIP", c1: "#ffd23f", c2: "#5a3500", ok: () => !!(S.paid.x2 || S.paid.starter || S.paid.buys), need: "любая покупка в магазине" }
+];
+FRAMES.forEach(f => Lprops(f, "n"));
+const frameOf = id => FRAMES.find(f => f.id === id) || FRAMES[0];
+const avaOk = a => { const x = AVAS.find(v => (Array.isArray(v) ? v[0] : v) === a); return !!x && (!Array.isArray(x) || x[1]()); };
+const pinPlates = () => S.prof.pins.map(id => S.plates.find(p => p.id === id)).filter(Boolean);
+var tgName = "", myCode = "", reqsN = 0, profAck = false;   // var: updateMoreDot зовут и раньше этой строки
+const myName = () => S.prof.nick || tgName || L("Игрок");
+function profOut() { const f = frameOf(S.prof.frame); return { nick: S.prof.nick, ava: avaOk(S.prof.ava) ? S.prof.ava : "😎", frame: f.ok() ? f.id : "base", bio: S.prof.bio }; }
 function garageSnap() {
-  const top = [...S.plates].sort((a, b) => b.val - a.val).slice(0, 15).map(p => [p.l1 + p.d + p.l23, p.reg, p.tier]);
-  return { p: top, n: S.plates.length, v: Math.round(garageVal()), inc: Math.round(income() * 10) / 10, lvl: S.lvl, al: albumCount(), t: S.title || "", pts: S.pts, tc: S.tc.slice(3), sets: setsDone() };
+  S.prof.pins = S.prof.pins.filter(id => S.plates.some(p => p.id === id));   // проданные и слитые номера сами открепляются
+  const pk = p => [p.l1 + p.d + p.l23, p.reg, p.tier];
+  const top = [...S.plates].sort((a, b) => b.val - a.val).slice(0, 15).map(pk);
+  return { p: top, pin: pinPlates().map(pk), n: S.plates.length, v: Math.round(garageVal()), inc: Math.round(income() * 10) / 10, lvl: S.lvl, al: albumCount(), t: S.title || "", pts: S.pts, tc: S.tc.slice(3), sets: setsDone(), mb: S.mergeBest };
 }
 const snapPlate = a => ({ l1: a[0][0], d: a[0].slice(1, 4), l23: a[0].slice(4, 6), reg: a[1], tier: +a[2] || 0 });
-let garageBack = null;                                 // куда вернуться из чужого гаража: "top" | "friends" | "admin"
+// значки — считаются из снимка гаража, одинаково у себя и у других
+function badgesOf(g, respect) {
+  if (!g) return [];
+  const tc = g.tc || [0, 0, 0], b = [];
+  if (tc[2] || g.mb >= 5) b.push(["💎", L("Суперлегенда")]); else if (tc[1] || g.mb >= 4) b.push(["👑", L("Легенда")]); else if (tc[0] || g.mb >= 3) b.push(["🚘", L("Блатной")]);
+  if (g.al >= 60) b.push(["🐉", L("Коллекционер")]); else if (g.al >= 30) b.push(["📒", L("Собиратель")]);
+  if (g.pts) b.push(["🏛", L("Москвич ⭐{0}", g.pts)]);
+  if (g.lvl >= 20) b.push(["🎖", L("Ветеран")]);
+  if (g.v >= 1e6) b.push(["💰", L("Миллионер")]);
+  if (respect >= 10) b.push(["👍", L("Уважаемый")]);
+  return b;
+}
+// карточка профиля: o = { name, prof, lvl, g, respect, friends, since }
+function profCardHTML(o, small) {
+  const pr = o.prof || {}, f = frameOf(pr.frame), g = o.g, bd = badgesOf(g, o.respect || 0);
+  const pins = g && g.pin && g.pin.length ? g.pin : null;
+  return `<div class="pcard f-${f.id} ${small ? "sm" : ""}" style="--f1:${f.c1};--f2:${f.c2}">
+    <div class="ptop"><div class="pava">${escapeHTML(pr.ava || "😎")}</div><div class="pname"><b>${escapeHTML(o.name)}</b>
+      <small>${L("Ур. {0}", o.lvl || (g && g.lvl) || 1)}${g && g.t ? " · 🏷 " + escapeHTML(L(g.t)) : ""}</small>
+      ${pr.bio ? `<i>«${escapeHTML(pr.bio)}»</i>` : ""}</div></div>
+    ${bd.length ? `<div class="pbadges">${bd.map(([i, n]) => `<span>${i} ${n}</span>`).join("")}</div>` : ""}
+    ${pins ? `<div class="ppins">${pins.map(a => plateHTML(snapPlate(a), "small")).join("")}</div>` : ""}
+    ${!small && g ? `<div class="pstats"><span><b>${fmt(g.v)}</b>💰 ${L("гараж")}</span><span><b>${g.n}</b> ${L("номеров")}</span><span><b>${g.al}/${ALBUM_TOTAL}</b> ${L("альбом")}</span><span><b>👍 ${o.respect || 0}</b></span>${o.friends != null ? `<span><b>👥 ${o.friends}</b></span>` : ""}</div>` : ""}
+  </div>`;
+}
+const myCard = small => profCardHTML({ name: myName(), prof: profOut(), lvl: S.lvl, g: garageSnap(), respect: refs.respect || 0, friends: null }, small);
+
+// ----- редактор профиля
+let pfDraft = null;
+function pfSync() { if (!pfDraft) return; const n = $("pfNick"), b = $("pfBio"); if (n) pfDraft.nick = n.value; if (b) pfDraft.bio = b.value; }
+function openProfile() {
+  if (!pfDraft) pfDraft = JSON.parse(JSON.stringify(S.prof));
+  const d = pfDraft, prev = profCardHTML({ name: d.nick.trim() || tgName || L("Игрок"), prof: d, lvl: S.lvl, g: Object.assign(garageSnap(), { pin: d.pins.map(id => S.plates.find(p => p.id === id)).filter(Boolean).map(p => [p.l1 + p.d + p.l23, p.reg, p.tier]) }), respect: refs.respect || 0 });
+  const plates = [...S.plates].sort((a, b) => b.val - a.val).slice(0, 30), keep = [$("mbox").scrollTop, $("modal").scrollTop], again = !$("modal").classList.contains("hidden") && !!$("pfNick");
+  setTimeout(() => { if (again) { $("mbox").scrollTop = keep[0]; $("modal").scrollTop = keep[1]; } }, 0);   // при выборе аватара/рамки окно не прыгает наверх
+  openModal(`<h2>${L("👤 Мой профиль")}</h2>${prev}
+    <div class="pfedit">
+    <label>${L("Ник")}</label><input id="pfNick" maxlength="16" value="${escapeHTML(d.nick)}" placeholder="${escapeHTML(tgName || L("Как тебя называть"))}">
+    <label>${L("Статус")}</label><input id="pfBio" maxlength="60" value="${escapeHTML(d.bio)}" placeholder="${L("Например: Собираю только блатные")}">
+    <label>${L("Аватар")}</label><div class="pfavas">${AVAS.map(v => { const a = Array.isArray(v) ? v[0] : v, lock = Array.isArray(v) && !v[1]();
+      return `<button class="${a === d.ava ? "on" : ""} ${lock ? "lock" : ""}" data-act="pfAva" data-v="${a}" ${lock ? `title="${L("Откроется: {0}", L(v[2]))}"` : ""}>${lock ? "🔒" : a}</button>`; }).join("")}</div>
+    <label>${L("Рамка")}</label><div class="pfframes">${FRAMES.map(f => { const ok = f.ok();
+      return `<button class="${f.id === d.frame ? "on" : ""} ${ok ? "" : "lock"}" data-act="pfFrame" data-v="${f.id}" style="--f1:${f.c1};--f2:${f.c2}"><b>${ok ? "" : "🔒 "}${f.n}</b>${ok ? "" : `<small>${L(f.need)}</small>`}</button>`; }).join("")}</div>
+    <label>${L("📌 Закреплённые номера — до 3, их видят все")}</label>
+    <div class="pfpins">${plates.length ? plates.map(p => `<button class="${d.pins.includes(p.id) ? "on" : ""}" data-act="pfPin" data-id="${p.id}">${plateHTML(p, "small")}</button>`).join("") : `<p class="hint">${L("Гараж пуст — купи номера, чтобы закрепить")}</p>`}</div>
+    </div>
+    <button class="btn green" data-act="pfSave">${L("💾 Сохранить")}</button>
+    <button class="btn alt" data-act="pfCancel">${L("Отмена")}</button>`);
+}
+function pfSave() {
+  pfSync(); const d = pfDraft; if (!d) return;
+  const nick = [...d.nick.replace(/[<>]/g, "").replace(/\s+/g, " ").trim()].slice(0, 16).join("");
+  if (nick && [...nick].length < 2) return toast(L("Ник — от 2 символов"));
+  S.prof = { nick, bio: [...d.bio.replace(/[<>]/g, "").replace(/\s+/g, " ").trim()].slice(0, 60).join(""), ava: avaOk(d.ava) ? d.ava : "😎", frame: frameOf(d.frame).ok() ? d.frame : "base", pins: d.pins.slice(0, 3) };
+  pfDraft = null; save(); sendState(); Platform.track("profile_save");
+  toast(L("👤 Профиль сохранён")); fx.confetti(40); closeModal(); if (tab === "more") renderMore();
+}
+function pinPlate(id) {
+  const i = S.prof.pins.indexOf(id);
+  if (i >= 0) S.prof.pins.splice(i, 1);
+  else { if (S.prof.pins.length >= 3) return toast(L("Закрепить можно до 3 номеров — открепи один в профиле")); S.prof.pins.push(id); }
+  save(); sendState(); toast(i >= 0 ? L("📌 Номер откреплён") : L("📌 Номер закреплён в профиле — его видят друзья и рейтинг")); showInfo(id);
+}
+
+// ----- чужой профиль и гараж
+let garageBack = null, garageWho = null, garageRel = null;   // куда вернуться: "top" | "friends" | "admin"
 function openGarageOf(who, back) {
-  garageBack = back || null; Platform.track("garage_view");
-  openModal(`<h2>${L("🏠 Гараж")}</h2><p class="hint">${L("Загружаю…")}</p>`);
+  garageBack = back || null; garageWho = who; Platform.track("garage_view");
+  openModal(`<h2>${L("👤 Профиль")}</h2><p class="hint">${L("Загружаю…")}</p>`);
   Platform.garage(who).then(j => {
     if ($("modal").classList.contains("hidden")) return;
     const backBtn = garageBack ? `<button class="btn alt" data-act="garageBack">${garageBack === "top" ? L("← Рейтинг") : garageBack === "friends" ? L("← Друзья") : "← Админка"}</button>` : "";
-    if (!j || !j.ok) { $("mbox").innerHTML = `<h2>${L("🏠 Гараж")}</h2><p>${L("Не получилось открыть гараж — попробуй позже")}</p><div class="row">${backBtn}<button class="btn alt" data-act="closeModal">${L("Закрыть")}</button></div>`; return; }
-    const g = j.g, kpi = (v, n) => `<div class="kpi"><b>${v}</b><small>${n}</small></div>`;
-    let h = `<h2>${L("🏠 Гараж: {0}", escapeHTML(j.name))}</h2>`;
+    if (!j || !j.ok) { $("mbox").innerHTML = `<h2>${L("👤 Профиль")}</h2><p>${L("Не получилось открыть профиль — попробуй позже")}</p><div class="row">${backBtn}<button class="btn alt" data-act="closeModal">${L("Закрыть")}</button></div>`; return; }
+    if (j.uid) garageWho = { uid: j.uid, top: who.top };
+    garageRel = j;
+    const g = j.g, prof = j.prof && !j.prof.reset ? j.prof : null;
+    let h = profCardHTML({ name: j.name, prof, lvl: j.lvl, g, respect: j.respect, friends: j.friends });
+    if (j.since) h += `<p class="hint" style="margin:6px 0">${L("В игре с {0}", new Date(j.since * 1000).toLocaleDateString(I18N.loc, { day: "numeric", month: "long", year: "numeric" }))}</p>`;
     if (!g) h += `<p>${L("Игрок ещё не показал гараж — он появится, когда игрок снова зайдёт в игру.")}</p>`;
     else {
-      h += `${g.t ? `<p style="margin:-4px 0 6px;color:#ffb300">🏷 ${escapeHTML(L(g.t))}</p>` : ""}
-        <div class="kpis">${kpi(j.lvl || g.lvl, L("уровень"))}${kpi(fmt(g.v), L("стоит гараж 💰"))}${kpi(fmt(g.inc), L("доход/сек"))}${kpi(g.n, L("номеров"))}${kpi(g.al + "/" + ALBUM_TOTAL, L("альбом"))}${kpi("👍 " + j.respect, L("респектов"))}</div>
-        ${g.tc ? `<p class="hint" style="margin:4px 0">${L("Выбито: блатных {0} · легенд {1} · суперлегенд {2}", g.tc[0] || 0, g.tc[1] || 0, g.tc[2] || 0)}</p>` : ""}
+      h += `<h3 style="margin:10px 0 0">${L("🏠 Гараж")}</h3>${g.tc ? `<p class="hint" style="margin:2px 0">${L("Выбито: блатных {0} · легенд {1} · суперлегенд {2}", g.tc[0] || 0, g.tc[1] || 0, g.tc[2] || 0)}</p>` : ""}
         <div class="ggrid">${(g.p || []).map(a => plateHTML(snapPlate(a), "small")).join("") || `<p class="hint">${L("Гараж пуст")}</p>`}</div>`;
       if (!j.me) { const mine = garageVal(); h += `<p class="hint">${mine >= g.v ? L("Твой гараж дороже: {0} 💰 💪", fmt(mine)) : L("Твой гараж: {0} 💰 — до этого игрока ещё {1}", fmt(mine), fmt(g.v - mine))}</p>`; }
     }
-    if (!j.me) h += `<button class="btn ${j.can ? "green" : "alt"}" data-act="respect" ${j.can ? "" : "disabled"}>${j.can ? L("👍 Респект гаражу") : L("👍 Респект уже поставлен сегодня")}</button>`;
+    if (!j.me) {
+      h += `<button class="btn ${j.can ? "green" : "alt"}" data-act="respect" ${j.can ? "" : "disabled"}>${j.can ? L("👍 Респект гаражу") : L("👍 Респект уже поставлен сегодня")}</button>`;
+      h += j.rel === "friend" ? `<div class="row"><button class="btn alt" disabled>${L("👥 Вы друзья")}</button>${j.ref ? "" : `<button class="btn alt" data-act="frRemove" data-uid="${j.uid}">${L("Удалить из друзей")}</button>`}</div>`
+        : j.rel === "sent" ? `<div class="row"><button class="btn alt" disabled>${L("⏳ Заявка отправлена")}</button><button class="btn alt" data-act="frCancel" data-uid="${j.uid}">${L("Отменить")}</button></div>`
+        : j.rel === "incoming" ? `<div class="row"><button class="btn green" data-act="frAccept" data-uid="${j.uid}">${L("✅ Принять в друзья")}</button><button class="btn alt" data-act="frDecline" data-uid="${j.uid}">${L("Отклонить")}</button></div>`
+        : who.top != null ? `<button class="btn alt" data-act="frAddTop" data-top="${who.top}">${L("➕ Добавить в друзья")}</button>` : "";
+    } else h += `<button class="btn green" data-act="profile">${L("✏️ Изменить профиль")}</button>`;
     h += `<div class="row">${backBtn}<button class="btn alt" data-act="closeModal">${L("Закрыть")}</button></div>`;
-    $("mbox").innerHTML = h; garageWho = who;
+    $("mbox").innerHTML = h;
   });
 }
-let garageWho = null;
 function giveRespect(el) {
   if (!garageWho) return; el.disabled = true;
   Platform.respect(garageWho).then(j => {
@@ -2019,16 +2122,39 @@ function giveRespect(el) {
     el.textContent = L("👍 Респект поставлен! Всего: {0}", j.respect); fx.confetti(40); Snd.keep(); Platform.track("respect");
   });
 }
+// действия с дружбой: после ответа сервера — обновить то окно, где нажали
+function friendAct(a, extra, el, after) {
+  if (el) el.disabled = true;
+  Platform.friend(a, extra).then(j => {
+    if (!j) { if (el) el.disabled = false; return toast(L("Сервер не отвечает — попробуй позже")); }
+    if (!j.ok) { if (el) el.disabled = false; return toast(j.error || L("Не получилось")); }
+    Platform.track("friend_" + a);
+    toast(j.st === "friend" ? L("🤝 Теперь вы друзья!") : j.st === "sent" ? L("📨 Заявка отправлена — друг увидит её в игре") : a === "remove" ? L("Удалён из друзей") : L("Готово"));
+    if (j.st === "friend") { fx.confetti(60); Snd.keep(); }
+    if (after) after(j);
+  });
+}
+const reGarage = () => garageWho && openGarageOf(garageWho, garageBack);
 function openFriends() {
   Platform.track("friends_open");
   openModal(`<h2>${L("👥 Друзья")}</h2><p class="hint">${L("Загружаю…")}</p>`);
-  Platform.friends().then(list => {
+  Platform.friends().then(j => {
     if ($("modal").classList.contains("hidden")) return;
-    const rows = (list || []).map(f => `<div class="toprow" data-act="garageOf" data-uid="${f.uid}"><span>${f.inv ? "🤝" : "👤"}</span><b>${escapeHTML(f.n)}<small> · ${L("ур. {0}", f.lvl)}${f.inv ? " · " + L("пригласил тебя") : ""}</small></b><i>${f.v ? fmt(f.v) + " 💰" : ""}</i><em>🏠</em></div>`).join("");
-    $("mbox").innerHTML = `<h2>${L("👥 Друзья")}</h2>
-      ${list === null ? `<p>${L("Сервер не отвечает — попробуй позже")}</p>` : rows ? `<p class="hint">${L("Нажми на друга — посмотришь его гараж и поставишь респект")}</p><div class="card toplist">${rows}</div>` : `<p>${L("Пока никого. Пригласи друга — он сразу получит блатной номер, а ты сможешь смотреть его гараж.")}</p>`}
-      <button class="btn green" data-act="invite">${L("📤 Пригласить друга")}</button>
-      <button class="btn alt" data-act="garageOf" data-me="1">${L("🏠 Как мой гараж видят другие")}</button>
+    if (!j || !j.ok) { $("mbox").innerHTML = `<h2>${L("👥 Друзья")}</h2><p>${L("Сервер не отвечает — попробуй позже")}</p><button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`; return; }
+    myCode = j.code || myCode; reqsN = j.inc.length; updateMoreDot();
+    const ava = r => `<span class="fava" style="--f1:${frameOf(r.f).c1}">${escapeHTML(r.a || "😎")}</span>`;
+    const inc = j.inc.map(r => `<div class="toprow"><span data-act="garageOf" data-uid="${r.uid}">${ava(r)}</span><b data-act="garageOf" data-uid="${r.uid}">${escapeHTML(r.n)}<small> · ${L("ур. {0}", r.lvl)}</small></b>
+      <button class="btn sm green" data-act="frAccept" data-uid="${r.uid}" data-from="list">✅</button><button class="btn sm alt" data-act="frDecline" data-uid="${r.uid}" data-from="list">✖</button></div>`).join("");
+    const rows = j.list.map(f => `<div class="toprow" data-act="garageOf" data-uid="${f.uid}">${ava(f)}<b>${escapeHTML(f.n)}<small> · ${L("ур. {0}", f.lvl)}${f.inv ? " · " + L("пригласил тебя") : f.mine ? " · " + L("по твоей ссылке") : ""}</small></b><i>${f.v ? fmt(f.v) + " 💰" : ""}</i><em>›</em></div>`).join("");
+    $("mbox").innerHTML = `<h2>${L("👥 Друзья")} <small>${j.list.length}</small></h2>
+      <div class="card fcode"><small>${L("Твой код друга")}</small><b>${escapeHTML(myCode)}</b>
+        <div class="row"><button class="btn sm alt" data-act="frCopy">${L("📋 Скопировать")}</button><button class="btn sm green" data-act="invite">${L("📤 Позвать по ссылке")}</button></div>
+        <small>${L("Друг вводит твой код — или просто открывает игру по твоей ссылке, и вы сразу друзья")}</small></div>
+      <div class="admsearch"><input id="frCode" maxlength="8" placeholder="${L("Код друга")}" style="text-transform:uppercase"><button class="btn sm green" data-act="frAdd">${L("➕ Добавить")}</button></div>
+      ${inc ? `<h3>${L("📨 Заявки в друзья")}</h3><div class="card toplist">${inc}</div>` : ""}
+      ${j.out ? `<p class="hint">${L("Твоих заявок ждут ответа: {0}", j.out)}</p>` : ""}
+      ${rows ? `<h3>${L("Мои друзья")}</h3><div class="card toplist">${rows}</div>` : `<p class="hint">${L("Пока никого. Добавь друга по коду или позови по ссылке — новичок сразу получит блатной номер.")}</p>`}
+      <button class="btn alt" data-act="garageOf" data-me="1">${L("👤 Как мой профиль видят другие")}</button>
       <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`;
   });
 }
@@ -2176,8 +2302,8 @@ function admPlayerPanel(r) {
     <div class="admline"><span>Штук:</span><input id="gn-${id}" type="number" min="1" max="20" value="1" style="max-width:70px"><label class="chk"><input type="checkbox" id="gm-${id}" checked> сообщить в боте</label></div>
     <input id="gt-${id}" placeholder="Подпись к подарку (необязательно)">
     <textarea id="gw-${id}" rows="2" placeholder="Личное сообщение игроку от бота"></textarea>
-    <div class="admgift">${btn("admMsg", "✉️ Написать")}${btn("garageOf", "🏠 Гараж", 'data-back="admin"')}${btn("admBan", r.banned ? "✅ Вернуть в рейтинг" : "🚫 Убрать из рейтинга", `data-on="${r.banned ? 0 : 1}"`)}</div>
-    <small>ID ${id} · с нами с ${admDate(r.first_seen)} · заработал ${fmt(r.earned || 0)} 💰 · 👍 ${r.respect || 0}${r.garage_at ? " · гараж обновлён " + admAgo(r.garage_at) : ""}</small></div>`;
+    <div class="admgift">${btn("admMsg", "✉️ Написать")}${btn("garageOf", "🏠 Гараж", 'data-back="admin"')}${btn("admBan", r.banned ? "✅ Вернуть в рейтинг" : "🚫 Убрать из рейтинга", `data-on="${r.banned ? 0 : 1}"`)}${r.nick ? btn("admUnnick", "✏️ Сбросить ник") : ""}</div>
+    <small>ID ${id}${r.fcode ? " · код " + escapeHTML(r.fcode) : ""} · друзей ${r.friends || 0} · с нами с ${admDate(r.first_seen)} · заработал ${fmt(r.earned || 0)} 💰 · 👍 ${r.respect || 0}${r.garage_at ? " · гараж обновлён " + admAgo(r.garage_at) : ""}</small></div>`;
 }
 // номер из текста админа: латиница → кириллица (A→А…), «А777АА 77», «а777аа77 rus» → { l1, d, l23, reg }
 const LAT2CYR = { A: "А", B: "В", E: "Е", K: "К", M: "М", H: "Н", O: "О", P: "Р", C: "С", T: "Т", Y: "У", X: "Х" };
@@ -2222,7 +2348,7 @@ function admPlayers(q) {
   Platform.admin("players", { q }).then(j => {
     const el = $("admList"); if (!el) return;
     if (!j || !j.ok) { el.innerHTML = `<p>❌ ${escapeHTML((j && j.error) || "Сервер не отвечает")}</p>`; return; }
-    el.innerHTML = j.list.length ? j.list.map(r => `<div class="admrow player" data-act="admPlayer" data-uid="${r.id}"><div><b>${escapeHTML(r.name || "?")}${r.username ? ` <small>@${escapeHTML(r.username)}</small>` : ""}</b>
+    el.innerHTML = j.list.length ? j.list.map(r => `<div class="admrow player" data-act="admPlayer" data-uid="${r.id}"><div><b>${r.nick ? "«" + escapeHTML(r.nick) + "» " : ""}${escapeHTML(r.name || "?")}${r.username ? ` <small>@${escapeHTML(r.username)}</small>` : ""}</b>
       <small>ур. ${r.lvl || 0} · ${escapeHTML(r.src)} · заходов ${r.visits} · ${admAgo(r.last_seen)}${r.paid ? ` · ⭐ ${r.paid}` : ""}${r.invited ? ` · позвал ${r.invited}` : ""}${r.sub_tg ? " · ✅ канал" : ""}${r.can_write ? " · 🔔" : ""}${r.banned ? " · 🚫 вне рейтинга" : ""}</small></div><span>⚙️</span></div>
       ${admPlayerPanel(r)}`).join("") : `<p class="hint">Никого не нашёл</p>`;
   });
@@ -2302,6 +2428,7 @@ const ACTS = {
   },
   admBan: (d, e, el) => { el.disabled = true; Platform.admin("ban", { uid: +d.uid, on: +d.on }).then(j => { toast(j && j.ok ? j.msg : "❌ сервер не отвечает"); if (j && j.ok) admPlayers(admQ); }); },
   admCheatIn: d => admCheatIn(d.k),
+  admUnnick: (d, e, el) => { el.disabled = true; Platform.admin("unnick", { uid: +d.uid }).then(j => { toast(j && j.ok ? j.msg : "❌ сервер не отвечает"); if (j && j.ok) admPlayers(admQ); }); },
   admEvent: (d, e, el) => {
     const v = id => ($(id) || {}).value;
     el.disabled = true; Platform.admin("event", { inc: +v("evInc"), luck: +v("evLuck"), hours: +v("evH"), text: (v("evT") || "").trim() }).then(j => { toast(j && j.ok ? "🎉 " + j.msg : "❌ " + ((j && j.error) || "сервер не отвечает")); el.disabled = false; if (j && j.ok) { claimPaid(1); admPromo(); } });
@@ -2318,6 +2445,18 @@ const ACTS = {
   garageOf: d => d.top != null ? openGarageOf({ top: +d.top }, "top") : d.me ? openGarageOf({ uid: myUid }, "friends") : openGarageOf({ uid: +d.uid }, d.back || "friends"),
   garageBack: () => garageBack === "top" ? openTop() : garageBack === "admin" ? openAdmin("players") : openFriends(),
   respect: (d, e, el) => giveRespect(el), friends: () => openFriends(),
+  profile: () => { pfDraft = null; openProfile(); }, pfCancel: () => { pfDraft = null; closeModal(); }, pfSave: () => pfSave(),
+  pfAva: d => { pfSync(); if (!avaOk(d.v)) { const x = AVAS.find(v => Array.isArray(v) && v[0] === d.v); return toast(L("🔒 Откроется: {0}", x ? L(x[2]) : "")); } pfDraft.ava = d.v; openProfile(); },
+  pfFrame: d => { pfSync(); const f = frameOf(d.v); if (!f.ok()) return toast(L("🔒 Рамка «{0}» откроется: {1}", f.n, L(f.need))); pfDraft.frame = f.id; openProfile(); },
+  pfPin: d => { pfSync(); const id = +d.id, i = pfDraft.pins.indexOf(id); if (i >= 0) pfDraft.pins.splice(i, 1); else if (pfDraft.pins.length >= 3) return toast(L("Не больше 3 номеров — сначала открепи один")); else pfDraft.pins.push(id); openProfile(); },
+  pinPlate: d => pinPlate(+d.id),
+  frAdd: (d, e, el) => { const c = (($("frCode") || {}).value || "").trim().toUpperCase(); if (c.length < 4) return toast(L("Введи код друга")); friendAct("add", { code: c }, el, () => openFriends()); },
+  frAddTop: (d, e, el) => friendAct("add", { top: +d.top }, el, reGarage),
+  frAccept: (d, e, el) => friendAct("accept", { uid: +d.uid }, el, d.from === "list" ? openFriends : reGarage),
+  frDecline: (d, e, el) => friendAct("decline", { uid: +d.uid }, el, d.from === "list" ? openFriends : reGarage),
+  frCancel: (d, e, el) => friendAct("cancel", { uid: +d.uid }, el, reGarage),
+  frRemove: (d, e, el) => { if (!el.dataset.sure) { el.dataset.sure = 1; el.textContent = L("Точно удалить?"); el.classList.replace("alt", "red"); return; } friendAct("remove", { uid: +d.uid }, el, reGarage); },
+  frCopy: () => { const done = () => toast(L("📋 Код {0} скопирован", myCode)); try { navigator.clipboard.writeText(myCode).then(done, () => toast(L("Твой код: {0}", myCode))); } catch (er) { toast(L("Твой код: {0}", myCode)); } },
   admRefund: (d, e, el) => {                           // возврат — только со второго нажатия
     if (!el.dataset.sure) { el.dataset.sure = 1; el.textContent = "Точно вернуть?"; el.classList.replace("alt", "red"); return; }
     el.disabled = true; Platform.admin("refund", { id: d.id }).then(j => { toast(j && j.ok ? j.msg : "❌ " + ((j && j.error) || "сервер не отвечает")); openAdmin("sales"); });
