@@ -598,3 +598,51 @@ body.hold-royal .plate:not(.other),.oh-royal .plate.other{outline:.16em solid #f
 .vipbox ul{margin:4px 0 10px;padding-left:18px;font-size:13px;color:#e8e2cf}.vipbox li{margin:3px 0}
 .vipbox .btn{width:100%}
 .vipbox.own{text-align:center}.vipbox.own b{display:block;color:#ffd23f;font-size:16px}.vipbox.own small{color:#cbb98a;font-size:12px}.cosprev{min-width:0;flex:none;width:128px}.cosn{min-width:0}.cosrow>.btn{flex:none;padding-left:10px;padding-right:10px;white-space:nowrap}
+.admsub{margin:8px 0 4px;font-weight:700;color:#ffd23f;font-size:13px;text-align:left}.admsub small{color:#8d99b3;font-weight:normal}.admgift.priv .btn{border:1px solid #ffd23f55}
+
+/* ===== админка: шапка, плитки-вкладки, разделы-карточки ===== */
+.admhead{display:flex;align-items:center;justify-content:space-between;margin:-2px 0 10px}.admhead b{font-size:19px}
+.admx{background:#ffffff12;border:0;color:#cfd6e6;width:32px;height:32px;border-radius:50%;font-size:15px;cursor:pointer}
+.admtabs{display:grid!important;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 0 10px!important}
+.atab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px 7px;border-radius:12px;border:1px solid #ffffff14;background:#ffffff08;color:#cfd6e6;cursor:pointer;font:inherit;transition:background .15s}
+.atab span{font-size:20px;line-height:1}.atab small{font-size:11px;white-space:nowrap}
+.atab.on{background:linear-gradient(180deg,#43c76b33,#43c76b14);border-color:#43c76b;color:#fff;box-shadow:0 0 12px #43c76b33}
+.admnow{text-align:left;padding:8px 12px;margin-bottom:10px;border-radius:12px;background:#ffffff08;border-left:3px solid #43c76b}
+.admnow b{display:block;font-size:15px}.admnow small{color:#8d99b3;font-size:12px}
+.aload{color:#8d99b3;text-align:center;padding:20px 0}
+.asec{background:#ffffff07;border:1px solid #ffffff10;border-radius:14px;padding:10px 12px;margin-bottom:10px}
+.asec-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}.asec-h span{font-size:17px}.asec-h b{font-size:14px}
+.asec-hint{color:#8d99b3;font-size:12px;margin:2px 0 8px;line-height:1.35;text-align:left}
+.aempty{color:#6b7390;font-size:13px;text-align:center;padding:8px 0;margin:0}
+.abanner{padding:9px 12px;border-radius:12px;background:#4fc3f71a;border:1px solid #4fc3f744;font-size:13px;margin-bottom:10px;text-align:left;line-height:1.35}
+.abanner.ev{background:#ffd23f1a;border-color:#ffd23f66}.abanner.gold{background:#ffd23f14;border-color:#ffd23f44;font-weight:700}
+.adm .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0}
+.adm .kpi{background:#0004;border-radius:10px;padding:8px 4px;text-align:center}.adm .kpi b{display:block;font-size:17px}.adm .kpi small{color:#8d99b3;font-size:11px;line-height:1.2;display:block}
+.adm .kpis.gold .kpi b{color:#ffd23f}
+.arank{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ffffff0d;font-size:13px}.arank:last-child{border:0}
+.arank i{width:24px;text-align:center;font-style:normal;color:#8d99b3}.arank span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arank b{white-space:nowrap}.arank small{color:#8d99b3;font-size:11px;min-width:44px;text-align:right}
+.abar{margin:6px 0}.abar>div{display:flex;gap:8px;font-size:13px}.abar>div span{flex:1}.abar>div small{color:#8d99b3;width:34px;text-align:right}
+.abar>i{display:block;height:6px;border-radius:3px;background:#ffffff10;margin-top:3px;overflow:hidden}.abar em{display:block;height:100%;border-radius:3px}
+.asale{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #ffffff0d}.asale:last-child{border:0}
+.asale>div{flex:1;min-width:0;text-align:left}.asale>div b{display:block;font-size:13px}.asale>div small{color:#8d99b3;font-size:11px}
+.astar{display:flex;flex-direction:column;align-items:center;min-width:42px;padding:4px;border-radius:10px;background:#ffd23f1a;font-size:11px}.astar b{font-size:14px;color:#ffd23f}
+.asale.ref{opacity:.5}.atag{font-style:normal;font-size:11px;color:#8d99b3;background:#ffffff10;padding:3px 8px;border-radius:8px}
+/* игроки */
+.aplayer{border:1px solid #ffffff10;border-radius:14px;margin-bottom:8px;background:#ffffff06;overflow:hidden}
+.aplayer.open{border-color:#43c76b88;background:#43c76b0a}
+.aplayer .admrow.player{border:0;padding:10px}
+.pav{width:36px;height:36px;flex:0 0 36px!important;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;background:linear-gradient(135deg,#4fc3f7,#7c4dff);color:#fff;font-size:16px}
+.aplayer .admrow>div b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.chip{font-style:normal;font-size:10.5px;padding:2px 7px;border-radius:8px;background:#ffffff12;color:#cfd6e6}
+.chip.on{background:#43c76b33;color:#8ef0a8}.chip.gold{background:#ffd23f26;color:#ffd23f}.chip.red{background:#e0475b33;color:#ff8a98}
+.parr{font-size:22px;color:#8d99b3;transition:transform .2s}.aplayer.open .parr{transform:rotate(90deg);color:#43c76b}
+.aplayer .gifts{display:block;padding:0 10px 10px}
+.pinfo{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.pinfo>div{background:#0004;border-radius:10px;padding:6px 8px;text-align:left;min-width:0}.pinfo small{display:block;color:#8d99b3;font-size:10.5px}.pinfo b{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.pgrp{background:#0003;border-radius:12px;padding:9px 10px;margin-bottom:8px}
+.pgrp-h{font-weight:700;font-size:13px;margin-bottom:7px;text-align:left}.pgrp-h small{font-weight:normal;color:#8d99b3;font-size:11px}
+.pgrp .admline{margin-top:6px}.pgrp>input,.pgrp textarea{margin:6px 0 0!important}
+.admgift.priv .btn{background:linear-gradient(180deg,#3a2a05,#241a05);border:1px solid #ffd23f55;color:#ffe9a8}
+.cheats .btn{flex:1 1 45%}.aplayer .admrow>div b small{display:inline;font-weight:normal;color:#8d99b3;font-size:12px}.admgift.priv .btn{font-size:12px;padding:8px 6px;flex:1 1 40%}.pgrp .admgift .btn{font-size:12.5px}

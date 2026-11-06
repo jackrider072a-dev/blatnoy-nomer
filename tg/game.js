@@ -1851,7 +1851,19 @@ Object.values(COS).forEach(a => a.forEach(x => Lprops(x, "n")));
 const VIP_ST = 99;
 const isVip = () => !!S.cos.vip;
 // покупка за звёзды пришла (или подарок из админки): cos_hold_neon … / cos_vip
+const COS_PAID = () => Object.keys(COS).flatMap(k => COS[k].filter(x => x.st || x.vip).map(x => [k, x]));   // всё, что за звёзды и из пакета
+function cosRevoke(vipOnly) {
+  const drop = COS_PAID().filter(([, x]) => !vipOnly || x.vip).map(([k, x]) => k + ":" + x.id);
+  S.cos.own = S.cos.own.filter(o => !drop.includes(o));
+  for (const k of Object.keys(COS)) if (S.cos[k] && !S.cos.own.includes(k + ":" + S.cos[k]) && !COS[k].find(x => x.id === S.cos[k] && x.p)) S.cos[k] = "";
+  S.cos.vip = 0; applyCos(); sendState();
+}
 function cosGrant(item) {
+  if (item === "uncos_vip" || item === "uncos_all") { cosRevoke(item === "uncos_vip"); toast(item === "uncos_vip" ? L("👑 «Хозяин района» снят") : L("🎨 Платное оформление снято")); return true; }
+  if (item === "cos_all") {
+    for (const [k, x] of COS_PAID()) if (!S.cos.own.includes(k + ":" + x.id)) S.cos.own.push(k + ":" + x.id);
+    item = "cos_vip";                                     // и сразу надеть королевский пакет
+  }
   if (item === "cos_vip") {
     S.cos.vip = 1; for (const [k, id] of [["hold", "royal"], ["fx", "crown"], ["gar", "palace"]]) { if (!S.cos.own.includes(k + ":" + id)) S.cos.own.push(k + ":" + id); S.cos[k] = id; }
     applyCos(); sendState();
@@ -2377,7 +2389,7 @@ setInterval(() => {                                   // один раз: пре
 }, 10000);
 // выдача: покупки и подарки (why — откуда подарок: друг, рейтинг)
 function shopGrant(item, why) {
-  if (why) toast(why);
+  if (why && !/^uncos_/.test(item)) toast(why);           // снятие привилегий из админки — не «подарок»
   if (item === "cash_s" || item === "cash_l") { const v = shopCash(item); gain(v); toast(L("+{0} 💰", fmt(v))); Snd.sell(); fx.fly(innerWidth / 2, innerHeight / 2, 20); fx.confetti(80); }
   else if (item === "blat" || item === "legend") { const p = makePlate(item === "blat" ? 3 : 4); markFound(p); keepPlate(p); jackpot(p); }
   else if (item === "x2") { S.paid.x2 = 1; toast(L("🔥 Доход ×2 навсегда!")); vignette("#ffd23f"); fx.confetti(120); Snd.level(); }
@@ -2395,7 +2407,7 @@ function shopGrant(item, why) {
     if (heldKeys().has(plateKey(q))) return toast(L("🎁 Номер {0} уже стоит у тебя в гараже", plateStr(q)));
     const p = customPlate(q); markFound(p); keepPlate(p); if (p.tier >= 3) jackpot(p); else { toast(L("🎁 Номер {0} — в гараже", p.l1 + p.d + p.l23 + " " + p.reg)); fx.confetti(60); }
   }
-  else if (/^cos_/.test(item)) { if (!cosGrant(item)) return; }
+  else if (/^(un)?cos_/.test(item)) { if (!cosGrant(item)) return; }
   else if (/^pts_\d+$/.test(item)) { S.pts += +item.slice(4); toast(L("⭐ +{0} связей: доход и удача выше навсегда", item.slice(4))); vignette("#ffd23f"); fx.confetti(60); }
   else if (/^buff_\d+$/.test(item)) { S.buffUntil = Math.max(S.buffUntil, Date.now()) + +item.slice(5) * 3600000; toast(L("🔥 Доход ×2 на {0} ч!", item.slice(5))); vignette("#ffd23f"); renderPills(); }
   else return;
@@ -2692,9 +2704,16 @@ function questChest() {
 // ----- админка (только владелец): кнопка видна, если сервер в hello ответил admin; все данные отдаёт /api/admin, который проверяет ID.
 // Тексты без L(): админка только для владельца, на русском.
 let isAdmin = false, admTab = "stats";
-const ADM_TABS = [["stats", "📊 Сводка"], ["ret", "📈 Удержание"], ["sales", "⭐ Покупки"], ["players", "👥 Игроки"], ["promo", "🎉 Акции"], ["mail", "📢 Рассылка"], ["cheats", "🧪 Читы"]];
+const ADM_TABS = [["stats", "📊", "Сводка", "Главные цифры: игроки, звёзды, откуда приходят"], ["ret", "📈", "Удержание", "Кто возвращается и на каком уровне бросают"],
+  ["sales", "⭐", "Покупки", "Все оплаты звёздами — тут же можно вернуть"], ["players", "👥", "Игроки", "Найти игрока: подарки, привилегии, сообщение, бан"],
+  ["promo", "🎉", "Акции", "Событие для всех (доход, удача) и подарок всем"], ["mail", "📢", "Рассылка", "Сообщение от бота всем, кто разрешил"],
+  ["cheats", "🧪", "Читы", "Только твой прогресс — чтобы проверять игру"]];
+// раздел-карточка админки: иконка, заголовок, пояснение и содержимое
+const admSec = (ico, title, body, hint = "", cls = "") => `<section class="asec ${cls}"><div class="asec-h"><span>${ico}</span><b>${title}</b></div>${hint ? `<p class="asec-hint">${hint}</p>` : ""}${body}</section>`;
+const admEmpty = s => `<p class="aempty">${s}</p>`;
 let admQ = "";                                         // последний поиск игроков — чтобы вернуться к нему из чужого гаража
-const ITEM_NAME = { starter: "Набор новичка", cash_s: "Пачка денег", blat: "Блатной номер", cash_l: "Чемодан денег", legend: "Легенда", x2: "Доход ×2 навсегда" };
+const ITEM_NAME = { starter: "Набор новичка", cash_s: "Пачка денег", blat: "Блатной номер", cash_l: "Чемодан денег", legend: "Легенда", x2: "Доход ×2 навсегда", cos_vip: "👑 Хозяин района", cos_all: "🎨 Всё оформление" };
+COS_PAID().forEach(([k, x]) => { if (x.st) ITEM_NAME["cos_" + k + "_" + x.id] = "🎨 " + x.n; });
 const SRC_COLOR = ["#ffd23f", "#4fc3f7", "#43c76b", "#e0475b", "#b388ff", "#ff9a3c", "#8d99b3", "#f48fb1"];
 const admDate = s => { const d = new Date(s * 1000); return d.toLocaleDateString("ru", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }); };
 const admAgo = s => { const m = Math.floor((Date.now() / 1000 - s) / 60); return m < 2 ? "сейчас" : m < 60 ? m + " мин назад" : m < 1440 ? Math.floor(m / 60) + " ч назад" : Math.floor(m / 1440) + " д назад"; };
@@ -2702,8 +2721,11 @@ const admBody = h => { const el = $("admBody"); if (el) el.innerHTML = h; };
 const admFail = j => admBody(`<p>❌ ${escapeHTML((j && j.error) || "Сервер не отвечает — попробуй ещё раз")}</p>`);
 function openAdmin(t) {
   if (t) admTab = t;
-  openModal(`<h2>🛠 Админка</h2><div class="admtabs">${ADM_TABS.map(([k, n]) => `<button class="btn sm ${k === admTab ? "green" : "alt"}" data-act="admTab" data-t="${k}">${n}</button>`).join("")}</div>
-    <div id="admBody" class="adm"><p class="hint">Загружаю…</p></div><button class="btn alt" data-act="closeModal">Закрыть</button>`);
+  const cur = ADM_TABS.find(x => x[0] === admTab) || ADM_TABS[0];
+  openModal(`<div class="admhead"><b>🛠 Админка</b><button class="admx" data-act="closeModal">✕</button></div>
+    <div class="admtabs">${ADM_TABS.map(([k, i, n]) => `<button class="atab ${k === admTab ? "on" : ""}" data-act="admTab" data-t="${k}"><span>${i}</span><small>${n}</small></button>`).join("")}</div>
+    <div class="admnow"><b>${cur[1]} ${cur[2]}</b><small>${cur[3]}</small></div>
+    <div id="admBody" class="adm"><p class="aload">Загружаю…</p></div><button class="btn alt" data-act="closeModal">Закрыть</button>`);
   if (admTab === "cheats") return admBody(admCheatsHTML());
   if (admTab === "mail") return admBody(admMailHTML());
   if (admTab === "players") return admPlayers(admQ);
@@ -2722,15 +2744,18 @@ function admStatsHTML(j) {
   const chart = `<div class="chart">${days.map(d => `<div class="col" title="${label(d)}: ${tot(d)}"><i class="num">${tot(d) || ""}</i><div class="stack" style="height:${tot(d) / max * 100}%">${per(d).map(r => `<span style="flex:${r.c};background:${col(r.s)}"></span>`).join("")}</div><small>${label(d).split(".")[0]}</small>${st(d) ? `<em>⭐${st(d)}</em>` : ""}</div>`).join("")}</div>
     <div class="legend">${srcs.map(k => `<span><i style="background:${col(k)}"></i>${escapeHTML(k)}</span>`).join("") || "<small>новых игроков за 2 недели нет</small>"}</div>`;
   const totalSrc = j.src.reduce((a, r) => a + r.c, 0) || 1;
-  return `<div class="kpis">${kpi(p.n, "игроков всего")}${kpi(p.fresh, "новых сегодня")}${kpi(p.act, "заходили сегодня")}${kpi(p.act7, "заходили за 7 дней")}${kpi(p.sub, "подписаны на канал")}${kpi(p.cw, "получают напоминания")}${kpi(s.st, "⭐ заработано")}${kpi(s.today, "⭐ сегодня")}${kpi(s.payers, "платящих игроков")}</div>
-    <h3>Новые игроки за 2 недели</h3>${chart}
-    <h3>Откуда пришли</h3>${j.src.map(r => `<div class="admrow"><span>${escapeHTML(r.s)}</span><b>${r.c}</b><small>${Math.round(r.c / totalSrc * 100)}%</small></div>`).join("")}
-    <h3>Что покупают</h3>${j.items.map(r => `<div class="admrow"><span>${ITEM_NAME[r.item] || r.item}</span><b>${r.c} шт.</b><small>⭐ ${r.st}</small></div>`).join("") || "<p class='hint'>Покупок пока нет</p>"}
-    <h3>🏆 Неделя</h3>${j.top.map((r, i) => `<div class="admrow"><span>${i + 1}. ${escapeHTML(r.name || "?")}</span><b>${fmt(r.sc)} 💰</b></div>`).join("") || "<p class='hint'>Пока пусто</p>"}
-    <h3>🐋 Больше всех заплатили</h3>${(j.whales || []).map((r, i) => `<div class="admrow"><span>${i + 1}. ${escapeHTML(r.name || "?")}${r.username ? " @" + escapeHTML(r.username) : ""}</span><b>⭐ ${r.st}</b><small>${r.c} пок.</small></div>`).join("") || "<p class='hint'>Пока никого</p>"}
-    <h3>💰 Богачи за всё время</h3>${(j.rich || []).map((r, i) => `<div class="admrow"><span>${i + 1}. ${escapeHTML(r.name || "?")}</span><b>${fmt(r.earned)} 💰</b><small>ур. ${r.lvl || 0}</small></div>`).join("")}
-    ${j.ev ? `<p class="hint">🎉 Идёт событие «${escapeHTML(j.ev.text || "без названия")}»: доход ×${j.ev.inc}, удача ×${j.ev.luck}, до ${admDate(j.ev.until)}</p>` : ""}
-    ${j.outbox ? `<p class="hint">📢 В очереди рассылки: ${j.outbox}</p>` : ""}`;
+  const rank = (i, a, b, c = "") => `<div class="arank"><i>${i < 3 ? ["🥇", "🥈", "🥉"][i] : i + 1}</i><span>${a}</span><b>${b}</b>${c ? `<small>${c}</small>` : ""}</div>`;
+  const bar = (name, v, all, c) => `<div class="abar"><div><span>${name}</span><b>${v}</b><small>${Math.round(v / all * 100)}%</small></div><i><em style="width:${v / all * 100}%;background:${c}"></em></i></div>`;
+  return (j.ev ? `<div class="abanner ev">🎉 Идёт событие «${escapeHTML(j.ev.text || "без названия")}»: доход ×${j.ev.inc}, удача ×${j.ev.luck}, до ${admDate(j.ev.until)}</div>` : "")
+    + (j.outbox ? `<div class="abanner">📢 В очереди рассылки ещё ${j.outbox} сообщений</div>` : "")
+    + admSec("👥", "Игроки", `<div class="kpis">${kpi(p.n, "всего")}${kpi(p.fresh, "новых сегодня")}${kpi(p.act, "заходили сегодня")}${kpi(p.act7, "за 7 дней")}${kpi(p.sub, "в канале")}${kpi(p.cw, "получают напоминания")}</div>`)
+    + admSec("⭐", "Звёзды", `<div class="kpis gold">${kpi(s.st, "заработано всего")}${kpi(s.today, "сегодня")}${kpi(s.payers, "платящих игроков")}</div>`)
+    + admSec("📅", "Новые игроки за 2 недели", chart, "Столбик — день, цвет — откуда пришли, ⭐ — звёзды в этот день")
+    + admSec("🧭", "Откуда пришли", j.src.map((r, i) => bar(escapeHTML(r.s), r.c, totalSrc, SRC_COLOR[i % SRC_COLOR.length])).join("") || admEmpty("Пока никого"))
+    + admSec("🛒", "Что покупают", j.items.map((r, i) => rank(i, ITEM_NAME[r.item] || r.item, `${r.c} шт.`, `⭐ ${r.st}`)).join("") || admEmpty("Покупок пока нет"))
+    + admSec("🏆", "Рейтинг недели", j.top.map((r, i) => rank(i, escapeHTML(r.name || "?"), fmt(r.sc) + " 💰")).join("") || admEmpty("Пока пусто"))
+    + admSec("🐋", "Больше всех заплатили", (j.whales || []).map((r, i) => rank(i, escapeHTML(r.name || "?") + (r.username ? ` <small>@${escapeHTML(r.username)}</small>` : ""), "⭐ " + r.st, r.c + " пок.")).join("") || admEmpty("Пока никого"))
+    + admSec("💰", "Богачи за всё время", (j.rich || []).map((r, i) => rank(i, escapeHTML(r.name || "?"), fmt(r.earned) + " 💰", "ур. " + (r.lvl || 0))).join("") || admEmpty("Пока никого"));
 }
 // удержание: когорты по дню прихода (D1/D3/D7), активные по дням, на каком уровне бросают, качество источников
 function admRetHTML(j) {
@@ -2742,40 +2767,48 @@ function admRetHTML(j) {
   const avgK = k => { let s = 0, n = 0; j.coh.forEach(r => { if (valid(r.c, k) && r.c + k < j.today) { s += rn(r.c, k); n += r.n; } }); return n ? pct(s, n) + "%" : "—"; };
   let h = `<div class="kpis">${kpi(a.n || 0, "игроков")}${kpi(pct(a.back, a.n) + "%", "вернулись хоть раз")}${kpi(avgK(1), "D1 (на 2-й день)")}${kpi(avgK(3), "D3")}${kpi(avgK(7), "D7")}${kpi(a.v || 0, "заходов в среднем")}</div>`;
   const days = []; for (let c = j.today; c >= j.today - 13; c--) days.push(c);
-  h += `<h3>Когорты: кто вернулся</h3><div class="rettable"><table><tr><th>Пришли</th><th>Новых</th><th>Вернулись</th>${K.map(k => `<th>D${k}</th>`).join("")}</tr>` +
+  h = admSec("📊", "Коротко", h);
+  h += `<section class="asec"><div class="asec-h"><span>🗓</span><b>Когорты: кто вернулся</b></div><div class="rettable"><table><tr><th>Пришли</th><th>Новых</th><th>Вернулись</th>${K.map(k => `<th>D${k}</th>`).join("")}</tr>` +
     days.map(c => { const r = j.coh.find(x => x.c === c) || { n: 0, back: 0 }; if (!r.n) return `<tr class="na"><td>${label(c)}</td><td>0</td><td></td>${K.map(() => "<td></td>").join("")}</tr>`;
       const b = pct(r.back, r.n);
       return `<tr><td>${label(c)}</td><td>${r.n}</td><td style="${heat(b)}">${b}%</td>${K.map(k => valid(c, k) ? `<td style="${heat(pct(rn(c, k), r.n))}">${pct(rn(c, k), r.n)}%</td>` : `<td class="na">—</td>`).join("")}</tr>`; }).join("") + `</table></div>
-    <p class="hint">D1 — зашли на следующий день после прихода, D3 — на 3-й, D7 — на 7-й. Точный учёт по дням идёт ${j.since != null ? "с " + label(j.since) : "с сегодняшнего дня"}, поэтому у старых дней там «—». «Вернулись» — заходили хоть раз позже дня прихода.</p>`;
+    <p class="hint">D1 — зашли на следующий день после прихода, D3 — на 3-й, D7 — на 7-й. Точный учёт по дням идёт ${j.since != null ? "с " + label(j.since) : "с сегодняшнего дня"}, поэтому у старых дней там «—». «Вернулись» — заходили хоть раз позже дня прихода.</p></section>`;
   const dmax = Math.max(1, ...j.dau.map(r => r.n)), dd = []; for (let d = j.today - 13; d <= j.today; d++) dd.push(d);
-  h += `<h3>Сколько игроков заходит в день</h3><div class="chart">${dd.map(d => { const n = (j.dau.find(r => r.d === d) || {}).n || 0;
-    return `<div class="col" title="${label(d)}: ${n}"><i class="num">${n || ""}</i><div class="stack" style="height:${n / dmax * 100}%"><span style="flex:1;background:#4fc3f7"></span></div><small>${label(d).split(".")[0]}</small></div>`; }).join("")}</div>`;
+  h += `<section class="asec"><div class="asec-h"><span>📅</span><b>Сколько игроков заходит в день</b></div><div class="chart">${dd.map(d => { const n = (j.dau.find(r => r.d === d) || {}).n || 0;
+    return `<div class="col" title="${label(d)}: ${n}"><i class="num">${n || ""}</i><div class="stack" style="height:${n / dmax * 100}%"><span style="flex:1;background:#4fc3f7"></span></div><small>${label(d).split(".")[0]}</small></div>`; }).join("")}</div></section>`;
   const lmax = Math.max(1, ...j.lv.map(r => r.n));
-  h += `<h3>На каком уровне бросают</h3>${j.lv.map(r => `<div class="lvrow"><span>${r.l >= 15 ? "15+" : r.l}</span><div class="lvbar"><i style="width:${r.n / lmax * 100}%"></i><b style="width:${r.gone / lmax * 100}%"></b></div><small>${r.n} · ушли ${pct(r.gone, r.n)}%</small></div>`).join("")}
-    <p class="hint">Синее — все игроки на этом уровне, красное — не заходили 3+ дня. Где красного больше всего — там игре не хватает интереса. Уровень 0 — игра ещё не прислала уровень (обычно ушли в первые минуты).</p>`;
-  h += `<h3>Какие источники приводят живых игроков</h3><div class="rettable"><table><tr><th>Откуда</th><th>Игроков</th><th>Вернулись</th><th>Актив. 7 д</th><th>Ср. ур.</th><th>Платят</th></tr>` +
-    j.bySrc.map(r => `<tr><td>${escapeHTML(r.s)}</td><td>${r.n}</td><td style="${heat(pct(r.back, r.n))}">${pct(r.back, r.n)}%</td><td>${r.act7 || 0}</td><td>${r.lvl || 0}</td><td>${r.pay || 0}</td></tr>`).join("") + `</table></div>`;
+  h += `<section class="asec"><div class="asec-h"><span>🚪</span><b>На каком уровне бросают</b></div>${j.lv.map(r => `<div class="lvrow"><span>${r.l >= 15 ? "15+" : r.l}</span><div class="lvbar"><i style="width:${r.n / lmax * 100}%"></i><b style="width:${r.gone / lmax * 100}%"></b></div><small>${r.n} · ушли ${pct(r.gone, r.n)}%</small></div>`).join("")}
+    <p class="hint">Синее — все игроки на этом уровне, красное — не заходили 3+ дня. Где красного больше всего — там игре не хватает интереса. Уровень 0 — игра ещё не прислала уровень (обычно ушли в первые минуты).</p></section>`;
+  h += `<section class="asec"><div class="asec-h"><span>🧭</span><b>Какие источники приводят живых игроков</b></div><div class="rettable"><table><tr><th>Откуда</th><th>Игроков</th><th>Вернулись</th><th>Актив. 7 д</th><th>Ср. ур.</th><th>Платят</th></tr>` +
+    j.bySrc.map(r => `<tr><td>${escapeHTML(r.s)}</td><td>${r.n}</td><td style="${heat(pct(r.back, r.n))}">${pct(r.back, r.n)}%</td><td>${r.act7 || 0}</td><td>${r.lvl || 0}</td><td>${r.pay || 0}</td></tr>`).join("") + `</table></div></section>`;
   return h;
 }
 function admSalesHTML(list) {
-  if (!list.length) return `<p class="hint">Покупок пока нет</p>`;
-  return list.map(r => `<div class="admrow sale"><div><b>${ITEM_NAME[r.item] || r.item} · ⭐ ${r.stars}</b><small>${admDate(r.at)} · ${escapeHTML(r.name || "?")}${r.username ? " @" + escapeHTML(r.username) : ""}</small></div>
-    ${r.refunded ? `<small>возвращено</small>` : `<button class="btn sm alt" data-act="admRefund" data-id="${escapeHTML(r.id)}">Вернуть</button>`}</div>`).join("");
+  if (!list.length) return admEmpty("Покупок пока нет");
+  const sum = list.filter(r => !r.refunded).reduce((a, r) => a + (r.stars || 0), 0);
+  return `<div class="abanner gold">Последние ${list.length} покупок · ⭐ ${sum}</div>` + admSec("🧾", "Покупки", list.map(r => `<div class="asale ${r.refunded ? "ref" : ""}"><span class="astar">⭐<b>${r.stars}</b></span><div><b>${ITEM_NAME[r.item] || r.item}</b><small>${escapeHTML(r.name || "?")}${r.username ? " @" + escapeHTML(r.username) : ""} · ${admDate(r.at)}</small></div>
+    ${r.refunded ? `<em class="atag">возвращено</em>` : `<button class="btn sm alt" data-act="admRefund" data-id="${escapeHTML(r.id)}">↩ Вернуть</button>`}</div>`).join(""), "«Вернуть» отдаёт звёзды игроку. Сама покупка в игре у него остаётся.");
 }
+const ADM_PRIV = () => [["cos_vip", "👑 Хозяин района"], ["cos_all", "🎨 Всё оформление"],
+  ...COS_PAID().filter(([, x]) => x.st).map(([k, x]) => ["cos_" + k + "_" + x.id, x.n + " · ⭐" + x.st]), ["uncos_vip", "❌ Снять «Хозяина»"], ["uncos_all", "❌ Снять всё платное"]];
 const ADM_QUICK = [["cash_s", "💵 Пачка"], ["cash_l", "💼 Чемодан"], ["tier_1", "Красивый"], ["tier_2", "Редкий"], ["blat", "🚘 Блатной"], ["legend", "👑 Легенда"], ["tier_5", "💎 Суперлегенда"], ["x2", "×2 навсегда"]];
 function admPlayerPanel(r) {
   const id = r.id, btn = (act, txt, extra = "") => `<button class="btn sm alt" data-act="${act}" data-uid="${id}" ${extra}>${txt}</button>`;
+  const grp = (ico, title, body, hint = "") => `<div class="pgrp"><div class="pgrp-h">${ico} ${title}${hint ? ` <small>${hint}</small>` : ""}</div>${body}</div>`;
+  const info = [["ID", id], r.fcode && ["Код друга", escapeHTML(r.fcode)], ["Друзей", r.friends || 0], ["С нами с", admDate(r.first_seen)], ["Заработал", fmt(r.earned || 0) + " 💰"], ["Респект", "👍 " + (r.respect || 0)], r.garage_at && ["Гараж обновлён", admAgo(r.garage_at)]].filter(Boolean);
   return `<div class="gifts hidden" id="gifts-${id}">
-    <div class="admgift">${ADM_QUICK.map(([k, n]) => btn("admGift", n, `data-item="${k}"`)).join("")}</div>
-    <div class="admline"><input id="gc-${id}" type="number" min="1" placeholder="Монеты, напр. 1000000">${btn("admGiftIn", "💰 Выдать", 'data-kind="coins"')}</div>
-    <div class="admline"><input id="gp-${id}" placeholder="Номер, напр. А777АА 77">${btn("admGiftIn", "🚘 Выдать", 'data-kind="plate"')}</div>
-    <div class="admline"><input id="gs-${id}" type="number" min="1" placeholder="Связи ⭐ (+10% дохода каждая)">${btn("admGiftIn", "⭐ Выдать", 'data-kind="pts"')}</div>
-    <div class="admline"><input id="gb-${id}" type="number" min="1" placeholder="Доход ×2 — на сколько часов">${btn("admGiftIn", "🔥 Выдать", 'data-kind="buff"')}</div>
-    <div class="admline"><span>Штук:</span><input id="gn-${id}" type="number" min="1" max="20" value="1" style="max-width:70px"><label class="chk"><input type="checkbox" id="gm-${id}" checked> сообщить в боте</label></div>
-    <input id="gt-${id}" placeholder="Подпись к подарку (необязательно)">
-    <textarea id="gw-${id}" rows="2" placeholder="Личное сообщение игроку от бота"></textarea>
-    <div class="admgift">${btn("admMsg", "✉️ Написать")}${btn("garageOf", "🏠 Гараж", 'data-back="admin"')}${btn("admBan", r.banned ? "✅ Вернуть в рейтинг" : "🚫 Убрать из рейтинга", `data-on="${r.banned ? 0 : 1}"`)}${r.nick ? btn("admUnnick", "✏️ Сбросить ник") : ""}</div>
-    <small>ID ${id}${r.fcode ? " · код " + escapeHTML(r.fcode) : ""} · друзей ${r.friends || 0} · с нами с ${admDate(r.first_seen)} · заработал ${fmt(r.earned || 0)} 💰 · 👍 ${r.respect || 0}${r.garage_at ? " · гараж обновлён " + admAgo(r.garage_at) : ""}</small></div>`;
+    <div class="pinfo">${info.map(([a, b]) => `<div><small>${a}</small><b>${b}</b></div>`).join("")}</div>
+    ${grp("🎁", "Подарить", `<div class="admgift">${ADM_QUICK.map(([k, n]) => btn("admGift", n, `data-item="${k}"`)).join("")}</div>
+      <div class="admline"><input id="gc-${id}" type="number" min="1" placeholder="💰 Монеты, напр. 1000000">${btn("admGiftIn", "Выдать", 'data-kind="coins"')}</div>
+      <div class="admline"><input id="gp-${id}" placeholder="🚘 Номер, напр. А777АА 77">${btn("admGiftIn", "Выдать", 'data-kind="plate"')}</div>
+      <div class="admline"><input id="gs-${id}" type="number" min="1" placeholder="⭐ Связи (+10% дохода каждая)">${btn("admGiftIn", "Выдать", 'data-kind="pts"')}</div>
+      <div class="admline"><input id="gb-${id}" type="number" min="1" placeholder="🔥 Доход ×2 — на сколько часов">${btn("admGiftIn", "Выдать", 'data-kind="buff"')}</div>`)}
+    ${grp("👑", "Привилегии", `<div class="admgift priv">${ADM_PRIV().map(([k, n]) => btn("admGift", n, `data-item="${k}"`)).join("")}</div>`, "навсегда, как будто купил за звёзды")}
+    ${grp("⚙️", "Как дарить", `<div class="admline"><span>Штук:</span><input id="gn-${id}" type="number" min="1" max="20" value="1" style="max-width:70px"><label class="chk"><input type="checkbox" id="gm-${id}" checked> сообщить в боте</label></div>
+      <input id="gt-${id}" placeholder="Подпись к подарку (необязательно)">`, "для всех кнопок выше")}
+    ${grp("✉️", "Написать от бота", `<textarea id="gw-${id}" rows="2" placeholder="Личное сообщение игроку"></textarea><div class="admgift">${btn("admMsg", "✉️ Отправить")}</div>`)}
+    ${grp("🛡", "Управление", `<div class="admgift">${btn("garageOf", "🏠 Открыть гараж", 'data-back="admin"')}${btn("admBan", r.banned ? "✅ Вернуть в рейтинг" : "🚫 Убрать из рейтинга", `data-on="${r.banned ? 0 : 1}"`)}${r.nick ? btn("admUnnick", "✏️ Сбросить ник") : ""}</div>`)}
+    </div>`;
 }
 // номер из текста админа: латиница → кириллица (A→А…), «А777АА 77», «а777аа77 rus» → { l1, d, l23, reg }
 const LAT2CYR = { A: "А", B: "В", E: "Е", K: "К", M: "М", H: "Н", O: "О", P: "Р", C: "С", T: "Т", Y: "У", X: "Х" };
@@ -2797,55 +2830,63 @@ function admGiftSend(uid, item, el) {
 }
 function admPromo() {
   const opt = (a, sel) => a.map(([v, n]) => `<option value="${v}" ${v === sel ? "selected" : ""}>${n}</option>`).join("");
-  admBody(`<div id="admEv" class="card"><p class="hint">Загружаю…</p></div>
-    <h3>🎉 Событие для всех игроков</h3>
+  admBody(`<div id="admEv" class="abanner"><span class="aload">Загружаю…</span></div>
+    <section class="asec"><div class="asec-h"><span>🎉</span><b>Событие для всех игроков</b></div>
     <div class="admline"><span>Доход ×</span><select id="evInc">${opt([["1", "1"], ["1.5", "1.5"], ["2", "2"], ["3", "3"], ["5", "5"]], "2")}</select><span>Удача ×</span><select id="evLuck">${opt([["1", "1"], ["1.5", "1.5"], ["2", "2"], ["3", "3"], ["5", "5"]], "1")}</select></div>
     <div class="admline"><span>Часов:</span><input id="evH" type="number" min="1" max="168" value="24" style="max-width:80px"><input id="evT" placeholder="Название: Выходные блатных"></div>
     <button class="btn green" data-act="admEvent">🎉 Включить событие</button>
     <button class="btn alt" data-act="admEventOff">⏹ Выключить событие</button>
-    <p class="hint">Удача повышает шанс красивых, редких и блатных номеров. Игроки увидят плашку сверху в течение пары минут. Рассказать о событии всем можно во вкладке «📢 Рассылка».</p>
-    <h3>🎁 Подарок всем игрокам</h3>
+    <p class="asec-hint">Удача повышает шанс красивых, редких и блатных номеров. Игроки увидят плашку сверху в течение пары минут. Рассказать о событии всем можно во вкладке «📢 Рассылка».</p></section>
+    <section class="asec"><div class="asec-h"><span>🎁</span><b>Подарок всем игрокам</b></div>
     <select id="gaItem">${opt([["cash_s", "💵 Пачка денег (30 мин дохода)"], ["cash_l", "💼 Чемодан денег (3 ч дохода)"], ["blat", "🚘 Блатной номер"], ["legend", "👑 Легенда"], ["tier_5", "💎 Суперлегенда"], ["x2", "×2 доход навсегда"], ["coins", "💰 Монеты — сколько укажешь"], ["buff", "🔥 Доход ×2 на N часов"], ["pts", "⭐ Связи — сколько укажешь"]], "cash_s")}</select>
     <input id="gaVal" type="number" min="1" placeholder="Сколько (для монет, часов, связей)">
     <div class="admline"><span>Кому:</span><select id="gaDays">${opt([["1", "заходили за сутки"], ["7", "за 7 дней"], ["30", "за 30 дней"], ["0", "всем игрокам"]], "7")}</select></div>
     <label class="admline chk"><input type="checkbox" id="gaNote" checked> написать от бота (тем, кто разрешил)</label>
     <input id="gaText" placeholder="Подпись (необязательно): Спасибо, что играете!">
-    <button class="btn red" data-act="admGiftAll">🎁 Подарить всем</button>`);
+    <button class="btn red" data-act="admGiftAll">🎁 Подарить всем</button><p class="asec-hint">Срабатывает со второго нажатия — чтобы не подарить случайно.</p></section>`);
   Platform.admin("ev").then(j => { const el = $("admEv"); if (!el) return;
-    el.innerHTML = !j || !j.ok ? "<p>❌ Сервер не отвечает</p>" : j.ev ? `<b>🎉 Сейчас идёт: «${escapeHTML(j.ev.text || "без названия")}»</b><p>Доход ×${j.ev.inc} · удача ×${j.ev.luck} · до ${admDate(j.ev.until)}</p>` : "<p>Сейчас событий нет</p>"; });
+    el.className = "abanner" + (j && j.ok && j.ev ? " ev" : ""); el.innerHTML = !j || !j.ok ? "❌ Сервер не отвечает" : j.ev ? `🎉 Сейчас идёт «${escapeHTML(j.ev.text || "без названия")}»: доход ×${j.ev.inc} · удача ×${j.ev.luck} · до ${admDate(j.ev.until)}` : "Сейчас событий нет"; });
 }
 function admPlayers(q) {
   admQ = q;
-  admBody(`<div class="admsearch"><input id="admQ" placeholder="Имя, @ник или ID" value="${escapeHTML(q)}"><button class="btn sm green" data-act="admSearch">Найти</button></div><div id="admList"><p class="hint">Загружаю…</p></div>`);
+  admBody(`<div class="admsearch"><input id="admQ" placeholder="🔍 Имя, @ник или ID" value="${escapeHTML(q)}"><button class="btn sm green" data-act="admSearch">Найти</button></div>
+    <p class="asec-hint">${q ? "Результаты поиска" : "Последние 40 игроков, кто заходил"} · нажми на игрока, чтобы открыть действия</p><div id="admList"><p class="aload">Загружаю…</p></div>`);
   Platform.admin("players", { q }).then(j => {
     const el = $("admList"); if (!el) return;
     if (!j || !j.ok) { el.innerHTML = `<p>❌ ${escapeHTML((j && j.error) || "Сервер не отвечает")}</p>`; return; }
-    el.innerHTML = j.list.length ? j.list.map(r => `<div class="admrow player" data-act="admPlayer" data-uid="${r.id}"><div><b>${r.nick ? "«" + escapeHTML(r.nick) + "» " : ""}${escapeHTML(r.name || "?")}${r.username ? ` <small>@${escapeHTML(r.username)}</small>` : ""}</b>
-      <small>ур. ${r.lvl || 0} · ${escapeHTML(r.src)} · заходов ${r.visits} · ${admAgo(r.last_seen)}${r.paid ? ` · ⭐ ${r.paid}` : ""}${r.invited ? ` · позвал ${r.invited}` : ""}${r.sub_tg ? " · ✅ канал" : ""}${r.can_write ? " · 🔔" : ""}${r.banned ? " · 🚫 вне рейтинга" : ""}</small></div><span>⚙️</span></div>
-      ${admPlayerPanel(r)}`).join("") : `<p class="hint">Никого не нашёл</p>`;
+    const chip = (s, c = "") => `<em class="chip ${c}">${s}</em>`;
+    el.innerHTML = j.list.length ? j.list.map(r => { const nm = r.nick || r.name || "?";
+      return `<div class="aplayer"><div class="admrow player" data-act="admPlayer" data-uid="${r.id}"><span class="pav">${escapeHTML([...nm][0] || "?").toUpperCase()}</span><div><b>${r.nick ? escapeHTML(r.nick) + ` <small>(${escapeHTML(r.name || "?")})</small>` : escapeHTML(r.name || "?")}${r.username ? ` <small>@${escapeHTML(r.username)}</small>` : ""}</b>
+      <div class="chips">${chip("ур. " + (r.lvl || 0))}${chip(admAgo(r.last_seen), Date.now() / 1000 - r.last_seen < 86400 ? "on" : "")}${chip(escapeHTML(r.src))}${chip("заходов " + r.visits)}${r.paid ? chip("⭐ " + r.paid, "gold") : ""}${r.invited ? chip("позвал " + r.invited) : ""}${r.sub_tg ? chip("✅ канал") : ""}${r.can_write ? chip("🔔") : ""}${r.banned ? chip("🚫 вне рейтинга", "red") : ""}</div></div><span class="parr">›</span></div>
+      ${admPlayerPanel(r)}</div>`; }).join("") : admEmpty("Никого не нашёл");
   });
 }
 function admMailHTML() {
-  return `<p class="hint">Сообщение от бота всем, кто разрешил ему писать. С кнопкой, которая открывает игру. Сначала отправь себе и посмотри, как выглядит.</p>
+  return `<section class="asec"><div class="asec-h"><span>✍️</span><b>Текст сообщения</b></div><p class="asec-hint">Придёт от бота всем, кто разрешил ему писать, с кнопкой, которая открывает игру. Сначала отправь себе и посмотри, как выглядит.</p>
     <textarea id="admText" rows="6" placeholder="Например: 🔥 В выходные шанс легенды ×2! Залетай 👇"></textarea>
     <input id="admBtn" value="🎮 Играть" placeholder="Текст кнопки">
     <button class="btn alt" data-act="admSend" data-mode="test">👀 Отправить себе</button>
     <button class="btn red" data-act="admSend" data-mode="broadcast">📢 Разослать всем</button>
-    <p class="hint">Первые 40 сообщений уходят сразу, остальные — по 15 каждые 10 минут, с 10:00 до 22:00 по Москве.</p>`;
+    <p class="asec-hint">«Разослать всем» срабатывает со второго нажатия. Первые 40 сообщений уходят сразу, остальные — по 15 каждые 10 минут, с 10:00 до 22:00 по Москве.</p></section>`;
 }
 const CHEATS = [
   ["money", "💰 +1 млн (не идёт в рейтинг)"], ["income", "💰 +1 час дохода"], ["t2", "🎫 Редкий номер"], ["t3", "🚘 Блатной номер"], ["t4", "👑 Легенда"], ["t5", "💎 Суперлегенда"],
   ["lvl", "⭐ +1 уровень"], ["quests", "📅 Новые задания дня"], ["starter", "🎁 Снова показать набор новичка"], ["subs", "📢 Сбросить бонусы подписки"], ["mini", "🎣 Сбросить перезарядку мини-игры"],
   ["maxup", "📈 Все апгрейды на максимум"], ["noup", "📉 Сбросить апгрейды"], ["buff", "🔥 Доход ×2 на час"], ["x2", "⭐ ×2 навсегда: вкл/выкл"],
-  ["album", "📒 Заполнить альбом (без наград)"], ["albumReset", "📒 Очистить альбом"], ["daily", "🎁 Снова дать ежедневный бонус"], ["clear", "🗑 Очистить гараж"]
+  ["album", "📒 Заполнить альбом (без наград)"], ["albumReset", "📒 Очистить альбом"], ["daily", "🎁 Снова дать ежедневный бонус"], ["clear", "🗑 Очистить гараж"],
+  ["vip", "👑 Хозяин района: вкл/выкл"], ["cosall", "🎨 Всё оформление: вкл/выкл"]
 ];
+const CHEAT_GROUPS = [["💰", "Деньги", ["money", "income"]], ["🚘", "Номера", ["t2", "t3", "t4", "t5", "clear"]], ["👑", "Оформление", ["vip", "cosall"]],
+  ["⭐", "Прогресс", ["lvl", "maxup", "noup", "buff", "x2", "album", "albumReset"]], ["🔄", "Сбросить и показать снова", ["daily", "quests", "starter", "subs", "mini"]]];
 function admCheatsHTML() {
-  return `<p class="hint">Действуют только на твой прогресс — чтобы проверять игру. Деньги из читов не попадают в рейтинг недели.</p>
-    <div class="admline"><input id="chC" type="number" min="1" placeholder="Сколько монет"><button class="btn sm green" data-act="admCheatIn" data-k="coins">💰 Добавить</button></div>
-    <div class="admline"><input id="chP" placeholder="Номер, напр. А777АА 77"><select id="chT"><option value="-1">редкость сама</option>${TIERS.map((t, i) => `<option value="${i}">${t.name}</option>`).join("")}</select><button class="btn sm green" data-act="admCheatIn" data-k="plate">🚘</button></div>
-    <div class="admline"><input id="chL" type="number" min="1" placeholder="Уровень"><button class="btn sm alt" data-act="admCheatIn" data-k="lvl">Поставить</button><input id="chS" type="number" min="0" placeholder="⭐ связей"><button class="btn sm alt" data-act="admCheatIn" data-k="pts">Поставить</button></div>
-    <div class="cheats">${CHEATS.map(([k, n]) => `<button class="btn sm alt" data-act="admCheat" data-k="${k}">${n}</button>`).join("")}</div>
-    <p class="hint">Подарить себе что-то «по-настоящему» (через сервер, как игроку) — найди себя во вкладке «👥 Игроки».</p>`;
+  const cb = k => { const c = CHEATS.find(x => x[0] === k); return c ? `<button class="btn sm alt" data-act="admCheat" data-k="${k}">${c[1]}</button>` : ""; };
+  const extra = {
+    "Деньги": `<div class="admline"><input id="chC" type="number" min="1" placeholder="Сколько монет"><button class="btn sm green" data-act="admCheatIn" data-k="coins">💰 Добавить</button></div>`,
+    "Номера": `<div class="admline"><input id="chP" placeholder="Номер, напр. А777АА 77"><select id="chT"><option value="-1">редкость сама</option>${TIERS.map((t, i) => `<option value="${i}">${t.name}</option>`).join("")}</select><button class="btn sm green" data-act="admCheatIn" data-k="plate">🚘</button></div>`,
+    "Прогресс": `<div class="admline"><input id="chL" type="number" min="1" placeholder="Уровень"><button class="btn sm alt" data-act="admCheatIn" data-k="lvl">Поставить</button><input id="chS" type="number" min="0" placeholder="⭐ связей"><button class="btn sm alt" data-act="admCheatIn" data-k="pts">Поставить</button></div>`
+  };
+  return `<div class="abanner">🧪 Читы меняют только твой прогресс на этом устройстве. Деньги из читов не попадают в рейтинг недели. Подарить себе «по-настоящему», через сервер, можно во вкладке «👥 Игроки».</div>`
+    + CHEAT_GROUPS.map(([i, n, ks]) => admSec(i, n, (extra[n] || "") + `<div class="cheats">${ks.map(cb).join("")}</div>`)).join("");
 }
 function admCheatIn(k) {
   const v = id => (($(id) || {}).value || "").trim();
@@ -2876,6 +2917,8 @@ function admCheat(k) {
   else if (k === "starter") { S.paid.starter = 0; S.paid.starterUntil = 0; }
   else if (k === "subs") S.subs = Object.assign(fresh().subs, { notif: S.subs.notif });
   else if (k === "mini") S.mini.next = 0;
+  else if (k === "vip") { closeModal(); cosGrant(isVip() ? "uncos_vip" : "cos_vip"); }
+  else if (k === "cosall") { closeModal(); cosGrant(COS_PAID().every(([c, x]) => S.cos.own.includes(c + ":" + x.id)) ? "uncos_all" : "cos_all"); }
   toast("🧪 Готово"); save(); renderAll();
 }
 // ===================== ДЕЛЕГИРОВАНИЕ КЛИКОВ =====================
@@ -2886,7 +2929,7 @@ const ACTS = {
   shop: () => openShop(), shopBuy: d => shopBuy(d.k),
   admin: () => openAdmin(), admTab: d => openAdmin(d.t), admCheat: d => admCheat(d.k),
   admSearch: () => admPlayers(($("admQ") || {}).value || ""),
-  admPlayer: d => { const g = $("gifts-" + d.uid); if (g) g.classList.toggle("hidden"); },
+  admPlayer: d => { const g = $("gifts-" + d.uid); if (g) { g.classList.toggle("hidden"); g.parentElement.classList.toggle("open", !g.classList.contains("hidden")); } },
   admGift: (d, e, el) => admGiftSend(+d.uid, d.item, el),
   admGiftIn: (d, e, el) => {                           // подарок с полем ввода: монеты, номер, связи, часы ×2
     const uid = +d.uid, v = (($({ coins: "gc-", plate: "gp-", pts: "gs-", buff: "gb-" }[d.kind] + uid) || {}).value || "").trim();
