@@ -646,3 +646,14 @@ body.hold-royal .plate:not(.other),.oh-royal .plate.other{outline:.16em solid #f
 .pgrp .admline{margin-top:6px}.pgrp>input,.pgrp textarea{margin:6px 0 0!important}
 .admgift.priv .btn{background:linear-gradient(180deg,#3a2a05,#241a05);border:1px solid #ffd23f55;color:#ffe9a8}
 .cheats .btn{flex:1 1 45%}.aplayer .admrow>div b small{display:inline;font-weight:normal;color:#8d99b3;font-size:12px}.admgift.priv .btn{font-size:12px;padding:8px 6px;flex:1 1 40%}.pgrp .admgift .btn{font-size:12.5px}
+
+/* замок «подпишись на канал» (Telegram) */
+#subgate{position:fixed;inset:0;z-index:9999;background:radial-gradient(circle at 50% 30%,#1f2a4a 0%,#0b0e16 70%);display:flex;align-items:center;justify-content:center;padding:24px}
+#subgate .sgbox{width:100%;max-width:360px;text-align:center;background:#151b2c;border:1px solid #2b3656;border-radius:20px;padding:26px 20px 18px;box-shadow:0 20px 60px #0008}
+#subgate .sgico{font-size:56px;line-height:1;margin-bottom:10px;animation:sgfly 2.4s ease-in-out infinite}
+#subgate h2{margin:0 0 10px;font-size:22px}
+#subgate p{margin:0 0 18px;color:#aeb7cf;font-size:15px;line-height:1.4}
+#subgate .btn{width:100%;margin:0 0 10px}
+#subgate .sgnote{font-size:13px;color:#8a93ab;margin-top:4px}
+#subgate .sgnote b{color:#ffd45c}
+@keyframes sgfly{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-8px) rotate(6deg)}}

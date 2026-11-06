@@ -2078,7 +2078,7 @@ TK.el.addEventListener("click", e => {
   const st = TUT[S.tut]; if (st && st.next && !tkFinish()) tutGo(S.tut + 1);
 });
 document.addEventListener("click", e => {               // во время подсказки нажимается только подсвеченная кнопка
-  if (!Tut.block || TK.el.classList.contains("hidden") || e.target.closest("#talk")) return;
+  if (!Tut.block || TK.el.classList.contains("hidden") || e.target.closest("#talk, #subgate")) return;   // замок «подпишись» — поверх обучения
   if (Tut.target && Tut.target.contains(e.target)) return;
   e.stopPropagation(); e.preventDefault();
 }, true);
@@ -2262,6 +2262,7 @@ Platform.init({
     Platform.track(j ? "srv_ok" : "srv_fail"); if (!j) return;
     srvOK = true;
     if (j.sub) setTimeout(() => subGrant("tg", 0), 2500);
+    else if (j.sub === false && !j.admin) subGate(true);
     if (j.notify && !S.subs.notif) { S.subs.notif = 1; save(); }   // уже нажимал /start в боте — напоминания и так включены, не спрашиваем
     refs = { n: j.refs || 0, done: j.refsDone || 0, inviter: !!j.inviter, respect: j.respect || 0 }; myUid = j.uid || 0;
     tgName = j.name || ""; myCode = j.code || ""; reqsN = j.reqs || 0; updateMoreDot();
@@ -2338,6 +2339,31 @@ function subGrant(k, delay) {
   const v = subReward();
   setTimeout(() => { gain(v); toast(L("Спасибо за подписку! +{0} 💰", fmt(v))); Snd.sell(); fx.confetti(40); save(); closeModal(); renderSubs(); renderHeader(); if (tab === "more") renderMore(); }, delay);
 }
+// ----- замок «подпишись на канал» (только Telegram): поверх всей игры, пока сервер не увидит подписку
+let gateOn = false, gateBusy = false;
+function subGate(on) {
+  let el = $("subgate");
+  if (!on) { gateOn = false; if (el) el.remove(); return; }
+  if (gateOn) return;
+  gateOn = true; Platform.track("gate_show");
+  if (!el) { el = document.createElement("div"); el.id = "subgate"; document.body.appendChild(el); }
+  el.innerHTML = `<div class="sgbox"><div class="sgico">✈️</div><h2>${L("Подпишись на канал")}</h2>
+    <p>${L("Чтобы играть, подпишись на наш Telegram-канал. Там новости, обновления и промокоды.")}</p>
+    <button class="btn green" data-act="gateGo">✈️ ${L("Подписаться")}</button>
+    <button class="btn alt" data-act="gateCheck">✅ ${L("Я подписался")}</button>
+    <div class="sgnote" id="sgNote">${L("После подписки вернись сюда — игра откроется сама")} · <b>+${fmt(subReward())} 💰</b></div></div>`;
+}
+function gateCheck(manual) {
+  if (!gateOn || gateBusy) return;
+  gateBusy = true; if (manual) { const nt = $("sgNote"); if (nt) nt.textContent = L("Проверяю…"); }
+  Platform.checkSub().then(ok => {
+    gateBusy = false; if (!gateOn) return;
+    if (ok !== false) { Platform.track(ok ? "gate_ok" : "gate_nocheck"); subGate(false); subGrant("tg", 300); return; }   // null — проверить нельзя: не держим
+    if (manual) { const nt = $("sgNote"); if (nt) nt.textContent = L("Подписка пока не видна — подпишись и нажми ещё раз"); }
+  });
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden && gateOn) setTimeout(() => gateCheck(false), 1200); });   // вернулся из канала — проверяем сам
+setInterval(() => { if (gateOn && !document.hidden) gateCheck(false); }, 6000);
 let subWait = 0, subBusy = false;
 function subGo(k) {
   const s = SUBS.find(x => x.k === k); if (!s || S.subs[k]) return;
@@ -2948,6 +2974,7 @@ const ACTS = {
   buy: d => buy(d.pack), buy10: d => buyMany(d.pack),
   sellPending: () => resolvePending(true), keepPending: () => resolvePending(false),
   subGo: d => subGo(d.k),
+  gateGo: () => { Platform.openLink("https://t.me/blatnoynomer_tg"); Platform.track("gate_go"); }, gateCheck: () => gateCheck(true),
   shop: () => openShop(), shopBuy: d => shopBuy(d.k),
   admin: () => openAdmin(), admTab: d => openAdmin(d.t), admCheat: d => admCheat(d.k),
   admSearch: () => admPlayers(($("admQ") || {}).value || ""),
