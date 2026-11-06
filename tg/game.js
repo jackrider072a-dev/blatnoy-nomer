@@ -34,7 +34,8 @@ const TIERS = [
 const PACKS = {
   basic: { name: "Обычный бланк",  icon: "📄", price: 100,  w: [70, 20, 7.6, 2.37, 0.03, 0.002], lvl: 1,  xp: 2 },
   prem:  { name: "Премиум-бланк",  icon: "💼", price: 700,  w: [0, 50, 32, 17.5, 0.5, 0.02],    lvl: 4,  xp: 8 },
-  elite: { name: "Элитный бланк",  icon: "👑", price: 1500, w: [0, 0, 59, 40, 1, 0.08],          lvl: 12, xp: 30 }
+  elite: { name: "Элитный бланк",  icon: "👑", price: 1500, w: [0, 0, 59, 40, 1, 0.08],          lvl: 12, xp: 30 },
+  black: { name: "Чёрный бланк",   icon: "🖤", price: 12000, w: [0, 0, 0, 70, 27, 3],           lvl: 15, xp: 80 }
 };
 const TOP = TIERS.length - 1;               // самая высокая редкость
 const UPS = [
@@ -52,7 +53,12 @@ const UPS = [
 Lprops(SERIES_INFO, ...Object.keys(SERIES_INFO));
 TIERS.forEach(t => Lprops(t, "name")); Object.values(PACKS).forEach(p => Lprops(p, "name")); UPS.forEach(u => Lprops(u, "name", "desc"));
 const PITY_BASE = 120;
-const INC_DIV = 400;                       // доход номера в сек = цена / INC_DIV
+const INC_DIV = 400;                       // доход номера в сек = цена / INC_DIV × INC_K[редкость]
+// Баланс (симуляция активного игрока): слияние наверху больше не множит деньги «из воздуха» — легенда приносит ×0.75, суперлегенда ×0.58
+// от прежнего. Вместе с ценой бланков от дохода (PACK_SEC) это убирает миллиарды за пару часов: ~1.4 млн за час, ~76 млн за 6 часов.
+const INC_K = [1, 1, 1, 1, 0.75, 0.576];
+// цена бланка ≈ столько секунд дохода гаража (в степени 0.8 — рост дохода всё равно ускоряет покупки), но не меньше базовой
+const PACK_SEC = { basic: 5, prem: 25, elite: 60, black: 300 };
 // слияние: сколько номеров редкости t нужно на один номер редкости t+1. Чем выше, тем больше нужно — иначе цепочка слияний
 // умножает деньги быстрее, чем игрок успевает их тратить (из 81 обычного за 8 тыс. выходила легенда за 20 тыс.)
 const MERGE_NEED = [3, 3, 4, 5, 8];
@@ -93,6 +99,7 @@ const fresh = () => ({
   album: { got: {}, rw: {} },                           // альбом номеров: got — собранные клетки ("r:77", "d:777"…), rw — забранные награды страниц ("reg1" — половина, "reg2" — вся)
   soc: { resp: 0 },                                     // сколько респектов гаражу игрок уже видел (Telegram)
   bot: { on: true, pack: "basic", sell: -2, merge: -1, reserve: 0, wish: [], log: [], n: 0, found: 0 },   // помощник: вкл, бланк, что продавать (-2 — как авто-продажа), автослияние до редкости (-1 — нет), запас денег, «ищу номер», журнал
+  cos: { own: [], hold: "", fx: "", gar: "" },          // оформление за монеты: купленное (own: "hold:gold"), что надето
   prof: { nick: "", ava: "😎", frame: "base", bio: "", pins: [] }   // профиль: ник, аватар, рамка, статус, закреплённые номера (id, до 3)
 });
 let S = fresh();
@@ -105,6 +112,7 @@ function normalize(r) {                              // сохранение (л
   s.album = Object.assign(fresh().album, r.album); s.album.got = Object.assign({}, s.album.got); s.album.rw = Object.assign({}, s.album.rw);
   s.soc = Object.assign(fresh().soc, r.soc);
   s.bot = Object.assign(fresh().bot, r.bot); if (!Array.isArray(s.bot.wish)) s.bot.wish = []; if (!Array.isArray(s.bot.log)) s.bot.log = [];
+  s.cos = Object.assign(fresh().cos, r.cos); if (!Array.isArray(s.cos.own)) s.cos.own = [];
   s.prof = Object.assign(fresh().prof, r.prof); if (!Array.isArray(s.prof.pins)) s.prof.pins = [];
   s.story = Object.assign(fresh().story, r.story); s.story.ev = Object.assign({}, s.story.ev);
   if (!r.story) s.tut = r.drawn > 0 ? -1 : 0;                              // сейв до сюжета: опытным игрокам обучение не показываем
@@ -301,12 +309,15 @@ function floatText(x, y, text, color) {
 function mk(l1, d, l2, l3, reg) { return { l1, d, l23: l2 + l3, reg }; }
 function randPlate(reg) { return mk(pick(LETTERS), String(100 + rnd(900)), pick(LETTERS), pick(LETTERS), reg || pick(NORMAL_REG)); }
 const seriesOf = p => p.l1 + p.l23;
+// цифры совпадают с регионом: 077 при 77, 199 при 199, 002 при 02 — «зеркало региона»
+const isCombo = p => p.d === p.reg.padStart(3, "0");
 function classify(p) {
+  if (p.sk) return 4;                                     // особые номера — всегда легенда
   const ser = seriesOf(p), elite = ELITE_REG.includes(p.reg);
   if (ser === GOV_SER && p.reg === GOV_REG) return SUPER_DIGITS.includes(p.d) ? 5 : 4;   // спецсерия: всегда легенда
   if (LEGEND_SER.includes(ser)) return elite ? 4 : 3;
   if (BLAT_SER.includes(ser)) return elite ? 3 : 2;
-  if (SPECIAL_DIGITS.includes(p.d) || elite) return 2;
+  if (SPECIAL_DIGITS.includes(p.d) || elite || isCombo(p)) return 2;
   const d = p.d;
   if (d[0] === d[1] && d[1] === d[2]) return 1;
   if (d.endsWith("00") || ["123", "321", "234", "456"].includes(d) || d[0] === d[2]) return 1;
@@ -318,7 +329,7 @@ function build(tier) {
   if (tier === 5) p = mk(GOV_SER[0], pick(SUPER_DIGITS), GOV_SER[1], GOV_SER[2], GOV_REG);
   else if (tier === 4) { const s = pick(LEGEND_SER); p = mk(s[0], String(100 + rnd(900)), s[1], s[2], pick(ELITE_REG)); }
   else if (tier === 3) { const s = pick(BLAT_SER); p = mk(s[0], String(100 + rnd(900)), s[1], s[2], pick(ELITE_REG)); }
-  else if (tier === 2) { p = randPlate(); if (Math.random() < 0.5) p.d = pick(SPECIAL_DIGITS); else p.reg = pick(ELITE_REG); }
+  else if (tier === 2) { p = randPlate(); const k = Math.random(); if (k < 0.4) p.d = pick(SPECIAL_DIGITS); else if (k < 0.8) p.reg = pick(ELITE_REG); else p.d = p.reg.padStart(3, "0"); }
   else if (tier === 1) {
     p = randPlate(); const k = rnd(4);
     if (k === 0) { const x = String(1 + rnd(9)); p.d = x + x + x; }
@@ -327,6 +338,46 @@ function build(tier) {
     else { const x = pick(LETTERS); p.l1 = x; p.l23 = x + x; }
   } else p = randPlate();
   return p;
+}
+// ----- один номер — один экземпляр у игрока: генерация обходит то, что уже есть (гараж, номер «на столе», пачка из 10)
+const plateKey = p => (p.sk ? p.sk + ":" + p.x + ":" : "") + p.l1 + p.d + p.l23 + p.reg;
+let drawBatch = [];
+function heldKeys(except) {
+  const s = new Set();
+  for (const q of S.plates) if (q !== except) s.add(plateKey(q));
+  if (pending && pending !== except) s.add(plateKey(pending));
+  for (const q of drawBatch) if (q !== except) s.add(plateKey(q));
+  return s;
+}
+// номер нужной редкости, которого у игрока ещё нет; если редкость исчерпана (почти невозможно) — на ступень ниже
+function buildFree(tier, held) {
+  let last = null;
+  for (let t = tier; t >= 0; t--) for (let i = 0; i < 400; i++) {
+    const p = build(t), c = classify(p); if (!last) last = [p, c];
+    if (c === t && !held.has(plateKey(p))) return [p, c];
+  }
+  return last;
+}
+function respecDigits(p) { p.x = p.sk === "diplo" ? String(1 + rnd(999)).padStart(3, "0") : String(rnd(10)); p.d = p.sk === "diplo" ? String(1 + rnd(150)).padStart(3, "0") : String(100 + rnd(900)); }
+// перевыдать дубль: та же редкость, замок/история остаются, меняются только символы
+function reissue(p, held) {
+  const old = p.sk ? specStr(p) : plateStr(p);
+  if (p.sk) { for (let i = 0; i < 400 && held.has(plateKey(p)); i++) respecDigits(p); }
+  else { const [q, c] = buildFree(p.tier, held); p.l1 = q.l1; p.d = q.d; p.l23 = q.l23; p.reg = q.reg; p.tier = c; }
+  p.val = plateValue(p, p.tier); delete p.wc;
+  return old;
+}
+// старые сейвы: если в гараже два одинаковых номера — один остаётся (купленный в МРЭО / под замком / полученный раньше), остальные перевыдаются
+function fixDupes() {
+  const order = S.plates.slice().sort((a, b) => (b.bought ? 1 : 0) - (a.bought ? 1 : 0) || (b.lock ? 1 : 0) - (a.lock ? 1 : 0) || (a.got || 0) - (b.got || 0));
+  const seen = new Set(), dup = [];
+  for (const p of order) { const k = plateKey(p); if (seen.has(k)) dup.push(p); else seen.add(k); }
+  if (!dup.length) return 0;
+  const held = new Set(S.plates.map(plateKey)), msg = [];
+  for (const p of dup) { const was = reissue(p, held); held.add(plateKey(p)); msg.push(was + " → " + (p.sk ? specStr(p) : plateStr(p))); }
+  setTimeout(() => toast(L("Одинаковые номера в гараже перевыданы: {0}", msg.slice(0, 3).join(", "))), 1500);
+  try { save(); } catch (e) {}
+  return dup.length;
 }
 const luckMult = () => Math.min(40, Math.pow(1.12, up("luck")) * Math.pow(1.03, S.pts)) * evMult("luck");
 // событие из админки для всех игроков (Telegram): { inc, luck, until (сек), text }
@@ -357,24 +408,32 @@ function drawPlate(packId, minTier = 0) {
   if (S.pity >= pityMax() && want < 3) want = Math.random() < 0.02 ? 4 : 3;
   if (want >= 3) S.pity = 0;
   let p, tier;
-  for (let i = 0; i < 40; i++) { p = build(want); tier = classify(p); if (tier === want) break; }
-  return { id: S.nid++, l1: p.l1, d: p.d, l23: p.l23, reg: p.reg, tier, val: TIERS[tier].val, got: Date.now(), gift, pack: packId };
+  [p, tier] = buildFree(want, heldKeys());
+  if (S.drawn > 10 && Math.random() < specChance(packId)) { const sp = makeSpecial(packId); S.pity = 0; return sp; }   // особый номер: такси, полиция, военный, дипломат
+  return { id: S.nid++, l1: p.l1, d: p.d, l23: p.l23, reg: p.reg, tier, val: plateValue(p, tier), got: Date.now(), gift, pack: packId };
 }
 function plateHTML(p, cls = "") {
-  const cs = [p.l1, ...p.d, p.l23[0], p.l23[1]].map(c => `<span class="c">${c}</span>`).join("");
-  return `<div class="plate p${p.tier} ${cls}"><div class="m">${cs}</div><div class="r"><b class="c">${p.reg}</b><i>RUS</i></div></div>`;
+  if (p.sk) {
+    const cs = specChars(p).map(([c, k]) => k === 2 ? `<span class="gap"></span>` : `<span class="c${k ? " L" : ""}">${c}</span>`).join("");
+    return `<div class="plate p${p.tier} sp sp-${p.sk} ${cls}"><div class="m">${cs}</div><div class="r"><b class="c">${p.reg}</b><i>RUS<em class="flag"></em></i></div></div>`;
+  }
+  const cs = [p.l1, ...p.d, p.l23[0], p.l23[1]].map((c, i) => `<span class="c${i === 0 || i > 3 ? " L" : ""}">${c}</span>`).join("");
+  return `<div class="plate p${p.tier} ${cls}"><div class="m">${cs}</div><div class="r"><b class="c">${p.reg}</b><i>RUS<em class="flag"></em></i></div></div>`;
 }
 function plateNote(p) {
+  if (p.sk) return L("{0} Особый номер «{1}» — выпадает очень редко", SPECIAL[p.sk].ico, SPECIAL[p.sk].n);
   const ser = seriesOf(p);
   if (p.tier === 5) return L("Спецсерия «АМР» 97 региона с цифрами «{0}» — таких номеров единицы", p.d);
   if (ser === GOV_SER && p.reg === GOV_REG) return L("Спецсерия «АМР» 97 региона — всегда легенда");
   if (SERIES_INFO[ser]) return L("Серия «{0}»: {1}", ser, SERIES_INFO[ser]);
   if (SPECIAL_DIGITS.includes(p.d)) return L("Красивая комбинация цифр «{0}»", p.d);
+  if (isCombo(p)) return L("Цифры совпадают с регионом {0} — «зеркало региона»", p.reg);
   if (ELITE_REG.includes(p.reg)) return L("Престижный регион {0}", p.reg);
   if (p.tier === 1) return L("Красивый номер — повторы или «зеркало»");
   return L("Обычный номер. Повезёт в следующий раз!");
 }
 function markFound(p) {
+  if (p.sk) { S.found["t:4"] = true; albumAdd(p); wishCheck(p); return; }
   const ser = seriesOf(p), keys = ["t:" + p.tier];
   if (SERIES_INFO[ser]) keys.push("s:" + ser);
   if (SPECIAL_DIGITS.includes(p.d)) keys.push("d:" + p.d);
@@ -387,9 +446,18 @@ function markFound(p) {
 function gain(n) { S.coins += n; S.earned += n; S.earnedRun += n; }
 const slots = () => 12 + 2 * up("slots");
 function incMult() { return (1 + 0.25 * up("park")) * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus() + albumBonus()) * (Date.now() < S.buffUntil ? 2 : 1) * (S.paid.x2 ? 2 : 1) * evMult("inc"); }
-function income() { let s = 0; for (const p of S.plates) s += p.val; return s / INC_DIV * incMult(); }
-const plateInc = p => p.val / INC_DIV * incMult();
-const packPrice = id => Math.max(60, Math.round(PACKS[id].price * Math.pow(0.93, up("disc"))));
+const incOf = p => p.val / INC_DIV * (INC_K[p.tier] || 1);
+function income() { let s = 0; for (const p of S.plates) s += incOf(p); return s * incMult(); }
+const plateInc = p => incOf(p) * incMult();
+const incStr = v => v < 10 ? v.toFixed(2) : v < 1000 ? v.toFixed(1) : fmt(Math.round(v));   // доход в секунду: копейки у дешёвых, «1.51 млн» у дорогих
+// доход для цены бланков — без временных и купленных множителей (×2 навсегда, ажиотаж, события): они должны давать больше бланков, а не дороже
+function priceIncome() { let s = 0; for (const p of S.plates) s += incOf(p); return s * (1 + 0.25 * up("park")) * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus() + albumBonus()); }
+const nice = v => { const k = Math.pow(10, Math.max(0, Math.floor(Math.log10(v)) - 1)); return Math.round(v / k) * k; };   // 2 значащие цифры — цена не скачет каждую секунду
+function packPrice(id) {
+  const base = Math.max(60, Math.round(PACKS[id].price * Math.pow(0.93, up("disc"))));
+  const byInc = PACK_SEC[id] * Math.pow(Math.max(1, priceIncome()), 0.8) * Math.pow(100, 0.2) * Math.pow(0.93, up("disc"));
+  return byInc > base ? nice(byInc) : base;
+}
 const upCost = u => Math.round(u.base * Math.pow(u.mul, up(u.id)));
 const taxiTap = () => (5 + 3 * up("taxi")) * (1 + 0.02 * (S.lvl - 1));
 const xpNeed = l => Math.round(60 * Math.pow(l, 1.7));
@@ -424,7 +492,7 @@ function addXp(n) {
     renderPacks(); syncNav(); if (tab === "orders") renderOrders();
   }
 }
-function unlockText(l) { const t = { 2: "Открыты заказы!", 4: "Премиум-бланк и мини-игра!", 10: "Престиж!", 12: "Элитный бланк!" }[l]; return t ? L(t) : ""; }
+function unlockText(l) { const t = { 2: "Открыты заказы!", 4: "Премиум-бланк и мини-игра!", 10: "Престиж!", 12: "Элитный бланк!", 15: "Чёрный бланк — легенды и суперлегенды!" }[l]; return t ? L(t) : ""; }
 
 // ===================== ПОКУПКА =====================
 function setStage(html, tier, tierText, note, glow) {
@@ -537,6 +605,7 @@ function reveal(r) {
   checkAch(); renderPacks(); save();
 }
 function keepPlate(p) {   // кладём в гараж; если полон — сначала сливаем тройку, иначе вытесняем самый дешёвый
+  { const held = heldKeys(p); if (held.has(plateKey(p))) reissue(p, held); }
   if (S.plates.length >= slots()) { const t = mergeTiers()[0]; if (t != null) { const m = mergeTake(t); toast(L("Гараж полон: слито {2} × «{0}» → «{1}»", TIERS[t].name, TIERS[m.tier].name, MERGE_NEED[t])); } }
   if (S.plates.length < slots()) { S.plates.push(p); return "kept"; }
   const free = S.plates.filter(x => !isLocked(x)), worst = free.length ? free.reduce((a, b) => a.val <= b.val ? a : b) : null;
@@ -608,8 +677,9 @@ function buyMany(id) {
   ac(); Mus.start();
   if (pending) resolvePending(false);
   S.coins -= c; S.bought += 10; addXp(PACKS[id].xp * 10);
-  const res = []; for (let i = 0; i < 10; i++) res.push(drawPlate(id));
+  const res = []; drawBatch = res; for (let i = 0; i < 10; i++) res.push(drawPlate(id));
   if (!res.some(r => r.tier >= 1)) { const k = drawPlate(id, 1); res[9] = k; }
+  drawBatch = [];
   let soldSum = 0, soldN = 0, kept = 0, best = 0;
   res.forEach(r => {
     markFound(r); S.tc[r.tier]++; best = Math.max(best, r.tier); addXp(XP_TIER[r.tier]);
@@ -641,10 +711,10 @@ function jackpot(r, opts = {}) {                         // выпал блат�
   if (legend && window.BgCity) BgCity.event("legend");     // на фоне по дороге проносится кортеж с мигалками
   cinema({
     color: TIERS[t].color, big: legend, bg: sup ? "#06243a" : undefined, cls: sup ? "super" : "",
-    top: sup ? L("Такого не бывает…") : legend ? L("Что-то невероятное…") : L("Что же там внутри…"),
-    title: sup ? L("СУПЕРЛЕГЕНДА!") : legend ? L("ЛЕГЕНДА!") : L("БЛАТНОЙ!"),
+    top: r.sk ? L("Особый номер…") : sup ? L("Такого не бывает…") : legend ? L("Что-то невероятное…") : L("Что же там внутри…"),
+    title: r.sk ? L("{0}!", SPECIAL[r.sk].n.toUpperCase()) : sup ? L("СУПЕРЛЕГЕНДА!") : legend ? L("ЛЕГЕНДА!") : L("БЛАТНОЙ!"),
     plate: plateHTML(r, ""), value: r.val, valueLabel: L("СТОИМОСТЬ"), valueIcon: "💰",
-    x: L("в {0} раз дороже обычного номера", fmt(Math.round(r.val / TIERS[0].val))), sub: tierChanceText(r), then: opts.then,
+    x: L("в {0} раз дороже обычного номера", fmt(Math.round(r.val / TIERS[0].val))), sub: r.sk ? L("{0} Особые номера выпадают примерно 1 раз из {1} бланков", SPECIAL[r.sk].ico, fmt(Math.round(1 / Math.max(1e-6, specChance(r.pack || "basic"))))) : tierChanceText(r), then: opts.then,
     share: Platform.canShare ? r : null                  // Telegram: «похвастаться» прямо с праздничного экрана
   });
 }
@@ -781,10 +851,11 @@ function renderPacks() {
     const ws = packWeights(id);
     const sum = ws.reduce((a, b) => a + b, 0), blat = ((ws[3] + ws[4]) / sum * 100);
     h += `<div class="pack ${locked ? "locked" : ""}"><div class="pi">${P.icon}</div>
-      <div class="pt"><b>${P.name}</b><small>${locked ? L("🔒 Откроется на уровне {0}", P.lvl) : L("Шанс блатного+: {0}%", blat.toFixed(blat < 10 ? 1 : 0))}</small></div>
+      <div class="pt"><b>${P.name}</b><small>${locked ? L("🔒 Откроется на уровне {0}", P.lvl) : L("Шанс блатного+: {0}%", blat.toFixed(blat < 10 ? 1 : 0))}${!locked && c > Math.round(P.price * Math.pow(0.93, up("disc"))) ? " · " + L("📈 цена растёт с доходом") : ""}</small></div>
       <div class="btns"><button class="btn sm ${id === "basic" && S.drawn === 0 ? "ready" : ""}" data-act="buy" data-pack="${id}" data-cost="${c}" ${locked ? "disabled" : ""}>${fmt(c)} 💰</button>
       ${id === "basic" && !locked ? `<button class="btn sm alt" data-act="buy10" data-pack="${id}" data-cost="${Math.round(c * 9.5)}">×10 · ${fmt(Math.round(c * 9.5))}</button>` : ""}</div></div>`;
   }
+  h += `<button class="btn sm alt catbtn" data-act="catalog">${L("📊 Каталог шансов — какие номера и как часто")}</button>`;
   $("packs").innerHTML = h; refreshDisabled();
   let o = "";
   const w = packWeights("basic");
@@ -820,27 +891,78 @@ function taxi(e) {
 }
 
 // ===================== ГАРАЖ =====================
+// поиск/фильтр/сортировка гаража и выбор нескольких номеров (состояние не сохраняется — это просто вид)
+let gQ = "", gTier = "all", gSort = "val", gSel = null;
+const normQ = s => String(s || "").toUpperCase().replace(/\s/g, "").replace(/RUS$/, "").replace(/[ABEKMHOPCTYX]/g, c => LAT2CYR[c]);
+function garageFiltered() {
+  const q = normQ(gQ), mask = /[*?]/.test(q) ? parseMask(q) : null;
+  const ok = p => (gTier === "all" || (gTier === "lock" ? isLocked(p) : gTier === "combo" ? isCombo(p) : gTier === "spec" ? !!p.sk : p.tier === +gTier))
+    && (!q || (mask ? maskMatch(mask, p) : (p.l1 + p.d + p.l23 + p.reg).includes(q) || (p.l1 + p.d + p.l23).includes(q)));
+  const sorts = { val: (a, b) => b.val - a.val || b.id - a.id, cheap: (a, b) => a.val - b.val || a.id - b.id, new: (a, b) => b.id - a.id, old: (a, b) => a.id - b.id, reg: (a, b) => +a.reg - +b.reg || b.val - a.val };
+  return S.plates.filter(ok).sort(sorts[gSort] || sorts.val);
+}
+function renderGarageList() {
+  const el = $("glist"); if (!el) return;
+  const list = garageFiltered(), cnt = $("gcount"); if (cnt) cnt.textContent = list.length === S.plates.length ? "" : L("найдено: {0}", list.length);
+  let h = "";
+  if (!S.plates.length) h = `<div class="hint">${L("Гараж пуст. Купи номер и нажми «В гараж» — номера приносят доход, даже когда тебя нет.")}</div>`;
+  else if (!list.length) h = `<div class="hint">${L("Ничего не нашлось. Попробуй «777», «77», «АМР» или маску «А***АА» (звёздочка — любой символ)")}</div>`;
+  list.slice(0, 150).forEach(p => {
+    const mm = marketMult(p), sel = gSel && gSel.has(p.id);
+    if (gSel) { h += `<div class="item pick ${sel ? "on" : ""}" data-act="gPick" data-id="${p.id}"><span class="gchk">${sel ? "✓" : ""}</span>${plateHTML(p, "small")}<div class="info"><b style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}</b>${isLocked(p) ? " 🔒" : ""}<br><small>${fmt(sellVal(p))} 💰</small></div></div>`; return; }
+    h += `<div class="item"><span data-act="plateInfo" data-id="${p.id}" style="cursor:pointer">${plateHTML(p, "small")}</span><div class="info" data-act="plateInfo" data-id="${p.id}" style="cursor:pointer"><b style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}</b>${mm > 1 ? " 📈" : ""}${isCombo(p) ? " 🎯" : ""}${p.bought ? " 🏷" : ""} ℹ<br>${L("+{0}/сек", incStr(plateInc(p)))}<br><small>${L("нажми — история номера")}</small></div>
+      <button class="lockbtn ${isLocked(p) ? "on" : ""}" data-act="lockPlate" data-id="${p.id}" title="${L("Замок: не сливать и не продавать")}">${isLocked(p) ? "🔒" : "🔓"}</button>
+      ${isLocked(p) ? `<button class="sold-lock" disabled>${L("Под замком")}</button>` : `<button data-act="sellPlate" data-id="${p.id}">${L("Продать {0}", fmt(sellVal(p)))}</button>`}</div>`;
+  });
+  if (list.length > 150) h += `<div class="hint">${L("Показаны первые 150 — уточни поиск")}</div>`;
+  el.innerHTML = h; renderGarageSelBar();
+}
+function renderGarageSelBar() {
+  const el = $("gselbar"); if (!el) return;
+  if (!gSel) { el.innerHTML = ""; el.style.display = "none"; return; }
+  const ps = S.plates.filter(p => gSel.has(p.id)), sum = ps.filter(p => !isLocked(p)).reduce((a, p) => a + sellVal(p), 0);
+  el.style.display = "";
+  el.innerHTML = `<div class="gselinfo"><b>${L("Выбрано: {0}", ps.length)}</b>${sum ? ` · ${fmt(sum)} 💰` : ""}</div>
+    <div class="gselbtns"><button class="btn sm alt" data-act="gSelAll">${L("Все найденные")}</button><button class="btn sm alt" data-act="gSelDo" data-do="lock" ${ps.length ? "" : "disabled"}>🔒</button><button class="btn sm alt" data-act="gSelDo" data-do="unlock" ${ps.length ? "" : "disabled"}>🔓</button>
+    <button class="btn sm green" data-act="gSelDo" data-do="sell" ${sum ? "" : "disabled"}>${L("💰 Продать")}</button><button class="btn sm alt" data-act="gSelMode">✖</button></div>`;
+}
+function gSelDo(what) {
+  if (!gSel) return; const ps = S.plates.filter(p => gSel.has(p.id));
+  if (what === "lock") { ps.forEach(p => p.lock = true); toast(L("🔒 Под замком: {0}", ps.length)); }
+  else if (what === "unlock") { const pinned = ps.filter(p => S.prof.pins.includes(p.id)).length; ps.forEach(p => { p.lock = false; delete p.wish; }); toast(L("🔓 Замок снят: {0}", ps.length) + (pinned ? " · " + L("закреплённые в профиле остаются защищены") : "")); }
+  else if (what === "sell") {
+    const sell = ps.filter(p => !isLocked(p)), sum = sell.reduce((a, p) => a + sellVal(p), 0), ids = new Set(sell.map(p => p.id));
+    if (!sell.length) return toast(L("Все выбранные — под замком"));
+    S.plates = S.plates.filter(p => !ids.has(p.id)); gain(sum); S.sold += sell.length; Snd.sell(); fx.fly(innerWidth / 2, innerHeight / 2, 12);
+    toast(L("Продано {0} шт. на {1}", sell.length, fmt(sum)) + (ps.length > sell.length ? " · " + L("запертые не трогал") : "")); renderHeader();
+  }
+  gSel = null; save(); renderGarage(); renderMergeBar();
+}
 function renderGarage() {
-  const list = [...S.plates].sort((a, b) => b.val - a.val || b.id - a.id);
   let h = `<h2>${L("🏠 Гараж")} <small>${L("{0}/{1} мест · доход {2}/сек", S.plates.length, slots(), fmt(income()))}</small></h2>
     <div class="chips"><small style="align-self:center">${L("Продать всё ниже:")}</small>
     ${[0, 1, 2].map(t => `<button class="chip" data-act="sellTier" data-t="${t}" style="color:${TIERS[t].color}">≤ ${TIERS[t].name}</button>`).join("")}</div>`;
   const locked = S.plates.filter(isLocked).length;
-  h += `<div class="row botrow"><button class="btn alt" data-act="botOpen">${L("🤖 Помощник")}${up("bot") ? ` <small>${S.bot.on ? L("работает") : L("выключен")}</small>` : ""}</button><button class="btn alt" data-act="botOpen" data-sec="wish">${L("🎯 Ищу номер")}${S.bot.wish.length ? ` <small>${S.bot.wish.length}</small>` : ""}</button></div>`;
+  h += `<div class="row botrow"><button class="btn alt" data-act="botOpen">${L("🤖 Помощник")}${up("bot") ? ` <small>${S.bot.on ? L("работает") : L("выключен")}</small>` : ""}</button><button class="btn alt" data-act="botOpen" data-sec="wish">${L("🎯 Ищу номер")}${S.bot.wish.length ? ` <small>${S.bot.wish.length}</small>` : ""}</button></div>
+    <div class="row"><button class="btn mreobtn" data-act="ordOpen">${L("🏛 МРЭО")} <small>${L("номер на заказ")}</small></button><button class="btn mreobtn cosbtn" data-act="cos">${L("🎨 Оформление")} <small>${L("рамки, эффекты, гараж")}</small></button></div>`;
   h += `<div class="mergegrid">${TIERS.slice(0, TOP).map((tr, t) => { const n = freeOf(t).length, lk = S.plates.filter(p => p.tier === t && isLocked(p)).length, ok = n >= MERGE_NEED[t];
     return `<button class="mcell ${ok ? "ready" : ""}" data-act="merge" data-t="${t}" ${ok ? "" : "disabled"} style="--mc:${tr.color}"><b>${tr.name}</b><small>${Math.min(n, 99)}/${MERGE_NEED[t]} → ${TIERS[t + 1].name}${lk ? " · 🔒" + lk : ""}</small></button>`; }).join("")}</div>`;
   if (locked) h += `<p class="hint" style="margin:4px 0">${L("🔒 Под замком: {0} — они не сливаются и не продаются. Замок — кнопка у номера.", locked)}</p>`;
   const ar = albumReady();
   h += `<button class="btn ${ar ? "green ready" : "alt"} albumbtn" data-act="album">${L("📒 Альбом номеров · {0}/{1}", albumCount(), ALBUM_TOTAL)}${ar ? " 🎁" : ""}${albumBonus() ? ` <small>+${Math.round(albumBonus() * 100)}%</small>` : ""}</button>`;
   h += setsHTML();
-  if (!list.length) h += `<div class="hint">${L("Гараж пуст. Купи номер и нажми «В гараж» — номера приносят доход, даже когда тебя нет.")}</div>`;
-  list.slice(0, 100).forEach(p => {
-    const mm = marketMult(p);
-    h += `<div class="item"><span data-act="plateInfo" data-id="${p.id}" style="cursor:pointer">${plateHTML(p, "small")}</span><div class="info" data-act="plateInfo" data-id="${p.id}" style="cursor:pointer"><b style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}</b>${mm > 1 ? " 📈" : ""} ℹ<br>${L("+{0}/сек", plateInc(p).toFixed(2))}<br><small>${L("нажми — история номера")}</small></div>
-      <button class="lockbtn ${isLocked(p) ? "on" : ""}" data-act="lockPlate" data-id="${p.id}" title="${L("Замок: не сливать и не продавать")}">${isLocked(p) ? "🔒" : "🔓"}</button>
-      ${isLocked(p) ? `<button class="sold-lock" disabled>${L("Под замком")}</button>` : `<button data-act="sellPlate" data-id="${p.id}">${L("Продать {0}", fmt(sellVal(p)))}</button>`}</div>`;
-  });
+  // панель поиска: текст/маска, сортировка, фильтр по редкости, выбор нескольких
+  const cntT = t => S.plates.filter(p => p.tier === t).length, combos = S.plates.filter(isCombo).length;
+  const chip = (v, label, c, col) => c || v === "all" || gTier === v ? `<button class="chip ${gTier === v ? "on" : ""}" data-act="gTier" data-v="${v}" ${col ? `style="--cc:${col}"` : ""}>${label} <i>${c}</i></button>` : "";
+  h += `<div class="gtools" id="gtools"><h3>${L("🚘 Мои номера")} <small id="gcount"></small></h3>
+    <div class="gsearch"><input id="gQ" value="${escapeHTML(gQ)}" placeholder="${L("🔍 777, 77, АМР или А***АА")}" autocomplete="off"><select id="gSort">${[["val", "Дороже"], ["cheap", "Дешевле"], ["new", "Новые"], ["old", "Старые"], ["reg", "По региону"]].map(([v, n]) => `<option value="${v}" ${gSort === v ? "selected" : ""}>${L(n)}</option>`).join("")}</select></div>
+    <div class="chips gchips">${chip("all", L("Все"), S.plates.length)}${TIERS.map((tr, i) => chip(String(i), tr.name, cntT(i), tr.color)).join("")}${chip("lock", "🔒", locked)}${chip("combo", L("🎯 Цифры = регион"), combos)}${chip("spec", L("✨ Особые"), S.plates.filter(p => p.sk).length)}</div>
+    ${gSel ? "" : `<button class="btn sm alt gselbtn" data-act="gSelMode">${L("☑ Выбрать несколько")}</button>`}</div>
+    <div id="gselbar" class="gselbar" style="display:none"></div><div id="glist"></div>`;
   $("tab-garage").innerHTML = h;
+  renderGarageList();
+  const qi = $("gQ"); if (qi) qi.oninput = () => { gQ = qi.value; renderGarageList(); };
+  const si = $("gSort"); if (si) si.onchange = () => { gSort = si.value; renderGarageList(); };
 }
 function sellPlate(id) {
   const p = S.plates.find(x => x.id === id); if (!p) return;
@@ -992,7 +1114,7 @@ function renderMore() {
 const prestigeGain = () => Math.floor(Math.sqrt(S.earnedRun / 1500000));
 function doPrestige() {
   const g = prestigeGain(); if (g < 1) return;
-  const keep = { drawn: S.drawn, goal: S.goal, achClaim: S.achClaim, story: S.story, tut: S.tut, title: S.title, sets: S.sets, merges: S.merges, mergeBest: S.mergeBest, forge: Object.assign({}, S.forge, { sel: [], coins: 0, target: null, lots: [], boost: false }), found: S.found, ach: S.ach, lvl: S.lvl, xp: S.xp, set: S.set, mini: S.mini, daily: S.daily, tc: S.tc, bought: S.bought, sold: S.sold, earned: S.earned, ordersDone: S.ordersDone, playSec: S.playSec, taxis: S.taxis, buyers: S.buyers, subs: S.subs, paid: S.paid, quests: S.quests, album: S.album, soc: S.soc, bot: Object.assign({}, S.bot, { log: [] }), prof: Object.assign({}, S.prof, { pins: [] }) };   // покупки и бонусы за подписку переезд не обнуляет
+  const keep = { drawn: S.drawn, goal: S.goal, achClaim: S.achClaim, story: S.story, tut: S.tut, title: S.title, sets: S.sets, merges: S.merges, mergeBest: S.mergeBest, forge: Object.assign({}, S.forge, { sel: [], coins: 0, target: null, lots: [], boost: false }), found: S.found, ach: S.ach, lvl: S.lvl, xp: S.xp, set: S.set, mini: S.mini, daily: S.daily, tc: S.tc, bought: S.bought, sold: S.sold, earned: S.earned, ordersDone: S.ordersDone, playSec: S.playSec, taxis: S.taxis, buyers: S.buyers, subs: S.subs, paid: S.paid, quests: S.quests, album: S.album, soc: S.soc, cos: S.cos, bot: Object.assign({}, S.bot, { log: [] }), prof: Object.assign({}, S.prof, { pins: [] }) };   // покупки и бонусы за подписку переезд не обнуляет
   const n = fresh(); Object.assign(n, keep); n.pts = S.pts + g; n.prest = S.prest + 1; n.nid = S.nid; n.coins = START_COINS + 200 * n.pts;
   S = n; pending = null; closeModal(); cinemaQueue.length = 0;
   enqueueCinema({ color: "#ffb300", bg: "#3a2a05", big: true, icon: "🏛", top: L("Переезд в Москву"), title: L("НОВАЯ ЖИЗНЬ"), value: g, valueLabel: L("СВЯЗИ ПОЛУЧЕНО"), valueIcon: "⭐",
@@ -1169,9 +1291,8 @@ function chanceLabel(ch) {
   return [L(r[0]), r[1]];
 }
 function makePlate(tier) {
-  let p, c = 0;
-  for (let i = 0; i < 40; i++) { p = build(tier); c = classify(p); if (c === tier) break; }
-  return { id: S.nid++, l1: p.l1, d: p.d, l23: p.l23, reg: p.reg, tier: c, val: TIERS[c].val, got: Date.now() };
+  const [p, c] = buildFree(tier, heldKeys());
+  return { id: S.nid++, l1: p.l1, d: p.d, l23: p.l23, reg: p.reg, tier: c, val: plateValue(p, c), got: Date.now() };
 }
 function genLots() {                                     // цели для улучшения: 11 номеров разной цены
   const lots = [];
@@ -1371,7 +1492,9 @@ const ALBUM = [
   { id: "reg", n: "Регионы России", ico: "🗺", k: ALL_REG.map(r => "r:" + r), b: 10, plate: 3, hint: "Любой номер с этим регионом" },
   { id: "dig", n: "Красивые цифры", ico: "🔢", k: NICE_DIG.map(d => "d:" + d), b: 10, plate: 3, hint: "Номер с такими цифрами" },
   { id: "let", n: "Три одинаковые буквы", ico: "🔤", k: LETTERS.map(x => "l:" + x), b: 5, plate: 3, hint: "Номер вида А…АА" },
+  { id: "combo", n: "Цифры = регион", ico: "🎯", k: ALL_REG.map(r => "c:" + r), b: 10, plate: 3, hint: "Номер, где цифры совпадают с регионом: 077 и 77" },
   { id: "ser", n: "Блатные серии", ico: "🚘", k: [...BLAT_SER, ...LEGEND_SER].map(s => "s:" + s), b: 15, plate: 4, hint: "Номер этой серии" },
+  { id: "spec", n: "Особые номера", ico: "🚓", k: ["x:taxi", "x:police", "x:army", "x:diplo"], b: 20, plate: 4, hint: "Такси, полиция, военный и дипломатический — выпадают очень редко" },
   { id: "gov", n: "АМР 97 — суперлегенды", ico: "💎", k: SUPER_DIGITS.map(d => "g:" + d), b: 50, plate: 5, hint: "Суперлегенда с этими цифрами" }
 ];
 ALBUM.forEach(a => Lprops(a, "n", "hint"));
@@ -1384,16 +1507,19 @@ const albumHalfCash = () => Math.max(2000, Math.round(income() * 1800 / 10) * 10
 const albumCan = (pg, st) => !S.album.rw[pg.id + st] && albumHave(pg) >= (st === 1 ? Math.ceil(pg.k.length / 2) : pg.k.length);
 const albumReady = () => ALBUM.reduce((a, pg) => a + (albumCan(pg, 1) ? 1 : 0) + (albumCan(pg, 2) ? 1 : 0), 0);
 function albumKeys(p) {
+  if (p.sk) return ["x:" + p.sk];
   const k = ["r:" + p.reg], ser = seriesOf(p);
   if (NICE_DIG.includes(p.d)) k.push("d:" + p.d);
   if (p.l1 === p.l23[0] && p.l1 === p.l23[1]) k.push("l:" + p.l1);
   if (BLAT_SER.includes(ser) || LEGEND_SER.includes(ser)) k.push("s:" + ser);
   if (ser === GOV_SER && p.reg === GOV_REG && SUPER_DIGITS.includes(p.d)) k.push("g:" + p.d);
+  if (isCombo(p)) k.push("c:" + p.reg);
   return k;
 }
 function albumLabel(k) {
   const [t, v] = [k[0], k.slice(2)];
-  return t === "l" ? v + "…" + v + v : t === "g" ? "А" + v + "МР" : v;
+  if (t === "x") return SPECIAL[v] ? SPECIAL[v].ico : v;
+  return t === "l" ? v + "…" + v + v : t === "g" ? "А" + v + "МР" : t === "c" ? v.padStart(3, "0") + "·" + v : v;
 }
 function albumAdd(p, silent) {
   const before = albumReady();
@@ -1411,7 +1537,7 @@ function openAlbum(pgId) {
   const pg = ALBUM.find(x => x.id === albumPage) || ALBUM[0], have = albumHave(pg), half = Math.ceil(pg.k.length / 2);
   const cell = k => {
     const on = S.album.got[k], t = k[0], v = k.slice(2);
-    const sub = t === "r" ? (REGION_NAME[v] || "") : t === "s" ? L("серия") : t === "g" ? "97 RUS" : "";
+    const sub = t === "r" ? (REGION_NAME[v] || "") : t === "s" ? L("серия") : t === "g" ? "97 RUS" : t === "x" && SPECIAL[v] ? SPECIAL[v].n : "";
     return `<div class="acell ${on ? "on" : ""} t-${t}"><b>${albumLabel(k)}</b>${sub ? `<small>${L(sub)}</small>` : ""}</div>`;
   };
   const rw = (st, need, what) => {
@@ -1441,7 +1567,7 @@ function albumClaim(id, st) {
 }
 // старые сейвы: заполнить альбом тем, что уже есть в гараже и в коллекции
 function albumBackfill() {
-  for (const p of S.plates) albumAdd(p, true);
+  for (const p of S.plates) if (!p.bought) albumAdd(p, true);   // номера из МРЭО в альбом не идут
   for (const k of Object.keys(S.found)) if (/^[sdr]:/.test(k) && ALBUM.some(pg => pg.k.includes(k))) S.album.got[k] = 1;
 }
 
@@ -1450,9 +1576,22 @@ function albumBackfill() {
 // редкости, запас денег, который он не тратит. «Ищу номер» — список желаемого (регион, цифры, серия, три буквы): такой номер
 // при любой покупке (своей или помощника), слиянии и подарке сразу запирается 🔒 — его не продаст и не сольёт никто.
 const plateStr = p => p.l1 + p.d + p.l23 + " " + p.reg;
-const WISH_KINDS = [["reg", "Регион", "77"], ["dig", "Цифры", "777"], ["ser", "Серия — 3 буквы", "АМР"], ["let", "Три одинаковые буквы", "А"]];
-const wishLabel = w => w.k === "reg" ? L("регион {0}", w.v) + (REGION_NAME[w.v] ? " · " + L(REGION_NAME[w.v]) : "") : w.k === "dig" ? L("цифры {0}", w.v) : w.k === "ser" ? L("серия {0}", w.v) : L("буквы {0}", w.v + "…" + w.v + w.v);
-const wishMatch = (w, p) => w.k === "reg" ? p.reg === w.v : w.k === "dig" ? p.d === w.v : w.k === "ser" ? seriesOf(p) === w.v : p.l1 === w.v && p.l23 === w.v + w.v;
+const WISH_KINDS = [["sp", "Особый номер (такси, полиция…)", ""], ["mask", "Маска — любой номер", "А***АА 77"], ["reg", "Регион", "77"], ["dig", "Цифры", "777"], ["ser", "Серия — 3 буквы", "АМР"], ["let", "Три одинаковые буквы", "А"], ["combo", "Цифры = регион (077 и 77)", ""]];
+// маска: 6 знаков номера (* — любой) и, по желанию, регион: «А***АА», «*777**», «Х***ХХ 77», «******199»
+function parseMask(s) {
+  s = normQ(s).replace(/\?/g, "*");
+  const m = /^([АВЕКМНОРСТУХ*])([0-9*]{3})([АВЕКМНОРСТУХ*]{2})([0-9*]{2,3})?$/.exec(s);
+  return m ? { num: m[1] + m[2] + m[3], reg: m[4] || "" } : null;
+}
+const maskStr = m => m.num + (m.reg ? " " + m.reg : "");
+function maskMatch(m, p) {
+  const s = p.l1 + p.d + p.l23;
+  for (let i = 0; i < 6; i++) if (m.num[i] !== "*" && m.num[i] !== s[i]) return false;
+  if (m.reg && m.reg !== "*".repeat(m.reg.length)) { if (m.reg.length !== p.reg.length) return false; for (let i = 0; i < m.reg.length; i++) if (m.reg[i] !== "*" && m.reg[i] !== p.reg[i]) return false; }
+  return true;
+}
+const wishLabel = w => w.k === "sp" ? L("особый номер") : w.k === "mask" ? L("маска {0}", w.v) : w.k === "combo" ? L("цифры = регион") : w.k === "reg" ? L("регион {0}", w.v) + (REGION_NAME[w.v] ? " · " + L(REGION_NAME[w.v]) : "") : w.k === "dig" ? L("цифры {0}", w.v) : w.k === "ser" ? L("серия {0}", w.v) : L("буквы {0}", w.v + "…" + w.v + w.v);
+const wishMatch = (w, p) => w.k === "sp" ? !!p.sk : p.sk ? false : w.k === "mask" ? maskMatch(parseMask(w.v) || { num: "******", reg: "x" }, p) : w.k === "combo" ? isCombo(p) : w.k === "reg" ? p.reg === w.v : w.k === "dig" ? p.d === w.v : w.k === "ser" ? seriesOf(p) === w.v : p.l1 === w.v && p.l23 === w.v + w.v;
 function wishCheck(p) {
   if (!S.bot.wish.length || p.wc) return;
   const w = S.bot.wish.find(x => wishMatch(x, p)); if (!w) return;
@@ -1497,7 +1636,7 @@ function openBot(sec) {
     <h3 id="wishSec">${L("🎯 Ищу номер")} <small>${L("найдено: {0}", b.found)}</small></h3>
     <p class="hint" style="margin-top:0">${L("Номер из списка сразу ставится под замок 🔒 — его не продаст ни помощник, ни авто-продажа, и он не сольётся.")}</p>
     ${b.wish.length ? `<div class="card toplist">${b.wish.map((w, i) => `<div class="toprow"><span>🎯</span><b>${escapeHTML(wishLabel(w))}<small>${w.once ? " · " + L("один раз") : ""}${w.got ? " · " + L("выбито: {0}", w.got) : ""}</small></b><button class="btn sm alt" data-act="wishDel" data-i="${i}">✖</button></div>`).join("")}</div>` : ""}
-    <div class="wishadd"><select id="wK">${WISH_KINDS.map(([k, n]) => `<option value="${k}">${L(n)}</option>`).join("")}</select><input id="wV" maxlength="3" placeholder="${L("например 77, 777, АМР")}"><button class="btn sm green" data-act="wishAdd">➕</button></div>
+    <div class="wishadd"><select id="wK">${WISH_KINDS.map(([k, n]) => `<option value="${k}">${L(n)}</option>`).join("")}</select><input id="wV" maxlength="12" placeholder="${L("А***АА 77 · 777 · АМР")}"><button class="btn sm green" data-act="wishAdd">➕</button></div>
     <label class="chk wishonce"><input type="checkbox" id="wOnce" checked> ${L("убрать из списка, когда выбьется")}</label>
     ${lv && b.log.length ? `<h3>${L("Последние покупки помощника")}</h3><div class="botlog">${b.log.map(x => `<div><i>${ico[x.a] || ""}</i>${plateHTML(snapPlate(x.p), "mini")}</div>`).join("")}</div><p class="hint">${L("💰 продал · 🏠 в гараж · 🎯 нашёл из списка · ⚡ слил")}</p>` : ""}
     <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
@@ -1505,8 +1644,11 @@ function openBot(sec) {
   if (sec === "wish") setTimeout(() => { const e = $("wishSec"); if (e) e.scrollIntoView({ block: "start" }); }, 30);
 }
 function wishAdd() {
-  const k = ($("wK") || {}).value; let v = ((($("wV") || {}).value) || "").trim().toUpperCase().replace(/\s/g, "").replace(/[ABEKMHOPCTYX]/g, c => LAT2CYR[c]);
-  if (k === "reg") { if (!ALL_REG.includes(v)) return toast(L("Такого региона в игре нет. Есть: {0}", ALL_REG.join(", "))); }
+  const k = ($("wK") || {}).value; let v = ((($("wV") || {}).value) || "").trim().toUpperCase().replace(/[ABEKMHOPCTYX]/g, c => LAT2CYR[c]); if (k !== "mask") v = v.replace(/\s/g, "");
+  if (k === "mask") { const m = parseMask(v); if (!m) return toast(L("Маска — 6 знаков номера и регион, * — любой знак. Например: А***АА, *777**, Х***ХХ 77")); if (!/[^*]/.test(m.num + m.reg)) return toast(L("Укажи хоть один знак, кроме звёздочек")); v = maskStr(m); }
+  else if (k === "combo") v = "=";
+  else if (k === "sp") v = "*";
+  else if (k === "reg") { if (!ALL_REG.includes(v)) return toast(L("Такого региона в игре нет. Есть: {0}", ALL_REG.join(", "))); }
   else if (k === "dig") { if (!/^\d{3}$/.test(v)) return toast(L("Цифры — ровно три, например 777")); }
   else if (k === "ser") { if (!/^[АВЕКМНОРСТУХ]{3}$/.test(v)) return toast(L("Серия — три буквы из: {0}", LETTERS.join(" "))); }
   else { v = v.slice(0, 1); if (!LETTERS.includes(v)) return toast(L("Буква — одна из: {0}", LETTERS.join(" "))); }
@@ -1518,6 +1660,243 @@ function wishAdd() {
   if (have.length && w.once) toast(L("Такой уже есть в гараже ({0} шт.) — поставил замок 🔒", have.length));
   else { S.bot.wish.push(w); toast(have.length ? L("🎯 Добавлено. В гараже уже есть {0} шт. — они под замком 🔒", have.length) : L("🎯 Добавлено — ищем!")); }
   Platform.track("wish_add_" + k); save(); openBot("wish");
+}
+
+// ===================== МРЭО: НОМЕР НА ЗАКАЗ =====================
+// Игрок собирает номер по символам и видит, как растёт цена. Обычный номер (как в жизни) стоит ~1 млн, а за блатные сочетания
+// цена перемножается до триллионов. Купленный номер — под замком, помечен 🏷 и НЕ идёт в альбом, коллекции и «Ищу номер»:
+// их по-прежнему надо выбивать.
+const ORDER_BASE = 1e6;
+const ORDER_SLOTS = ["L", "D", "D", "D", "L", "L", "R", "R", "R"];        // 9-й знак — третья цифра региона (может не быть)
+const ORDER_TOP_SUPER = ["001", "002", "003", "004", "005", "006", "007", "008", "009"];
+let ord = null;                                                           // { c: [9 знаков, "" — пусто], i: активный слот, sure }
+function orderParts(c) {
+  const parts = [];
+  const l = [c[0], c[4], c[5]], d = c.slice(1, 4).join(""), reg = c[6] + c[7] + (c[8] || "");
+  const ser = l.join(""), serOk = l.every(Boolean), dOk = c.slice(1, 4).every(Boolean), rOk = !!(c[6] && c[7]);
+  let lf = 1, df = 1, rf = 1;
+  if (serOk) {
+    if (ser === GOV_SER) { lf = 500; parts.push([L("Серия «АМР» — для «самых важных»"), lf]); }
+    else if (LEGEND_SER.includes(ser)) { lf = 120; parts.push([L("Легендарная серия «{0}»", ser), lf]); }
+    else if (BLAT_SER.includes(ser)) { lf = 40; parts.push([L("Блатная серия «{0}»", ser), lf]); }
+    else if (l[0] === l[1] && l[1] === l[2]) { lf = 15; parts.push([L("Три одинаковые буквы"), lf]); }
+    else if (l[0] === l[1] || l[1] === l[2] || l[0] === l[2]) { lf = 2; parts.push([L("Две одинаковые буквы"), lf]); }
+  }
+  if (dOk) {
+    const tri = d[0] === d[1] && d[1] === d[2];
+    if (ORDER_TOP_SUPER.includes(d)) df = 60, parts.push([L("Первая десятка «{0}»", d), df]);
+    else if (SPECIAL_DIGITS.includes(d)) df = 40, parts.push([L("Счастливые цифры «{0}»", d), df]);
+    else if (tri) df = 25, parts.push([L("Три одинаковые цифры"), df]);
+    else if (d.endsWith("00")) df = 8, parts.push([L("Круглые цифры"), df]);
+    else if (["123", "321", "234", "456", "345", "567", "678", "789"].includes(d)) df = 5, parts.push([L("Лесенка «{0}»", d), df]);
+    else if (d[0] === d[2]) df = 2, parts.push([L("Зеркальные цифры"), df]);
+    else if (d[0] === d[1] || d[1] === d[2]) df = 1.5, parts.push([L("Две одинаковые цифры"), df]);
+  }
+  if (rOk) {
+    if (ELITE_REG.includes(reg)) { rf = 5; parts.push([L("Столичный регион {0}", reg), rf]); }
+    if (dOk && d === reg.padStart(3, "0")) parts.push([L("Цифры = регион"), 3]);
+  }
+  if (lf >= 40 && df >= 40 && rf >= 5) parts.push([L("ПОЛНЫЙ БЛАТ"), 2]);
+  const total = Math.round(parts.reduce((a, p) => a * p[1], ORDER_BASE));
+  return { parts, total, done: serOk && dOk && rOk && reg !== "00" && reg !== "000" };
+}
+const ordPlateObj = c => ({ l1: c[0] || "_", d: [1, 2, 3].map(i => c[i] || "_").join(""), l23: (c[4] || "_") + (c[5] || "_"), reg: (c[6] || "_") + (c[7] || "_") + (c[8] || ""), tier: 0 });
+function openOrder() {
+  if (!ord) ord = { c: ["", "", "", "", "", "", "", "", ""], i: 0, sure: 0 };
+  const c = ord.c, op = orderParts(c), kind = ORDER_SLOTS[ord.i];
+  const p = ordPlateObj(c), tierNow = op.done ? classify({ l1: c[0], d: c.slice(1, 4).join(""), l23: c[4] + c[5], reg: c[6] + c[7] + (c[8] || "") }) : 0;
+  const cells = c.map((x, i) => `<button class="oslot ${i === ord.i ? "on" : ""} ${ORDER_SLOTS[i] === "R" ? "r" : ""} ${i === 8 ? "opt" : ""}" data-act="ordSlot" data-i="${i}">${x || (i === 8 ? "·" : "_")}</button>`).join("");
+  const keys = kind === "L" ? LETTERS : kind === "D" || kind === "R" ? "0123456789".split("") : [];
+  const pad = keys.map(k => `<button class="okey" data-act="ordKey" data-k="${k}">${k}</button>`).join("") + (ord.i === 8 ? `<button class="okey wide" data-act="ordKey" data-k="">${L("без 3-й цифры")}</button>` : "");
+  const can = op.done && S.coins >= op.total;
+  openModal(`<h2>${L("🏛 МРЭО: номер на заказ")}</h2>
+    <p class="hint" style="margin-top:-4px">${L("Собери свой номер — хоть как у тебя в жизни. Простой стоит недорого, а за каждое блатное сочетание цена умножается.")}</p>
+    <div class="oplate">${plateHTML(Object.assign(p, { tier: tierNow }), "")}</div>
+    <div class="oslots">${cells}</div>
+    <div class="opad ${kind === "L" ? "letters" : ""}">${pad}</div>
+    <div class="row"><button class="btn sm alt" data-act="ordRandom">${L("🎲 Случайный")}</button><button class="btn sm alt" data-act="ordClear">${L("🧹 Сначала")}</button></div>
+    <div class="card oprice">
+      <div class="orow2"><span>${L("Базовая цена")}</span><b>${fmt(ORDER_BASE)}</b></div>
+      ${op.parts.map(([n, m]) => `<div class="orow2 up"><span>${n}</span><b>×${fmt(m)}</b></div>`).join("")}
+      <div class="ototal"><small>${L("Итого")}</small><b id="ordTotal">${fmt(op.total)} 💰</b></div>
+      ${op.done ? `<small class="ohave">${S.coins >= op.total ? L("У тебя {0} — хватает", fmt(S.coins)) : L("У тебя {0} — не хватает {1}", fmt(S.coins), fmt(op.total - S.coins))}</small>` : `<small class="ohave">${L("Заполни все знаки номера и регион")}</small>`}
+    </div>
+    <button class="btn ${can ? (ord.sure ? "red" : "green") : "alt"}" data-act="ordBuy" ${can ? "" : "disabled"}>${ord.sure ? L("Точно купить за {0}? Нажми ещё раз", fmt(op.total)) : L("🏛 Оформить номер")}</button>
+    <p class="hint">${L("Купленный номер сразу под замком 🔒 и помечен 🏷. Он не засчитывается в альбом, коллекции и «Ищу номер» — их нужно выбивать.")}</p>
+    <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
+  const tot = $("ordTotal"); if (tot && ord.prev != null && ord.prev !== op.total) { tot.classList.remove("bump"); void tot.offsetWidth; tot.classList.add(op.total > ord.prev ? "bump" : "drop"); if (op.total > ord.prev * 5) { Snd.rise(0.6); buzz(20); } }
+  ord.prev = op.total;
+}
+function ordKey(k) {
+  ord.sure = 0; ord.c[ord.i] = k;
+  if (ord.i === 7 && !k) ord.c[8] = "";
+  ord.i = Math.min(8, ord.i + 1);
+  if (ord.i === 8 && !ord.c[6]) ord.i = 6;
+  openOrder();
+}
+function ordBuy() {
+  const op = orderParts(ord.c); if (!op.done || S.coins < op.total) return;
+  const c = ord.c, want = { l1: c[0], d: c.slice(1, 4).join(""), l23: c[4] + c[5], reg: c[6] + c[7] + (c[8] || "") };
+  if (heldKeys().has(plateKey(want))) { Snd.err(); return toast(L("Номер {0} уже стоит у тебя в гараже", plateStr(want))); }
+  if (!ord.sure) { ord.sure = 1; return openOrder(); }
+  const p = customPlate(want);
+  p.lock = true; p.bought = 1; p.paid = op.total;
+  S.coins -= op.total; keepPlate(p); Platform.track("mreo_buy_" + p.tier);
+  ord = null; closeModal(); save(); renderHeader();
+  if (p.tier >= 3) jackpot(p); else { fx.confetti(80); Snd.win(2); toast(L("🏛 Номер {0} оформлен и стоит в гараже 🔒", plateStr(p))); }
+  if (tab === "garage") renderGarage();
+}
+
+// ===================== ОХОТА: ЦЕНА ПО РИСУНКУ, ОСОБЫЕ НОМЕРА, ПЕРЕБИВКА, КАТАЛОГ =====================
+// Цена номера внутри редкости зависит от рисунка и региона (те же правила, что в МРЭО, но мягко: ×0.7…×3 к базовой цене редкости).
+const PAT_BASE = [1, 1.5, 5, 200, 600, 300000];       // «обычный» множитель МРЭО для каждой редкости — относительно него и считаем
+function patParts(p) { return orderParts([p.l1, ...p.d, p.l23[0], p.l23[1], ...p.reg.padEnd(3, " ").split("").map(x => x.trim())]); }
+function patMult(p, tier) {
+  if (p.sk) return SPECIAL[p.sk].m;
+  const M = patParts(p).total / ORDER_BASE;
+  return clamp(1 + 0.4 * Math.log10(M / PAT_BASE[tier]), 0.7, 3);
+}
+const plateValue = (p, tier) => nice(TIERS[tier].val * patMult(p, tier));
+// особые номера: очень редко выпадают из бланков, всегда «легенда» по редкости, у каждого свой цвет и вид, сразу под замком
+const SPECIAL = {
+  taxi:   { n: "Такси", ico: "🚕", w: 40, m: 1 },
+  police: { n: "Полиция", ico: "🚓", w: 30, m: 1.3 },
+  army:   { n: "Военный", ico: "🪖", w: 20, m: 1.6 },
+  diplo:  { n: "Дипломатический", s: "Дипломат", ico: "🎌", w: 10, m: 2.4 }
+};
+Object.values(SPECIAL).forEach(s => Lprops(s, ...(s.s ? ["n", "s"] : ["n"])));
+const SPEC_P = { basic: 0.0008, prem: 0.003, elite: 0.006, black: 0.02 };   // шанс особого номера за бланк (удача усиливает корнем)
+const specChance = id => Math.min(0.1, (SPEC_P[id] || 0) * Math.sqrt(luckMult()));
+function makeSpecial(packId) {
+  const tot = Object.values(SPECIAL).reduce((a, s) => a + s.w, 0); let r = Math.random() * tot, sk = "taxi";
+  for (const k in SPECIAL) { r -= SPECIAL[k].w; if (r <= 0) { sk = k; break; } }
+  const p = randPlate(pick(ALL_REG)), x = sk === "diplo" ? String(1 + rnd(999)).padStart(3, "0") : String(rnd(10));
+  if (sk === "diplo") p.d = String(1 + rnd(150)).padStart(3, "0");
+  const pl = { id: S.nid++, l1: p.l1, d: p.d, l23: p.l23, reg: p.reg, sk, x, tier: 4, got: Date.now(), pack: packId, lock: true };
+  const held = heldKeys(); for (let i = 0; i < 400 && held.has(plateKey(pl)); i++) respecDigits(pl);
+  pl.val = plateValue(pl, 4); return pl;
+}
+const specChars = p => p.sk === "taxi" ? [[p.l1, 1], [p.l23[0], 1], [" ", 2], ...[...p.d].map(c => [c, 0])]
+  : p.sk === "police" ? [[p.l1, 1], [" ", 2], ...[...(p.d + p.x)].map(c => [c, 0])]
+  : p.sk === "army" ? [...[...(p.d + p.x)].map(c => [c, 0]), [" ", 2], [p.l23[0], 1], [p.l23[1], 1]]
+  : [...[...p.d].map(c => [c, 0]), [" ", 2], ["CD", 1], [" ", 2], ...[...p.x].map(c => [c, 0])];
+const specStr = p => specChars(p).map(c => c[0]).join("").replace(/\s+/g, " ").trim() + " " + p.reg;
+
+// ----- перебить регион или буквы: рулетка за деньги (номер всё равно нужно «выбить»)
+const rerollCost = (p, what) => packPrice("elite") * (what === "reg" ? 3 : 5) * Math.max(1, p.tier);
+function rerollPlate(id, what) {
+  const p = S.plates.find(x => x.id === id); if (!p || p.bought || p.sk) return;
+  const cost = rerollCost(p, what); if (S.coins < cost) return toast(L("Нужно {0} 💰", fmt(cost)));
+  S.coins -= cost; Platform.track("reroll_" + what);
+  const old = Object.assign({}, p), oldTier = p.tier;
+  const held = heldKeys(p);
+  for (let i = 0; i < 200; i++) {
+    if (what === "reg") { let r; do { r = pick(ALL_REG); } while (r === old.reg && ALL_REG.length > 1); p.reg = r; }
+    else { p.l1 = pick(LETTERS); p.l23 = pick(LETTERS) + pick(LETTERS); }
+    if (!held.has(plateKey(p))) break;
+  }
+  p.tier = classify(p); p.val = plateValue(p, p.tier); delete p.wc; markFound(p);
+  const up_ = p.tier > oldTier, down = p.tier < oldTier, col = TIERS[p.tier].color;
+  openModal(`<h2>${what === "reg" ? L("🎲 Перебить регион") : L("🎲 Перебить буквы")}</h2>
+    <div class="reroll"><div class="rr-old">${plateHTML(old, "small")}<small>${TIERS[oldTier].name} · ${fmt(old.val)}</small></div><div class="rr-arrow">➜</div>
+    <div class="rr-new rolling" id="rrNew">${plateHTML(old, "")}</div></div><p id="rrTxt" class="hint">${L("Крутим…")}</p>
+    <div class="row" id="rrBtns" style="visibility:hidden"><button class="btn alt" data-act="rerollAgain" data-id="${p.id}" data-w="${what}">${L("🎲 Ещё раз · {0}", fmt(rerollCost(p, what)))}</button><button class="btn green" data-act="closeModal">${L("Готово")}</button></div>`, true);
+  Snd.rise(0.8);
+  let n = 0; const tick = setInterval(() => {
+    const el = $("rrNew"); if (!el) return clearInterval(tick);
+    const fake = Object.assign({}, p, what === "reg" ? { reg: pick(ALL_REG) } : { l1: pick(LETTERS), l23: pick(LETTERS) + pick(LETTERS) }, { tier: 0 });
+    el.innerHTML = plateHTML(fake, ""); if (++n > 12) {
+      clearInterval(tick); el.classList.remove("rolling"); el.innerHTML = plateHTML(p, "pop");
+      $("rrTxt").innerHTML = `<b style="color:${col}">${TIERS[p.tier].name}</b> · ${fmt(p.val)} 💰 ${up_ ? "· " + L("редкость выросла!") : down ? "· " + L("редкость упала") : ""}`;
+      $("rrBtns").style.visibility = ""; modalLocked = false;
+      if (up_) { Snd.win(Math.min(p.tier, 4)); fx.confetti(60 + p.tier * 20); vignette(col); } else Snd.keep();
+      if (up_ && p.tier >= 3) setTimeout(() => { closeModal(); jackpot(p); }, 900);
+      save(); renderHeader(); if (tab === "garage") renderGarage();
+    }
+  }, 80);
+}
+
+// ----- каталог шансов: по каждому бланку — пример номера, шанс и цена каждой редкости и особых номеров
+const CAT_EX = [["К", "245", "УХ", "52"], ["В", "100", "ВВ", "116"], ["М", "777", "ОС", "50"], ["О", "555", "ОО", "199"], ["Е", "001", "КХ", "77"], ["А", "007", "МР", "97"]];
+let catPack = "basic";
+function openCatalog(id) {
+  if (id) catPack = id;
+  const P = PACKS[catPack], ws = packWeights(catPack), sum = ws.reduce((a, b) => a + b, 0), sp = specChance(catPack);
+  const tabs = Object.keys(PACKS).map(k => `<button class="btn sm ${k === catPack ? "green" : "alt"}" data-act="catalog" data-p="${k}">${PACKS[k].icon} ${PACKS[k].name.split(/[ -]/)[0]}</button>`).join("");
+  const rows = TIERS.map((t, i) => { const pc = ws[i] / sum * 100 * (1 - sp); if (pc <= 0) return "";
+    const e = CAT_EX[i], ex = { l1: e[0], d: e[1], l23: e[2], reg: e[3], tier: i };
+    return `<div class="catrow" style="--cc:${t.color}">${plateHTML(ex, "small")}<div><b style="color:${t.color}">${t.name}</b><small>${L("цена {0}–{1} 💰", fmt(nice(t.val * 0.7)), fmt(nice(t.val * 3)))}</small></div><div class="catpc"><b>${pctStr(pc)}%</b><small>${L("1 из {0}", fmt(Math.max(1, Math.round(100 / pc))))}</small></div></div>`; }).join("");
+  const specRows = Object.keys(SPECIAL).map(k => { const s = SPECIAL[k], tot = Object.values(SPECIAL).reduce((a, x) => a + x.w, 0), pc = sp * s.w / tot * 100;
+    const ex = { l1: "А", d: "123", l23: "ВС", reg: "77", sk: k, x: k === "diplo" ? "045" : "4", tier: 4 };
+    return `<div class="catrow sp">${plateHTML(ex, "small")}<div><b>${s.ico} ${s.s || s.n}</b><small>${L("особый номер · ×{0} к цене легенды", s.m)}</small></div><div class="catpc"><b>${pctStr(pc)}%</b><small>${L("1 из {0}", fmt(Math.round(100 / pc)))}</small></div></div>`; }).join("");
+  openModal(`<h2>${L("📊 Каталог шансов")}</h2><div class="atabs">${tabs}</div>
+    <p class="hint">${P.icon} ${P.name} · ${fmt(packPrice(catPack))} 💰${S.lvl < P.lvl ? " · " + L("🔒 с {0} уровня", P.lvl) : ""}. ${L("Шансы уже с твоей удачей. Цена внутри редкости зависит от рисунка и региона.")}</p>
+    <div class="card catlist">${rows}</div><h3>${L("✨ Особые номера")}</h3><div class="card catlist">${specRows}</div>
+    <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
+}
+
+// ===================== ОФОРМЛЕНИЕ: РАМКИ НОМЕРА, ЭФФЕКТЫ, ИНТЕРЬЕР ГАРАЖА =====================
+// Покупается навсегда, видно в своём гараже, в профиле и тем, кто смотрит твой гараж.
+// p — за монеты (простое, без анимаций), st — за звёзды Telegram (анимированное; цены дублируются в server/src/worker.js, ITEMS: cos_<вид>_<id>),
+// vip — входит в пакет «Хозяин района» (cos_vip, 99 ⭐): рамка, эффект, интерьер и золотое имя с короной в рейтинге, у друзей и в профиле.
+const COS = {
+  hold: [{ id: "chrome", n: "Хромовая рамка", p: 2e6 }, { id: "carbon", n: "Карбон", p: 2e7 }, { id: "red", n: "Красный клуб", p: 1e8 }, { id: "gold", n: "Золотая рамка", p: 1e9 },
+    { id: "neon", n: "Неоновая подсветка", st: 25 }, { id: "diamond", n: "Бриллиантовая рамка", st: 49 }, { id: "royal", n: "Королевская рамка", vip: 1 }],
+  fx: [{ id: "gloss", n: "Глянец", p: 5e6 }, { id: "shadow", n: "Тень", p: 1e8 },
+    { id: "shine", n: "Блеск", st: 25 }, { id: "neon", n: "Неон", st: 35 }, { id: "spark", n: "Искры", st: 39 }, { id: "fire", n: "Огонь", st: 49 }, { id: "crown", n: "Корона", vip: 1 }],
+  gar: [{ id: "brick", n: "Кирпичный бокс", p: 1e7 }, { id: "under", n: "Подземный паркинг", p: 3e8 },
+    { id: "show", n: "Шоурум", st: 35 }, { id: "elite", n: "Элитный паркинг", st: 49 }, { id: "palace", n: "Дворец", vip: 1 }]
+};
+Object.values(COS).forEach(a => a.forEach(x => Lprops(x, "n")));
+const VIP_ST = 99;
+const isVip = () => !!S.cos.vip;
+// покупка за звёзды пришла (или подарок из админки): cos_hold_neon … / cos_vip
+function cosGrant(item) {
+  if (item === "cos_vip") {
+    S.cos.vip = 1; for (const [k, id] of [["hold", "royal"], ["fx", "crown"], ["gar", "palace"]]) { if (!S.cos.own.includes(k + ":" + id)) S.cos.own.push(k + ":" + id); S.cos[k] = id; }
+    applyCos(); sendState();
+    enqueueCinema({ color: "#ffd23f", bg: "#2a1f05", icon: "👑", top: L("Пакет оформления"), title: L("ХОЗЯИН РАЙОНА"), sub: L("Королевская рамка, корона и дворец — а твоё имя теперь золотое с короной в рейтинге, у друзей и в профиле. Все видят!"), confetti: 160 });
+    return true;
+  }
+  const m = /^cos_(hold|fx|gar)_(\w+)$/.exec(item), x = m && COS[m[1]].find(y => y.id === m[2]); if (!x) return false;
+  if (!S.cos.own.includes(m[1] + ":" + x.id)) S.cos.own.push(m[1] + ":" + x.id); S.cos[m[1]] = x.id;
+  applyCos(); sendState(); fx.confetti(90); Snd.win(3); toast(L("🎨 «{0}» — твоё навсегда!", x.n));
+  return true;
+}
+const COS_TABS = [["hold", "🖼 Рамки номера"], ["fx", "✨ Эффекты"], ["gar", "🏠 Гараж"]];
+let cosTab = "hold";
+function applyCos() {
+  document.body.className = document.body.className.replace(/\bhold-\w+/g, "").trim() + (S.cos.hold ? " hold-" + S.cos.hold : "");
+  const g = $("tab-garage"); if (g) g.className = g.className.replace(/\bgar-\w+/g, "").trim() + (S.cos.gar ? " gar-" + S.cos.gar : "");
+}
+function openCos(t) {
+  if (t) cosTab = t;
+  const ex = { l1: "А", d: "777", l23: "АА", reg: "77", tier: 3 };
+  const list = COS[cosTab].filter(x => S.cos.own.includes(cosTab + ":" + x.id) || x.p || (Platform.canPay && x.st)).map(x => {   // без Telegram-оплаты звёздное не показываем
+    const own = S.cos.own.includes(cosTab + ":" + x.id), on = S.cos[cosTab] === x.id;
+    const prev = cosTab === "hold" ? `<div class="oh-${x.id}">${plateHTML(ex, "small other")}</div>` : cosTab === "fx" ? `<div class="ppins pfx-${x.id}">${plateHTML(ex, "small")}</div>` : `<div class="garswatch gar-${x.id}">🚘</div>`;
+    const btn = on ? `<button class="btn sm alt" data-act="cosSet" data-k="${cosTab}" data-v="">${L("✓ Снять")}</button>`
+      : own ? `<button class="btn sm green" data-act="cosSet" data-k="${cosTab}" data-v="${x.id}">${L("Надеть")}</button>`
+      : x.vip ? `<button class="btn sm star" data-act="shopBuy" data-k="cos_vip">👑 ⭐ ${VIP_ST}</button>`
+      : x.st ? `<button class="btn sm star" data-act="shopBuy" data-k="cos_${cosTab}_${x.id}">⭐ ${x.st}</button>`
+      : `<button class="btn sm ${S.coins >= x.p ? "green" : "alt"}" data-act="cosBuy" data-k="${cosTab}" data-v="${x.id}" ${S.coins >= x.p ? "" : "disabled"}>${fmt(x.p)} 💰</button>`;
+    const tag = x.vip ? `<small class="cvip">${L("👑 из пакета «Хозяин района»")}</small>` : x.st ? `<small class="cst">${L("✨ с анимацией")}</small>` : "";
+    return `<div class="cosrow ${on ? "on" : ""} ${x.vip ? "vip" : x.st ? "st" : ""}"><div class="cosprev">${prev}</div><div class="cosn"><b>${x.n}</b>${own ? `<small>${L("куплено")}</small>` : tag}</div>${btn}</div>`;
+  }).join("");
+  const vipBox = isVip() ? `<div class="vipbox own"><b>👑 ${L("Ты — Хозяин района")}</b><small>${L("Золотое имя с короной видят все: в рейтинге, у друзей и в профиле")}</small></div>`
+    : Platform.canPay ? `<div class="vipbox"><div class="vipb-h">👑 ${L("Хозяин района")}</div>
+      <div class="vipb-prev oh-royal pfx-crown">${plateHTML({ l1: "А", d: "001", l23: "МР", reg: "97", tier: 5 }, "mid other")}</div>
+      <ul><li>${L("Королевская рамка на всех номерах")}</li><li>${L("Эффект «Корона» у закреплённых номеров")}</li><li>${L("Интерьер «Дворец» в гараже")}</li><li><b>${L("Золотое имя с 👑 в рейтинге, у друзей и в профиле — видят все")}</b></li></ul>
+      <button class="btn star" data-act="shopBuy" data-k="cos_vip">${L("Стать Хозяином района")} · ⭐ ${VIP_ST}</button></div>` : "";
+  openModal(`<h2>${L("🎨 Оформление")}</h2><div class="atabs">${COS_TABS.map(([k, n]) => `<button class="btn sm ${k === cosTab ? "green" : "alt"}" data-act="cos" data-t="${k}">${L(n)}</button>`).join("")}</div>
+    <p class="hint">${cosTab === "hold" ? L("Рамка на всех твоих номерах — в гараже, профиле и рейтинге.") : cosTab === "fx" ? L("Эффект у номеров, закреплённых в профиле.") : L("Интерьер твоего гаража — его видят все, кто к тебе заходит.")} ${L("Покупается навсегда.")}</p>
+    ${vipBox}<div class="card coslist">${list}</div><button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
+}
+function cosBuy(k, id) {
+  const x = COS[k].find(y => y.id === id); if (!x || !x.p || S.cos.own.includes(k + ":" + id)) return;   // за монеты — только простое
+  if (S.coins < x.p) return toast(L("Нужно {0} 💰", fmt(x.p)));
+  S.coins -= x.p; S.cos.own.push(k + ":" + id); S.cos[k] = id; Platform.track("cos_" + k + "_" + id);
+  applyCos(); fx.confetti(70); Snd.win(2); toast(L("🎨 «{0}» — твоё навсегда!", x.n)); save(); sendState(); renderHeader(); openCos();
 }
 
 // ===================== СЮЖЕТ: персонажи, диалоги, обучение, главы =====================
@@ -1813,14 +2192,17 @@ function plateInfo(p, canSell) {
   if (t >= 2) tl.push(`<b>${yr(8 + Math.floor(r() * 5))}</b> — ${L("продан через посредника за {0} ₽ (по слухам).", fmt(20000 + Math.floor(r() * 500000) * (t - 1)))}`);
   tl.push(`<b>${L("Сегодня")}</b> — ${p.got ? L("попал к тебе {0}.", new Date(p.got).toLocaleDateString(I18N.loc)) : L("у тебя в гараже.")}`);
   const pr = PACKS.basic.w[t], rum = [pk(RUMORS[t]), pk(RUMORS[t])];
-  return `<h2 class="t${t}">${L(["Обычный номер", "Красивый номер", "Редкий номер", "Блатной номер", "Легендарный номер", "Суперлегендарный номер"][t])}</h2><div style="margin-bottom:4px"><b>${nick}</b></div>${plateHTML(p, "")}
-    <p style="font-size:12px;color:#8d99b3;margin:10px 0">${L("Цена {0} 💰 · доход +{1}/сек · шанс из обычного бланка ≈ {2}%", fmt(sellVal(p)), plateInc(p).toFixed(2), pctStr(pr))}</p>
+  return `<h2 class="t${t}">${L(["Обычный номер", "Красивый номер", "Редкий номер", "Блатной номер", "Легендарный номер", "Суперлегендарный номер"][t])}</h2><div style="margin-bottom:4px"><b>${nick}</b></div>${plateHTML(p, "")}${p.bought ? `<p class="hint" style="margin:6px 0 0">${L("🏷 Оформлен в МРЭО на заказ за {0} 💰 — не идёт в альбом и коллекции", fmt(p.paid || 0))}</p>` : ""}
+    <p style="font-size:12px;color:#8d99b3;margin:10px 0">${L("Цена {0} 💰 · доход +{1}/сек · шанс из обычного бланка ≈ {2}%", fmt(sellVal(p)), incStr(plateInc(p)), pctStr(pr))}</p>
+    ${(() => { if (p.sk) return ""; const m = p.val / TIERS[t].val, parts = patParts(p).parts.map(x => x[0]).filter(x => !/ПОЛНЫЙ/.test(x));
+      return Math.abs(m - 1) > 0.04 ? `<p class="patline">${m > 1 ? L("💎 Цена ×{0} к обычному «{1}»: {2}", m.toFixed(2), TIERS[t].name, parts.join(", ") || L("удачный рисунок")) : L("Цена ×{0} к обычному «{1}» — рисунок попроще", m.toFixed(2), TIERS[t].name)}</p>` : ""; })()}
     <div class="card" style="text-align:left"><h3>${L("🧾 О номере")}</h3>${facts.map(f => `<p style="margin:0 0 6px;font-size:13px;color:#cfd6e6">${f}</p>`).join("")}</div>
     <div class="card" style="text-align:left"><h3>${L("📖 Легенда номера")}</h3><p style="margin:0;font-size:13px;color:#cfd6e6">${legend}</p></div>
     <div class="card" style="text-align:left"><h3>${L("📜 История")} <small>${L("(вымышленная)")}</small></h3>${tl.map(x => `<div class="tl">${x}</div>`).join("")}</div>
     <div class="card" style="text-align:left"><h3>${L("🗣 Слухи")}</h3>${rum.map(x => `<p style="margin:0 0 6px;font-size:13px;color:#cfd6e6">• ${x}</p>`).join("")}</div>
     ${Platform.canShare && t >= 2 ? `<button class="btn alt" data-act="brag" data-id="${p.id}">${L("📤 Похвастаться другу")}</button>` : ""}
     ${canSell ? `<button class="btn ${isLocked(p) ? "green" : "alt"}" data-act="lockPlate" data-id="${p.id}" data-info="1">${p.lock ? L("🔒 Под замком — не сливать и не продавать (снять)") : S.prof.pins.includes(p.id) ? L("🔒 Защищён: закреплён в профиле") : L("🔓 Поставить замок: не сливать и не продавать")}</button>` : ""}
+    ${canSell && !p.bought && !p.sk ? `<div class="row"><button class="btn sm alt" data-act="reroll" data-id="${p.id}" data-w="reg">${L("🎲 Перебить регион · {0}", fmt(rerollCost(p, "reg")))}</button><button class="btn sm alt" data-act="reroll" data-id="${p.id}" data-w="let">${L("🎲 Перебить буквы · {0}", fmt(rerollCost(p, "let")))}</button></div>` : ""}
     ${canSell ? `<button class="btn alt" data-act="pinPlate" data-id="${p.id}">${S.prof.pins.includes(p.id) ? L("📌 Открепить из профиля") : L("📌 Закрепить в профиле")}</button>` : ""}
     ${canSell && !isLocked(p) ? `<button class="btn green" data-act="sellFromInfo" data-id="${p.id}">${L("Продать за {0}", fmt(sellVal(p)))}</button>` : ""}
     <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`;
@@ -1902,7 +2284,7 @@ function cloudLoad() {
   }).catch(() => {});
 }
 function applyCloud(c, silent) {
-  S = normalize(c); albumBackfill(); pending = null; $("resolveRow").style.display = "none";
+  S = normalize(c); fixDupes(); albumBackfill(); applyCos(); pending = null; $("resolveRow").style.display = "none";
   dispCoins = S.coins; lastTick = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {}
   if (S.forgePend) applyForge(true);
@@ -2010,8 +2392,10 @@ function shopGrant(item, why) {
   else if (/^tier_[0-5]$/.test(item)) { const p = makePlate(+item[5]); markFound(p); keepPlate(p); if (p.tier >= 3) jackpot(p); else { toast(L("🎁 {0} номер {1} — в гараже", TIERS[p.tier].name, p.l1 + p.d + p.l23 + " " + p.reg)); fx.confetti(60); } }
   else if (/^plate_/.test(item)) {
     const [, s, reg] = item.split("_"), q = parsePlate(s + reg); if (!q) return;
+    if (heldKeys().has(plateKey(q))) return toast(L("🎁 Номер {0} уже стоит у тебя в гараже", plateStr(q)));
     const p = customPlate(q); markFound(p); keepPlate(p); if (p.tier >= 3) jackpot(p); else { toast(L("🎁 Номер {0} — в гараже", p.l1 + p.d + p.l23 + " " + p.reg)); fx.confetti(60); }
   }
+  else if (/^cos_/.test(item)) { if (!cosGrant(item)) return; }
   else if (/^pts_\d+$/.test(item)) { S.pts += +item.slice(4); toast(L("⭐ +{0} связей: доход и удача выше навсегда", item.slice(4))); vignette("#ffd23f"); fx.confetti(60); }
   else if (/^buff_\d+$/.test(item)) { S.buffUntil = Math.max(S.buffUntil, Date.now()) + +item.slice(5) * 3600000; toast(L("🔥 Доход ×2 на {0} ч!", item.slice(5))); vignette("#ffd23f"); renderPills(); }
   else return;
@@ -2071,7 +2455,7 @@ function openTop() {
     $("mbox").innerHTML = `<h2>${L("🏆 Рейтинг недели")}</h2>
       <p style="font-size:13px;color:#8d99b3;margin-top:-4px">${L("Кто больше заработает с понедельника. Итоги — в понедельник днём.")} ${L("До конца:")} <span class="timer" data-until="${j.ends * 1000}"></span></p>
       <p style="font-size:13px">${L("🥇 1 место — легенда · 🥈🥉 2–3 — блатной · 4–10 — чемодан денег")}</p>
-      <div class="card toplist">${j.top.length ? j.top.map((r, i) => `<div class="toprow ${r.me ? "me" : ""}" data-act="garageOf" data-top="${i}"><span>${medal(i)}</span><span class="fava" style="--f1:${frameOf(r.f).c1}">${escapeHTML(r.a || "😎")}</span><b>${escapeHTML(r.n)}</b><i>${fmt(r.s)} 💰</i><em>🏠</em></div>`).join("") : `<p>${L("Пока пусто — будь первым!")}</p>`}</div>
+      <div class="card toplist">${j.top.length ? j.top.map((r, i) => `<div class="toprow ${r.me ? "me" : ""} ${r.vp ? "vip" : ""}" data-act="garageOf" data-top="${i}"><span>${medal(i)}</span><span class="fava" style="--f1:${frameOf(r.f).c1}">${escapeHTML(r.a || "😎")}</span>${vipName(r.n, r.vp)}<i>${fmt(r.s)} 💰</i><em>🏠</em></div>`).join("") : `<p>${L("Пока пусто — будь первым!")}</p>`}</div>
       ${j.top.length ? `<p class="hint" style="margin-top:-4px">${L("Нажми на игрока — посмотришь его гараж")}</p>` : ""}
       <p>${j.rank ? L("Ты на {0} месте: {1} 💰", j.rank, fmt(j.score)) : L("Ты пока не в рейтинге — заработай что-нибудь на этой неделе")}</p>
       <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`;
@@ -2099,14 +2483,14 @@ const avaOk = a => { const x = AVAS.find(v => (Array.isArray(v) ? v[0] : v) === 
 const pinPlates = () => S.prof.pins.map(id => S.plates.find(p => p.id === id)).filter(Boolean);
 var tgName = "", myCode = "", reqsN = 0, profAck = false;   // var: updateMoreDot зовут и раньше этой строки
 const myName = () => S.prof.nick || tgName || L("Игрок");
-function profOut() { const f = frameOf(S.prof.frame); return { nick: S.prof.nick, ava: avaOk(S.prof.ava) ? S.prof.ava : "😎", frame: f.ok() ? f.id : "base", bio: S.prof.bio }; }
+function profOut() { const f = frameOf(S.prof.frame); return { nick: S.prof.nick, ava: avaOk(S.prof.ava) ? S.prof.ava : "😎", frame: f.ok() ? f.id : "base", bio: S.prof.bio, vip: isVip() ? 1 : 0 }; }
 function garageSnap() {
   S.prof.pins = S.prof.pins.filter(id => S.plates.some(p => p.id === id));   // проданные и слитые номера сами открепляются
-  const pk = p => [p.l1 + p.d + p.l23, p.reg, p.tier];
+  const pk = p => p.sk ? [p.l1 + p.d + p.l23, p.reg, p.tier, p.sk, p.x] : [p.l1 + p.d + p.l23, p.reg, p.tier];
   const top = [...S.plates].sort((a, b) => b.val - a.val).slice(0, 15).map(pk);
-  return { p: top, pin: pinPlates().map(pk), n: S.plates.length, v: Math.round(garageVal()), inc: Math.round(income() * 10) / 10, lvl: S.lvl, al: albumCount(), t: S.title || "", pts: S.pts, tc: S.tc.slice(3), sets: setsDone(), mb: S.mergeBest };
+  return { p: top, pin: pinPlates().map(pk), n: S.plates.length, v: Math.round(garageVal()), inc: Math.round(income() * 10) / 10, lvl: S.lvl, al: albumCount(), t: S.title || "", pts: S.pts, tc: S.tc.slice(3), sets: setsDone(), mb: S.mergeBest, cos: { h: S.cos.hold, fx: S.cos.fx, gar: S.cos.gar, vip: isVip() ? 1 : 0 } };
 }
-const snapPlate = a => ({ l1: a[0][0], d: a[0].slice(1, 4), l23: a[0].slice(4, 6), reg: a[1], tier: +a[2] || 0 });
+const snapPlate = a => ({ l1: a[0][0], d: a[0].slice(1, 4), l23: a[0].slice(4, 6), reg: a[1], tier: +a[2] || 0, sk: SPECIAL[a[3]] ? a[3] : undefined, x: a[4] || "" });
 // значки — считаются из снимка гаража, одинаково у себя и у других
 function badgesOf(g, respect) {
   if (!g) return [];
@@ -2120,19 +2504,20 @@ function badgesOf(g, respect) {
   return b;
 }
 // карточка профиля: o = { name, prof, lvl, g, respect, friends, since }
+const vipName = (name, vip) => vip ? `<b class="vipn">👑 ${escapeHTML(name)}</b>` : `<b>${escapeHTML(name)}</b>`;
 function profCardHTML(o, small) {
   const pr = o.prof || {}, f = frameOf(pr.frame), g = o.g, bd = badgesOf(g, o.respect || 0);
-  const pins = g && g.pin && g.pin.length ? g.pin : null;
-  return `<div class="pcard f-${f.id} ${small ? "sm" : ""}" style="--f1:${f.c1};--f2:${f.c2}">
-    <div class="ptop"><div class="pava">${escapeHTML(pr.ava || "😎")}</div><div class="pname"><b>${escapeHTML(o.name)}</b>
+  const pins = g && g.pin && g.pin.length ? g.pin : null, cos = (g && g.cos) || {}, other = !o.mine, vip = !!(pr.vip || cos.vip);
+  return `<div class="pcard f-${f.id} ${small ? "sm" : ""} ${vip ? "pvip" : ""}" style="--f1:${f.c1};--f2:${f.c2}">
+    <div class="ptop"><div class="pava">${escapeHTML(pr.ava || "😎")}</div><div class="pname">${vipName(o.name, vip)}
       <small>${L("Ур. {0}", o.lvl || (g && g.lvl) || 1)}${g && g.t ? " · 🏷 " + escapeHTML(L(g.t)) : ""}</small>
       ${pr.bio ? `<i>«${escapeHTML(pr.bio)}»</i>` : ""}</div></div>
     ${bd.length ? `<div class="pbadges">${bd.map(([i, n]) => `<span>${i} ${n}</span>`).join("")}</div>` : ""}
-    ${pins ? `<div class="ppins">${pins.map(a => plateHTML(snapPlate(a), "small")).join("")}</div>` : ""}
+    ${pins ? `<div class="ppins ${cos.fx ? "pfx-" + cos.fx : ""} ${cos.h ? "oh-" + cos.h : ""}">${pins.map(a => plateHTML(snapPlate(a), "small" + (other ? " other" : ""))).join("")}</div>` : ""}
     ${!small && g ? `<div class="pstats"><span><b>${fmt(g.v)}</b>💰 ${L("гараж")}</span><span><b>${g.n}</b> ${L("номеров")}</span><span><b>${g.al}/${ALBUM_TOTAL}</b> ${L("альбом")}</span><span><b>👍 ${o.respect || 0}</b></span>${o.friends != null ? `<span><b>👥 ${o.friends}</b></span>` : ""}</div>` : ""}
   </div>`;
 }
-const myCard = small => profCardHTML({ name: myName(), prof: profOut(), lvl: S.lvl, g: garageSnap(), respect: refs.respect || 0, friends: null }, small);
+const myCard = small => profCardHTML({ name: myName(), prof: profOut(), lvl: S.lvl, g: garageSnap(), respect: refs.respect || 0, friends: null, mine: true }, small);
 
 // ----- редактор профиля
 let pfDraft = null;
@@ -2188,7 +2573,7 @@ function openGarageOf(who, back) {
     if (!g) h += `<p>${L("Игрок ещё не показал гараж — он появится, когда игрок снова зайдёт в игру.")}</p>`;
     else {
       h += `<h3 style="margin:10px 0 0">${L("🏠 Гараж")}</h3>${g.tc ? `<p class="hint" style="margin:2px 0">${L("Выбито: блатных {0} · легенд {1} · суперлегенд {2}", g.tc[0] || 0, g.tc[1] || 0, g.tc[2] || 0)}</p>` : ""}
-        <div class="ggrid">${(g.p || []).map(a => plateHTML(snapPlate(a), "small")).join("") || `<p class="hint">${L("Гараж пуст")}</p>`}</div>`;
+        <div class="ggrid ${g.cos && g.cos.gar ? "gar-" + g.cos.gar : ""} ${g.cos && g.cos.h ? "oh-" + g.cos.h : ""}">${(g.p || []).map(a => plateHTML(snapPlate(a), "small" + (j.me ? "" : " other"))).join("") || `<p class="hint">${L("Гараж пуст")}</p>`}</div>`;
       if (!j.me) { const mine = garageVal(); h += `<p class="hint">${mine >= g.v ? L("Твой гараж дороже: {0} 💰 💪", fmt(mine)) : L("Твой гараж: {0} 💰 — до этого игрока ещё {1}", fmt(mine), fmt(g.v - mine))}</p>`; }
     }
     if (!j.me) {
@@ -2232,7 +2617,7 @@ function openFriends() {
     const ava = r => `<span class="fava" style="--f1:${frameOf(r.f).c1}">${escapeHTML(r.a || "😎")}</span>`;
     const inc = j.inc.map(r => `<div class="toprow"><span data-act="garageOf" data-uid="${r.uid}">${ava(r)}</span><b data-act="garageOf" data-uid="${r.uid}">${escapeHTML(r.n)}<small> · ${L("ур. {0}", r.lvl)}</small></b>
       <button class="btn sm green" data-act="frAccept" data-uid="${r.uid}" data-from="list">✅</button><button class="btn sm alt" data-act="frDecline" data-uid="${r.uid}" data-from="list">✖</button></div>`).join("");
-    const rows = j.list.map(f => `<div class="toprow" data-act="garageOf" data-uid="${f.uid}">${ava(f)}<b>${escapeHTML(f.n)}<small> · ${L("ур. {0}", f.lvl)}${f.inv ? " · " + L("пригласил тебя") : f.mine ? " · " + L("по твоей ссылке") : ""}</small></b><i>${f.v ? fmt(f.v) + " 💰" : ""}</i><em>›</em></div>`).join("");
+    const rows = j.list.map(f => `<div class="toprow" data-act="garageOf" data-uid="${f.uid}">${ava(f)}<b class="${f.vp ? "vipn" : ""}">${f.vp ? "👑 " : ""}${escapeHTML(f.n)}<small> · ${L("ур. {0}", f.lvl)}${f.inv ? " · " + L("пригласил тебя") : f.mine ? " · " + L("по твоей ссылке") : ""}</small></b><i>${f.v ? fmt(f.v) + " 💰" : ""}</i><em>›</em></div>`).join("");
     $("mbox").innerHTML = `<h2>${L("👥 Друзья")} <small>${j.list.length}</small></h2>
       <div class="card fcode"><small>${L("Твой код друга")}</small><b>${escapeHTML(myCode)}</b>
         <div class="row"><button class="btn sm alt" data-act="frCopy">${L("📋 Копировать")}</button><button class="btn sm green" data-act="invite">${L("📤 Позвать")}</button></div>
@@ -2401,7 +2786,7 @@ function parsePlate(s) {
 }
 function customPlate(p, tier) {                        // номер по заказу: редкость по правилам игры (или заданная)
   const t = tier >= 0 && tier <= TOP ? tier : classify(p);
-  return { id: S.nid++, l1: p.l1, d: p.d, l23: p.l23, reg: p.reg, tier: t, val: TIERS[t].val, got: Date.now() };
+  return { id: S.nid++, l1: p.l1, d: p.d, l23: p.l23, reg: p.reg, tier: t, val: plateValue(p, t), got: Date.now() };
 }
 function admGiftSend(uid, item, el) {
   const v = id => (($(id + uid) || {}).value || "").trim();
@@ -2532,6 +2917,18 @@ const ACTS = {
   garageOf: d => d.top != null ? openGarageOf({ top: +d.top }, "top") : d.me ? openGarageOf({ uid: myUid }, "friends") : openGarageOf({ uid: +d.uid }, d.back || "friends"),
   garageBack: () => garageBack === "top" ? openTop() : garageBack === "admin" ? openAdmin("players") : openFriends(),
   respect: (d, e, el) => giveRespect(el), friends: () => openFriends(),
+  reroll: (d, e, el) => { if (!el.dataset.sure) { el.dataset.sure = 1; el.textContent = L("Точно? Нажми ещё раз"); return; } rerollPlate(+d.id, d.w); },
+  rerollAgain: d => rerollPlate(+d.id, d.w),
+  catalog: d => openCatalog(d.p), cos: d => openCos(d.t), cosBuy: d => cosBuy(d.k, d.v),
+  cosSet: d => { S.cos[d.k] = d.v; applyCos(); save(); sendState(); openCos(); if (tab === "garage") renderGarage(); },
+  ordOpen: () => { ord = null; openOrder(); }, ordSlot: d => { ord.i = +d.i; ord.sure = 0; openOrder(); }, ordKey: d => ordKey(d.k), ordBuy: () => ordBuy(),
+  ordClear: () => { ord = null; openOrder(); },
+  ordRandom: () => { const p = randPlate(); ord.c = [p.l1, ...p.d, p.l23[0], p.l23[1], ...p.reg.padEnd(3, " ").split("").map(x => x.trim())]; ord.i = 0; ord.sure = 0; openOrder(); },
+  gTier: d => { gTier = gTier === d.v ? "all" : d.v; renderGarage(); },
+  gSelMode: () => { gSel = gSel ? null : new Set(); renderGarage(); if (gSel) { const t = $("gtools"); if (t) t.scrollIntoView({ block: "start", behavior: "smooth" }); } },
+  gPick: d => { const id = +d.id; gSel.has(id) ? gSel.delete(id) : gSel.add(id); const el = document.querySelector(`.item.pick[data-id="${id}"]`); if (el) { el.classList.toggle("on", gSel.has(id)); el.querySelector(".gchk").textContent = gSel.has(id) ? "✓" : ""; } renderGarageSelBar(); },
+  gSelAll: () => { const l = garageFiltered(); const all = l.every(p => gSel.has(p.id)); l.forEach(p => all ? gSel.delete(p.id) : gSel.add(p.id)); renderGarageList(); },
+  gSelDo: d => gSelDo(d.do),
   lockPlate: d => { const p = S.plates.find(x => x.id === +d.id); if (!p) return; if (!p.lock && S.prof.pins.includes(p.id)) return toast(L("Номер закреплён в профиле — он и так под защитой"));
     p.lock = !p.lock; if (!p.lock) delete p.wish; Snd.keep(); toast(p.lock ? L("🔒 Под замком: не сольётся и не продастся") : L("🔓 Замок снят")); save();
     if (d.info) showInfo(p.id); else if (tab === "garage") renderGarage(); renderMergeBar(); },
@@ -2656,6 +3053,7 @@ setInterval(() => {
   const now = Date.now(), dt = Math.min((now - lastTick) / 1000, 5); lastTick = now;
   if (hidden) return;
   S.playSec += dt; gain(income() * dt);
+  if (tab === "buy" && !rolling) { const pp = packPrice("basic"); if (pp !== renderPacks.pp) { renderPacks.pp = pp; renderPacks(); } }
   // помощник покупает бланки сам
   if (up("bot") > 0 && S.bot.on) { botT += dt; if (botT >= botEvery()) { botT = 0; if (!rolling) botBuy(); } }
   refreshMarket();
@@ -2685,7 +3083,7 @@ function applyLang() {                                // язык определ
   if (!rolling && !pending && !lastRevealed) startStage();
 }
 (function start() {
-  translateStatic(); albumBackfill();
+  translateStatic(); fixDupes(); albumBackfill(); applyCos();
   const off = Math.min((Date.now() - (S.t || Date.now())) / 1000, 3600);
   if (off > 30 && S.plates.length) {
     const g = income() * off * 0.5; gain(g);

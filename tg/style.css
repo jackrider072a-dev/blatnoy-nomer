@@ -478,3 +478,123 @@ small{color:var(--dim);font-size:11px}
 .wishonce{font-size:13px;color:#8d99b3;margin:8px 0 4px;justify-content:center}.wishonce input{width:18px;height:18px}
 .botlog{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}.botlog>div{position:relative}.botlog i{position:absolute;top:-8px;left:-6px;font-style:normal;font-size:14px;z-index:1}.botpacks{margin-bottom:12px}.botpacks .btn{white-space:normal;min-width:0}#mbox select[data-bot]{margin-bottom:12px}.botlog i{font-size:11px;top:-6px;left:-4px}
 .botpacks .btn.green small{color:#0b3d1d;opacity:1}
+/* реалистичный номер (как настоящий знак): металлический фон, внутренняя рамка, плотные высокие знаки, буквы ниже цифр, крупный регион, RUS + флаг */
+.plate{font-family:Arial,"Helvetica Neue",Helvetica,sans-serif;font-weight:700;letter-spacing:0;color:#141414;border:.045em solid #8f959c;border-radius:.2em;background:linear-gradient(180deg,#fbfbfb 0%,#eceef0 60%,#dadde1 100%)}
+.plate::before{content:"";position:absolute;inset:.06em;border:.05em solid #141414;border-radius:.15em;pointer-events:none;z-index:1}
+.plate .m{align-items:baseline;align-self:center;justify-content:center;gap:0;padding:0 .2em 0 .24em;margin-top:.12em;line-height:1}
+.plate .c{min-width:0;padding:0 .03em;font-size:1.06em;transform:scaleY(1.22);transform-origin:50% 75%}
+.plate .c.L{font-size:.86em;transform:scaleY(1.18);padding:0 .035em}
+.plate .r{min-width:0;padding:.05em .16em 0;margin:.06em .06em .06em 0;border-left:.05em solid #141414;justify-content:flex-start;align-items:center}
+.plate .r b{font-size:.84em;transform:scaleY(1.12);transform-origin:50% 0;margin-top:.04em;letter-spacing:-.01em}
+.plate .r i{display:flex;align-items:center;font-style:normal;font-weight:700;font-size:.24em;margin-top:auto;margin-bottom:.32em;gap:.18em;letter-spacing:.04em}
+.plate .r .flag{display:inline-block;width:1.7em;height:1.05em;background:linear-gradient(#fff 0 33%,#1c3faa 33% 66%,#d52b1e 66%);border:.04em solid #8c8c8c}
+/* гараж: поиск, фильтры, выбор нескольких */
+.gtools{margin-top:12px}.gtools h3{margin:6px 0}.gtools h3 small{color:#8d99b3;font-weight:normal;font-size:12px}
+.gsearch{display:flex;gap:6px}.gsearch input{flex:1;min-width:0;background:#0006;color:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:15px;user-select:text;-webkit-user-select:text}
+.gsearch select{background:#0006;color:#fff;border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit;font-size:13px}
+.gchips{flex-wrap:wrap;margin:8px 0}.gchips .chip{color:var(--cc,#cfd6e6)}.gchips .chip i{font-style:normal;opacity:.6;font-size:11px;margin-left:2px}.gchips .chip.on{background:#ffd23f;color:#1a1300;border-color:#ffd23f}
+.gselbtn{width:100%;margin-bottom:6px}
+.gselbar{position:sticky;top:0;z-index:5;background:#121726f2;border:1px solid #ffd23f66;border-radius:12px;padding:8px;margin:6px 0;backdrop-filter:blur(6px)}
+.gselinfo{font-size:13px;margin-bottom:6px}.gselbtns{display:flex;gap:5px;flex-wrap:wrap}.gselbtns .btn{flex:1 1 auto;padding:7px 8px}
+.item.pick{cursor:pointer;gap:10px}.item.pick.on{outline:2px solid #ffd23f;background:#ffd23f14}
+.gchk{width:24px;height:24px;flex:0 0 24px;border-radius:7px;border:2px solid #4a5370;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#1a1300}.item.pick.on .gchk{background:#ffd23f;border-color:#ffd23f}/* МРЭО: номер на заказ */
+.mreobtn{width:100%;margin:2px 0 8px;background:linear-gradient(135deg,#2b3f8f,#1b2133);border:1px solid #4f6fd8}.mreobtn small{display:block;font-size:11px;opacity:.75;font-weight:normal}
+.oplate{display:flex;justify-content:center;margin:6px 0 10px}.oplate .plate{--ph:62px;--pf:37px}
+.oslots{display:flex;justify-content:center;gap:4px;margin-bottom:8px}
+.oslot{width:30px;height:38px;border-radius:8px;background:#0006;border:2px solid #2a3350;color:#fff;font:inherit;font-weight:bold;font-size:17px}
+.oslot.r{background:#06203a}.oslot.opt{opacity:.75}.oslot.on{border-color:#ffd23f;box-shadow:0 0 10px #ffd23f88}
+.oslot:nth-child(2){margin-left:4px}.oslot:nth-child(5){margin-left:4px}.oslot:nth-child(7){margin-left:8px}
+.opad{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:8px}.opad.letters{grid-template-columns:repeat(6,1fr)}
+.okey{padding:10px 0;border-radius:10px;background:#2a3350;border:0;color:#fff;font:inherit;font-weight:bold;font-size:18px}.okey:active{background:#3b4a78}.okey.wide{grid-column:1/-1;font-size:13px}
+.oprice{text-align:left}.orow2{display:flex;justify-content:space-between;font-size:13px;color:#8d99b3;padding:3px 0}.orow2.up{color:#ffd23f}.orow2.up b{color:#ffb300}
+.ototal{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid #ffffff22;margin-top:6px;padding-top:6px}.ototal b{font-size:22px;color:#fff}
+.ototal b.bump{animation:obump .5s}.ototal b.drop{animation:odrop .4s}
+@keyframes obump{0%{transform:scale(1.35);color:#ffd23f;text-shadow:0 0 16px #ffd23f}100%{transform:scale(1)}}
+@keyframes odrop{0%{transform:scale(.9);color:#8d99b3}100%{transform:scale(1)}}
+.ohave{display:block;margin-top:4px;color:#8d99b3;font-size:12px}/* особые номера: такси (жёлтый), полиция (синий), военный (чёрный), дипломатический (красный) */
+.plate.sp .gap{display:inline-block;width:.28em}
+.plate.sp-taxi{background:linear-gradient(180deg,#ffd84a,#f2bd00);color:#141414}
+.plate.sp-police{background:linear-gradient(180deg,#2f6be0,#1d47a8);color:#fff}.plate.sp-police::before,.plate.sp-police .r{border-color:#fff}
+.plate.sp-army{background:linear-gradient(180deg,#2a2a2a,#0c0c0c);color:#fff}.plate.sp-army::before,.plate.sp-army .r{border-color:#e8e8e8}
+.plate.sp-diplo{background:linear-gradient(180deg,#d4202f,#9a0f1b);color:#fff}.plate.sp-diplo::before,.plate.sp-diplo .r{border-color:#fff}
+.plate.sp-police .flag,.plate.sp-army .flag,.plate.sp-diplo .flag{border-color:#fff}
+/* цена по рисунку, каталог, перебивка */
+.patline{font-size:12px;color:#ffd23f;margin:-4px 0 10px}
+.catbtn{width:100%;margin-top:6px}
+.catlist{padding:4px 8px}.catrow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #ffffff10;text-align:left}
+.catrow>div:nth-child(2){flex:1;min-width:0}.catrow b{display:block;font-size:14px}.catrow small{display:block;font-size:11px;color:#8d99b3}
+.catpc{text-align:right}.catpc b{color:#fff}
+.reroll{display:flex;align-items:center;justify-content:center;gap:8px;margin:10px 0}.rr-old{display:flex;flex-direction:column;align-items:center;gap:4px;opacity:.75}.rr-old small{font-size:11px;color:#8d99b3}
+.rr-arrow{font-size:20px;color:#ffd23f}.rr-new .plate{--ph:50px;--pf:30px}.rr-new.rolling .plate{filter:blur(.6px)}
+/* оформление: магазин */
+.cosbtn{background:linear-gradient(135deg,#6b2d8f,#1b2133);border-color:#a05ad8}
+.coslist{padding:4px 8px}.cosrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #ffffff10}.cosrow.on{background:#ffd23f12;border-radius:10px}
+.cosprev{min-width:150px;display:flex;justify-content:center}.cosn{flex:1;text-align:left}.cosn b{display:block;font-size:14px}.cosn small{color:#43c76b;font-size:11px}
+.garswatch{width:140px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;border:1px solid #ffffff22}
+/* рамки номера (держатели): у своих номеров — класс на body, у чужих — oh-* на обёртке */
+body.hold-chrome .plate:not(.other),.oh-chrome .plate.other{outline:.12em solid #c9d0d6;outline-offset:.04em}
+body.hold-carbon .plate:not(.other),.oh-carbon .plate.other{outline:.12em dashed #3a3a3a;outline-offset:.04em}
+body.hold-red .plate:not(.other),.oh-red .plate.other{outline:.12em solid #c0102a;outline-offset:.04em}
+body.hold-gold .plate:not(.other),.oh-gold .plate.other{outline:.13em solid #e0b23a;outline-offset:.04em}
+body.hold-neon .plate:not(.other),.oh-neon .plate.other{outline:.12em solid #3ff2ff;outline-offset:.05em;animation:holdneon 1.6s ease-in-out infinite}
+@keyframes holdneon{50%{outline-color:#ff3df2}}
+body.hold-diamond .plate:not(.other),.oh-diamond .plate.other{outline:.14em solid #bfefff;outline-offset:.04em;animation:holddia 2.4s linear infinite}
+@keyframes holddia{0%,100%{outline-color:#bfefff}33%{outline-color:#ffffff}66%{outline-color:#9ad8ff}}
+/* эффекты у закреплённых номеров */
+.pfx-shine .plate{position:relative;overflow:hidden}.pfx-shine .plate::after{content:"";position:absolute;top:0;bottom:0;width:30%;left:-40%;background:linear-gradient(100deg,transparent,#fffa,transparent);animation:shine 2s infinite}
+.pfx-neon .plate{animation:pfneon 1.8s ease-in-out infinite}@keyframes pfneon{0%,100%{filter:drop-shadow(0 0 6px #3ff2ff)}50%{filter:drop-shadow(0 0 12px #ff3df2)}}
+.pfx-spark .plate{position:relative}.pfx-spark .plate::after{content:"✨";position:absolute;right:-.3em;top:-.45em;font-size:.6em;animation:pfspark 1.4s ease-in-out infinite}
+@keyframes pfspark{0%,100%{opacity:.2;transform:scale(.6) rotate(0)}50%{opacity:1;transform:scale(1.1) rotate(20deg)}}
+.pfx-fire .plate{animation:pffire 1.2s ease-in-out infinite}@keyframes pffire{0%,100%{filter:drop-shadow(0 -2px 6px #ff7a1a)}50%{filter:drop-shadow(0 -4px 12px #ff1f3d)}}
+/* интерьер гаража */
+.gar-brick{background:repeating-linear-gradient(0deg,#5a2e22 0 14px,#3a1d16 14px 16px),#5a2e22;background-blend-mode:multiply;border-radius:12px}
+#tab-garage.gar-brick{background:linear-gradient(#0b0e16cc,#0b0e16cc),repeating-linear-gradient(0deg,#6b3426 0 18px,#2e160f 18px 20px)}
+.gar-under,#tab-garage.gar-under{background:linear-gradient(#0b0e16bb,#0b0e16bb),repeating-linear-gradient(90deg,#3a3d44 0 80px,#ffd23f 80px 84px,#3a3d44 84px 160px)}
+.gar-show,#tab-garage.gar-show{background:linear-gradient(#0b0e16aa,#0b0e16aa),radial-gradient(ellipse at 50% 0,#f2f4f7 0,#9aa3b5 40%,#2a3040 100%)}
+.gar-elite,#tab-garage.gar-elite{background:linear-gradient(#0b0e16aa,#0b0e16aa),linear-gradient(135deg,#0d0d0d 0,#1e1a10 40%,#3a2d0c 50%,#1e1a10 60%,#0d0d0d 100%);box-shadow:inset 0 0 0 1px #e0b23a66}
+.ggrid[class*="gar-"]{padding:10px;border-radius:12px}
+#tab-garage[class*="gar-"]{border-radius:14px;padding:8px}.pfx-spark .plate::after{right:auto;left:.15em;top:.02em;font-size:.55em;z-index:2}.pfx-spark .plate{box-shadow:0 0 14px #ffe9a8}
+/* особые номера — без радужной анимации легенд (она крутит оттенок и портит цвета), своё свечение */
+.plate.sp{animation:none!important;filter:none}
+.plate.sp-taxi{box-shadow:0 0 26px #ffd23f}.plate.sp-police{box-shadow:0 0 26px #2f6be0}.plate.sp-army{box-shadow:0 0 22px #9aa5b8}.plate.sp-diplo{box-shadow:0 0 28px #ff3344}
+/* дипломатический номер длиннее (123 CD 045) — в мелком виде чуть уже шрифт, чтобы не выпирал; в каталоге колонки не сжимаются */
+.plate.small.sp-diplo{--pf:16px}.plate.mid.sp-diplo{--pf:14px}
+.catrow>.plate{flex:none}.catpc{flex:none;text-align:right}
+.catrow.sp>div:nth-child(2)>b{white-space:nowrap;font-size:13px;letter-spacing:-.2px}
+
+/* ===== оформление: за монеты — просто и статично, за звёзды — с анимацией, «Хозяин района» — королевское ===== */
+.pfx-gloss .plate{background-image:linear-gradient(160deg,#fff 0%,#fff0 45%),linear-gradient(180deg,#fbfbfb 0%,#eceef0 60%,#dadde1 100%)}
+.pfx-shadow .plate{box-shadow:0 .25em .5em #000c}
+.gar-show,#tab-garage.gar-show{position:relative;overflow:hidden}
+#tab-garage.gar-show::before,.ggrid.gar-show::before{content:"";position:absolute;inset:-50% auto -50% -30%;width:30%;background:linear-gradient(90deg,transparent,#ffffff22,transparent);transform:rotate(12deg);animation:garspot 5s ease-in-out infinite;pointer-events:none}
+@keyframes garspot{0%{left:-30%}60%,100%{left:120%}}
+.gar-elite,#tab-garage.gar-elite{background-size:100% 100%,300% 300%!important;animation:garelite 8s ease-in-out infinite}
+@keyframes garelite{0%,100%{background-position:0 0,0% 50%}50%{background-position:0 0,100% 50%}}
+/* королевская рамка: переливающееся золото */
+body.hold-royal .plate:not(.other),.oh-royal .plate.other{outline:.16em solid #ffd23f;outline-offset:.05em;animation:holdroyal 2.2s ease-in-out infinite}
+@keyframes holdroyal{0%,100%{outline-color:#ffd23f;box-shadow:0 0 .5em #ffb30088}50%{outline-color:#fff3b0;box-shadow:0 0 1.1em #ffd23fcc,0 0 2em #ff8a0055}}
+/* эффект «Корона»: корона над номером и золотое сияние */
+.pfx-crown .plate{position:relative;animation:pfcrown 2.4s ease-in-out infinite}
+.pfx-crown .plate{overflow:visible}.pfx-crown .plate::after{content:"👑";position:absolute;left:50%;top:-1.25em;bottom:auto;width:auto;background:none;font-size:.85em;line-height:1;transform:translateX(-50%);z-index:3;animation:crownbob 2.4s ease-in-out infinite;filter:drop-shadow(0 0 4px #ffd23f)}
+@keyframes pfcrown{0%,100%{filter:drop-shadow(0 0 6px #ffd23f)}50%{filter:drop-shadow(0 0 14px #ffb300) drop-shadow(0 0 22px #ff8a0088)}}
+@keyframes crownbob{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,-.12em)}}
+.ppins.pfx-crown{padding-top:1.3em}
+/* интерьер «Дворец»: мрамор с золотом и блёстки */
+.gar-palace,#tab-garage.gar-palace{background:radial-gradient(circle at 20% 30%,#ffd23f33 0 2px,transparent 3px),radial-gradient(circle at 70% 60%,#fff3 0 1.5px,transparent 2.5px),radial-gradient(circle at 40% 80%,#ffd23f44 0 2px,transparent 3px),linear-gradient(#0b0e16aa,#0b0e16aa),linear-gradient(135deg,#2a1a40 0,#4a2f12 35%,#8a6416 50%,#4a2f12 65%,#2a1a40 100%);background-size:120px 120px,90px 90px,150px 150px,100% 100%,300% 300%;box-shadow:inset 0 0 0 2px #ffd23f88,inset 0 0 30px #ffd23f33;animation:garpalace 6s linear infinite}
+@keyframes garpalace{0%{background-position:0 0,0 0,0 0,0 0,0% 50%}50%{background-position:60px 30px,-45px 45px,75px -75px,0 0,100% 50%}100%{background-position:120px 60px,-90px 90px,150px -150px,0 0,0% 50%}}
+.garswatch.gar-palace,.garswatch.gar-elite,.garswatch.gar-show{position:relative;overflow:hidden}
+/* золотое имя VIP — видят все */
+.vipn{background:linear-gradient(90deg,#ffb300,#fff3b0,#ffd23f,#ffb300);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent!important;animation:vipname 2.5s linear infinite;font-weight:800}
+.vipn small{-webkit-text-fill-color:#8d99b3}
+@keyframes vipname{to{background-position:-200% 0}}
+.toprow.vip{background:linear-gradient(90deg,#ffd23f22,#ffd23f08);box-shadow:inset 0 0 0 1px #ffd23f66;border-radius:10px}
+.pcard.pvip{box-shadow:0 0 0 2px #ffd23f,0 0 24px #ffd23f55}
+/* окно оформления */
+.cosn .cst{color:#4fc3f7;font-size:11px}.cosn .cvip{color:#ffd23f;font-size:11px}
+.cosrow.st .cosprev,.cosrow.vip .cosprev{padding-top:10px}
+.vipbox{margin:6px 0 10px;padding:12px;border-radius:14px;text-align:left;background:linear-gradient(135deg,#3a2a05,#1a1206 60%,#3a2a05);box-shadow:inset 0 0 0 2px #ffd23f88,0 0 22px #ffd23f33}
+.vipbox .vipb-h{font-size:18px;font-weight:800;text-align:center;color:#ffd23f;margin-bottom:6px}
+.vipbox .vipb-prev{display:flex;justify-content:center;padding:30px 0 12px}.vipbox .vipb-prev .plate{--ph:46px;--pf:27px}
+.vipbox ul{margin:4px 0 10px;padding-left:18px;font-size:13px;color:#e8e2cf}.vipbox li{margin:3px 0}
+.vipbox .btn{width:100%}
+.vipbox.own{text-align:center}.vipbox.own b{display:block;color:#ffd23f;font-size:16px}.vipbox.own small{color:#cbb98a;font-size:12px}.cosprev{min-width:0;flex:none;width:128px}.cosn{min-width:0}.cosrow>.btn{flex:none;padding-left:10px;padding-right:10px;white-space:nowrap}
