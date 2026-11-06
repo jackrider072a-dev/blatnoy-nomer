@@ -2509,7 +2509,22 @@ function garageSnap() {
   const top = [...S.plates].sort((a, b) => b.val - a.val).slice(0, 15).map(pk);
   return { p: top, pin: pinPlates().map(pk), n: S.plates.length, v: Math.round(garageVal()), inc: Math.round(income() * 10) / 10, lvl: S.lvl, al: albumCount(), t: S.title || "", pts: S.pts, tc: S.tc.slice(3), sets: setsDone(), mb: S.mergeBest, cos: { h: S.cos.hold, fx: S.cos.fx, gar: S.cos.gar, vip: isVip() ? 1 : 0 } };
 }
-const snapPlate = a => ({ l1: a[0][0], d: a[0].slice(1, 4), l23: a[0].slice(4, 6), reg: a[1], tier: +a[2] || 0, sk: SPECIAL[a[3]] ? a[3] : undefined, x: a[4] || "" });
+// номер из снимка (свой или чужой): только буквы номеров, цифры и известные виды — всё остальное заменяется «пустым» номером
+const SNAP_RE = /^[АВЕКМНОРСТУХ]\d{3}[АВЕКМНОРСТУХ]{2}$/;
+const snapPlate = a => {
+  const ok = Array.isArray(a) && SNAP_RE.test(String(a[0])) && /^\d{2,3}$/.test(String(a[1]));
+  if (!ok) return { l1: "А", d: "000", l23: "АА", reg: "00", tier: 0 };
+  return { l1: a[0][0], d: a[0].slice(1, 4), l23: a[0].slice(4, 6), reg: String(a[1]), tier: clamp(Math.round(+a[2] || 0), 0, 5), sk: Object.prototype.hasOwnProperty.call(SPECIAL, a[3]) ? a[3] : undefined, x: /^\d{1,3}$/.test(String(a[4])) ? String(a[4]) : "0" };
+};
+// чужой снимок гаража: числа — числами, оформление — только из известных слов
+const cosId = v => /^[a-z]{1,12}$/.test(v || "") ? v : "";
+function cleanSnap(g) {
+  if (!g || typeof g !== "object") return null;
+  const nm = v => { const x = +v; return Number.isFinite(x) && x > 0 ? x : 0; }, c = g.cos && typeof g.cos === "object" ? g.cos : {};
+  return { p: Array.isArray(g.p) ? g.p.slice(0, 15) : [], pin: Array.isArray(g.pin) ? g.pin.slice(0, 3) : [], n: Math.round(nm(g.n)), v: nm(g.v), inc: nm(g.inc), lvl: Math.round(nm(g.lvl)), al: Math.round(nm(g.al)),
+    t: String(g.t || "").slice(0, 30), pts: Math.round(nm(g.pts)), tc: (Array.isArray(g.tc) ? g.tc : []).slice(0, 3).map(x => Math.round(nm(x))), sets: Math.round(nm(g.sets)), mb: Math.round(nm(g.mb)),
+    cos: { h: cosId(c.h), fx: cosId(c.fx), gar: cosId(c.gar), vip: c.vip ? 1 : 0 } };
+}
 // значки — считаются из снимка гаража, одинаково у себя и у других
 function badgesOf(g, respect) {
   if (!g) return [];
@@ -2525,7 +2540,7 @@ function badgesOf(g, respect) {
 // карточка профиля: o = { name, prof, lvl, g, respect, friends, since }
 const vipName = (name, vip) => vip ? `<b class="vipn">👑 ${escapeHTML(name)}</b>` : `<b>${escapeHTML(name)}</b>`;
 function profCardHTML(o, small) {
-  const pr = o.prof || {}, f = frameOf(pr.frame), g = o.g, bd = badgesOf(g, o.respect || 0);
+  const pr = o.prof || {}, f = frameOf(pr.frame), g = o.mine ? o.g : cleanSnap(o.g), bd = badgesOf(g, o.respect || 0);
   const pins = g && g.pin && g.pin.length ? g.pin : null, cos = (g && g.cos) || {}, other = !o.mine, vip = !!(pr.vip || cos.vip);
   return `<div class="pcard f-${f.id} ${small ? "sm" : ""} ${vip ? "pvip" : ""}" style="--f1:${f.c1};--f2:${f.c2}">
     <div class="ptop"><div class="pava">${escapeHTML(pr.ava || "😎")}</div><div class="pname">${vipName(o.name, vip)}
@@ -2586,7 +2601,7 @@ function openGarageOf(who, back) {
     if (!j || !j.ok) { $("mbox").innerHTML = `<h2>${L("👤 Профиль")}</h2><p>${L("Не получилось открыть профиль — попробуй позже")}</p><div class="row">${backBtn}<button class="btn alt" data-act="closeModal">${L("Закрыть")}</button></div>`; return; }
     if (j.uid) garageWho = { uid: j.uid, top: who.top };
     garageRel = j;
-    const g = j.g, prof = j.prof && !j.prof.reset ? j.prof : null;
+    const g = cleanSnap(j.g), prof = j.prof && !j.prof.reset ? j.prof : null;
     let h = profCardHTML({ name: j.name, prof, lvl: j.lvl, g, respect: j.respect, friends: j.friends });
     if (j.since) h += `<p class="hint" style="margin:6px 0">${L("В игре с {0}", new Date(j.since * 1000).toLocaleDateString(I18N.loc, { day: "numeric", month: "long", year: "numeric" }))}</p>`;
     if (!g) h += `<p>${L("Игрок ещё не показал гараж — он появится, когда игрок снова зайдёт в игру.")}</p>`;
@@ -2636,7 +2651,7 @@ function openFriends() {
     const ava = r => `<span class="fava" style="--f1:${frameOf(r.f).c1}">${escapeHTML(r.a || "😎")}</span>`;
     const inc = j.inc.map(r => `<div class="toprow"><span data-act="garageOf" data-uid="${r.uid}">${ava(r)}</span><b data-act="garageOf" data-uid="${r.uid}">${escapeHTML(r.n)}<small> · ${L("ур. {0}", r.lvl)}</small></b>
       <button class="btn sm green" data-act="frAccept" data-uid="${r.uid}" data-from="list">✅</button><button class="btn sm alt" data-act="frDecline" data-uid="${r.uid}" data-from="list">✖</button></div>`).join("");
-    const rows = j.list.map(f => `<div class="toprow" data-act="garageOf" data-uid="${f.uid}">${ava(f)}<b class="${f.vp ? "vipn" : ""}">${f.vp ? "👑 " : ""}${escapeHTML(f.n)}<small> · ${L("ур. {0}", f.lvl)}${f.inv ? " · " + L("пригласил тебя") : f.mine ? " · " + L("по твоей ссылке") : ""}</small></b><i>${f.v ? fmt(f.v) + " 💰" : ""}</i><em>›</em></div>`).join("");
+    const rows = j.list.map(f => `<div class="toprow" data-act="garageOf" data-uid="${f.uid}">${ava(f)}<b class="${f.vp ? "vipn" : ""}">${f.vp ? "👑 " : ""}${escapeHTML(f.n)}<small> · ${L("ур. {0}", f.lvl)}${f.inv ? " · " + L("пригласил тебя") : f.mine ? " · " + L("по твоей ссылке") : ""}</small></b><i>${+f.v > 0 ? fmt(+f.v) + " 💰" : ""}</i><em>›</em></div>`).join("");
     $("mbox").innerHTML = `<h2>${L("👥 Друзья")} <small>${j.list.length}</small></h2>
       <div class="card fcode"><small>${L("Твой код друга")}</small><b>${escapeHTML(myCode)}</b>
         <div class="row"><button class="btn sm alt" data-act="frCopy">${L("📋 Копировать")}</button><button class="btn sm green" data-act="invite">${L("📤 Позвать")}</button></div>
