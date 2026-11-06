@@ -368,6 +368,11 @@ function reissue(p, held) {
   return old;
 }
 // старые сейвы: если в гараже два одинаковых номера — один остаётся (купленный в МРЭО / под замком / полученный раньше), остальные перевыдаются
+function restorePend() {
+  const p = S.pend; S.pend = null; if (!p || !p.l1) return;
+  if (!S.plates.some(x => x.id === p.id)) { keepPlate(p); setTimeout(() => toast(L("🚘 Номер {0} ждал тебя — он в гараже", p.sk ? specStr(p) : plateStr(p))), 1800); }
+  save();
+}
 function fixDupes() {
   const order = S.plates.slice().sort((a, b) => (b.bought ? 1 : 0) - (a.bought ? 1 : 0) || (b.lock ? 1 : 0) - (a.lock ? 1 : 0) || (a.got || 0) - (b.got || 0));
   const seen = new Set(), dup = [];
@@ -598,7 +603,7 @@ function reveal(r) {
     $("note").textContent = L("{0} — продан за {1}", plateNote(r), fmt(v));
     fx.fly(cx, cy, 4); Snd.sell();
   } else {
-    pending = r;
+    pending = r; S.pend = r; save();                  // номер «на столе» сохраняется: закрыли игру / ушли в чат — он не пропадёт
     $("btnSell").textContent = L("Продать (+{0})", fmt(sellVal(r)));
     $("resolveRow").style.display = "flex";
   }
@@ -615,7 +620,7 @@ function keepPlate(p) {   // кладём в гараж; если полон —
 }
 function resolvePending(sell) {
   if (!pending) return;
-  const p = pending; pending = null; $("resolveRow").style.display = "none";
+  const p = pending; pending = null; S.pend = null; $("resolveRow").style.display = "none";
   const rect = $("plateBox").getBoundingClientRect();
   if (sell) { gain(sellVal(p)); S.sold++; fx.fly(rect.left + rect.width / 2, rect.top + 30, 6); Snd.sell(); }
   else { keepPlate(p); Snd.keep(); }
@@ -2296,7 +2301,7 @@ function cloudLoad() {
   }).catch(() => {});
 }
 function applyCloud(c, silent) {
-  S = normalize(c); fixDupes(); albumBackfill(); applyCos(); pending = null; $("resolveRow").style.display = "none";
+  S = normalize(c); restorePend(); fixDupes(); albumBackfill(); applyCos(); pending = null; $("resolveRow").style.display = "none";
   dispCoins = S.coins; lastTick = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {}
   if (S.forgePend) applyForge(true);
@@ -2452,6 +2457,8 @@ function invite() {
 }
 function brag(p) {
   if (!p) return; Platform.track("brag_" + p.tier);
+  if (pending && pending.id === p.id) { resolvePending(false); toast(L("🚘 Номер в гараже — хвастайся!")); }
+  save(); cloudFlush(true);
   const t = [L("обычный"), L("красивый"), L("редкий"), L("блатной"), L("ЛЕГЕНДАРНЫЙ"), L("СУПЕРЛЕГЕНДАРНЫЙ")][p.tier];
   Platform.share(L("🚘 Я выбил {0} номер {1} в «Блатном номере»! Стоит {2} 💰. Сможешь круче?", t, p.l1 + p.d + p.l23 + " " + p.reg, fmt(p.val)));
 }
@@ -3126,7 +3133,7 @@ function applyLang() {                                // язык определ
   if (!rolling && !pending && !lastRevealed) startStage();
 }
 (function start() {
-  translateStatic(); fixDupes(); albumBackfill(); applyCos();
+  translateStatic(); restorePend(); fixDupes(); albumBackfill(); applyCos();
   const off = Math.min((Date.now() - (S.t || Date.now())) / 1000, 3600);
   if (off > 30 && S.plates.length) {
     const g = income() * off * 0.5; gain(g);
