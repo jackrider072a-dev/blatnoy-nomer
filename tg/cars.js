@@ -42,7 +42,7 @@ const CARS = [
   ["phantom", "Rolls-Royce Phantom", 5, 12000000, [5.5, 70.5, 18.5, 71.5, 18.5, 80, 5.5, 79]],
   ["aurus", "Aurus Senat", 5, 15000000, [93.4, 65.6, 98.9, 65, 98.9, 71.1, 93.4, 71.5]],
   ["huayra", "Pagani Huayra", 5, 25000000, [80, 80, 90, 81, 90, 86.5, 80, 85.5]],
-  ["jesko", "Koenigsegg Jesko", 5, 30000000, [3, 64, 13, 67, 13, 73, 3, 70]],
+  ["jesko", "Koenigsegg Agera RS", 5, 30000000, [3, 64, 13, 67, 13, 73, 3, 70]],   // ключ jesko остаётся ради сохранений; на фото — Agera RS
   ["chiron", "Bugatti Chiron", 5, 40000000, [81, 79.5, 91, 80, 91, 85.5, 81, 85]],
 ].map(([k, n, r, p, q]) => ({ k, n, r, p, q, base: p / INC_SEC }));
 const CK = Object.fromEntries(CARS.map(c => [c.k, c]));
