@@ -3,6 +3,13 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:Arial,Helvetica,sans-serif;overflow:hidden;overscroll-behavior:none}
 .hidden{display:none!important}
+/* ползунки прокрутки во всей игре: тонкие, золотистые, без стрелок и белой дорожки */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-thumb{background:linear-gradient(#ffd23f99,#ffb30066);border-radius:6px}
+::-webkit-scrollbar-thumb:hover{background:#ffd23fcc}
+::-webkit-scrollbar-button{display:none;width:0;height:0}
+@supports not selector(::-webkit-scrollbar){*{scrollbar-width:thin;scrollbar-color:#ffd23f80 transparent}}
 /* пока площадка ищет и показывает рекламу, игра не принимает нажатия */
 #adwait{position:fixed;inset:0;z-index:90;background:#000a;display:flex;align-items:center;justify-content:center;font-size:44px;animation:adpulse 1s infinite alternate}
 @keyframes adpulse{from{opacity:.6}to{opacity:1}}
