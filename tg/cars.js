@@ -65,6 +65,8 @@ const BOXES = [
   { id: "leg", n: "Легендарный контейнер", sn: "Легендарный", r: 3, price: 500000, odds: [0, 0, 50, 44, 5.9, .1], note: "Почти половина — легендарные" },
   { id: "elite", n: "Элитный контейнер", sn: "Элитный", r: 3, price: 1000000, odds: [0, 0, 0, 75, 23, 2], elite: 1, note: "Только легендарные и выше" },
 ];
+// звёздный (он первый в списке) — только там, где есть оплата звёздами. Проверяем каждый раз: SDK Telegram грузится уже после старта игры
+const minBi = () => Platform.canPay ? 0 : 1;
 const boxCol = b => b.elite ? "#ffd23f" : b.star ? "#5ef2ff" : RC[b.r].c;
 
 // ---------- состояние (хранится в сохранении игры) ----------
@@ -233,7 +235,8 @@ addEventListener("resize", () => fitPlates());
 // ===================== ВКЛАДКА =====================
 function renderCars() {
   cleanup(); preload();
-  if (D().bi >= BOXES.length) D().bi = 0;
+  if (Platform.canPay && !D().starShown) { D().starShown = 1; D().bi = 0; }   // в Telegram при первом заходе сразу показываем звёздный
+  if (D().bi >= BOXES.length || D().bi < minBi()) D().bi = minBi();
   const d = D(), el = $("tab-cars"), inc = carsInc(), idle = d.cars.filter(x => !carInc(x)).length;
   el.innerHTML = `<div class="card dc-head">
       <div class="dc-inc">🏎️ Тачки приносят <b>+${fmt(inc)}/сек</b></div>
@@ -266,7 +269,7 @@ function orbs(b) { return b.r >= 3 || b.star ? Array.from({ length: b.star ? 7 :
 // лента всех контейнеров: звёздный первым, крупнее и с переливающейся рамкой
 function boxList() {
   const d = D();
-  return `<div class="dc-list" id="dcList">${BOXES.map((b, i) => {
+  return `<div class="dc-list" id="dcList">${BOXES.map((b, i) => { if (i < minBi()) return "";
     const free = b.free && d.free[b.id], price = b.star ? `${b.stars} ⭐` : free ? "бесплатно" : fmt(b.price) + " 💰";
     return `<div class="dc-li${b.star ? " hit" : ""}${i === d.bi ? " on" : ""}${free ? " fr" : ""}" style="--rc:${boxCol(b)}" data-act="dcPickBox" data-i="${i}">
       ${b.star ? `<span class="dc-badge">🔥 ХИТ</span>` : free ? `<span class="dc-badge g">🎁</span>` : ""}
@@ -281,8 +284,8 @@ function renderBoxes() {
       <div class="dc-beam"></div><div class="dc-floor"></div><div class="dc-ring" id="dcRing"></div><div class="dc-streak" id="dcStreak"></div>
       <div id="dcOrbs">${orbs(b)}</div>
       <div class="dc-crate" id="dcCrate">${crate(b)}</div>
-      <button class="dc-arr l" data-act="dcPrev" ${d.bi ? "" : "disabled"}>‹</button><button class="dc-arr r" data-act="dcNext" ${d.bi < BOXES.length - 1 ? "" : "disabled"}>›</button>
-      <div class="dc-dots">${BOXES.map((x, i) => `<i class="${i === d.bi ? "on" : ""}"></i>`).join("")}</div>
+      <button class="dc-arr l" data-act="dcPrev" ${d.bi > minBi() ? "" : "disabled"}>‹</button><button class="dc-arr r" data-act="dcNext" ${d.bi < BOXES.length - 1 ? "" : "disabled"}>›</button>
+      <div class="dc-dots">${BOXES.map((x, i) => i < minBi() ? "" : `<i data-i="${i}" class="${i === d.bi ? "on" : ""}"></i>`).join("")}</div>
     </div><div class="dc-info" id="dcInfo">${boxInfo(b, d.bi)}</div>`;
   const sh = $("dcShow"); let x0 = null;
   sh.addEventListener("pointerdown", e => { x0 = e.clientX; });
@@ -290,7 +293,7 @@ function renderBoxes() {
 }
 let switching = false;
 async function boxGo(dir, to) {   // смена контейнера: старый улетает с разворотом, новый влетает и «приземляется» с волной и искрами
-  const d = D(), n = to != null ? to : d.bi + dir; if (switching || n < 0 || n >= BOXES.length || n === d.bi) return;
+  const d = D(), n = to != null ? to : d.bi + dir; if (switching || n < minBi() || n >= BOXES.length || n === d.bi) return;
   dir = Math.sign(n - d.bi);
   switching = true; d.bi = n;
   document.querySelectorAll("#dcList .dc-li").forEach((x, i) => x.classList.toggle("on", i === n));
@@ -300,8 +303,8 @@ async function boxGo(dir, to) {   // смена контейнера: стары
   const st = $("dcStreak"); st.animate([{ opacity: 0, transform: "translateX(0)" }, { opacity: .9, transform: `translateX(${-dir * 40}px)` }, { opacity: 0, transform: `translateX(${-dir * 90}px)` }], { duration: 520, easing: "ease-out" });
   const out = cr.animate([{ transform: "none", opacity: 1, filter: "blur(0)" }, { transform: `translateX(${-dir * 150}%) rotateY(${-dir * 80}deg) rotateZ(${-dir * 8}deg) scale(.5)`, opacity: 0, filter: "blur(6px)" }], { duration: 300, easing: "cubic-bezier(.5,0,.9,.5)", fill: "forwards" });
   info.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: `translateX(${-dir * 30}px)` }], { duration: 200, fill: "forwards" });
-  show.querySelectorAll(".dc-dots i").forEach((x, i) => x.classList.toggle("on", i === n));
-  show.querySelector(".dc-arr.l").disabled = !n; show.querySelector(".dc-arr.r").disabled = n >= BOXES.length - 1;
+  show.querySelectorAll(".dc-dots i").forEach(x => x.classList.toggle("on", +x.dataset.i === n));
+  show.querySelector(".dc-arr.l").disabled = n <= minBi(); show.querySelector(".dc-arr.r").disabled = n >= BOXES.length - 1;
   await wait(260);
   show.style.setProperty("--rc", c); show.classList.toggle("hot", b.r >= 3 || !!b.star); show.classList.toggle("star", !!b.star);
   $("dcStar").innerHTML = starStage(b);
@@ -500,5 +503,4 @@ document.addEventListener("wheel", e => {
 addEventListener("keydown", e => { if (tab === "cars" && D().sub === "boxes" && !opening) { if (e.key === "ArrowLeft") boxGo(-1); if (e.key === "ArrowRight") boxGo(1); } });
 let preloaded = false;                                     // фото грузим при первом заходе во вкладку, чтобы рулетка не была пустой (не нагружаем старт игры)
 function preload() { if (preloaded) return; preloaded = true; CARS.forEach(c => { const i = new Image(); i.src = img(c.k); }); }
-if (!Platform.canPay) BOXES.splice(BOXES.findIndex(b => b.star), 1);   // звёздный — только там, где есть оплата звёздами (Telegram)
 })();
