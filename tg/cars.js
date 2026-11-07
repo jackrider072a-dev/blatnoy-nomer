@@ -244,8 +244,7 @@ function renderCars() {
       ${idle ? `<p style="margin:0;color:#ff8a98">🚫 Без номера стоят: ${idle}</p>` : ""}
     </div>
     <div class="dc-seg">${[["boxes", "📦 Контейнеры"], ["my", `🚘 Мои тачки · ${d.cars.length}`], ["coll", "🏆 Коллекция"]].map(([k, t]) => `<button class="${d.sub === k ? "on" : ""}" data-act="dcSub" data-v="${k}">${t}</button>`).join("")}</div>
-    <div id="dcBody"></div>
-    <div class="hint"><span data-act="dcCredits" style="cursor:pointer;text-decoration:underline">📷 Авторы фото</span></div>`;
+    <div id="dcBody"></div>`;
   if (d.sub === "boxes") renderBoxes(); else if (d.sub === "my") renderMy(); else renderColl();
 }
 
