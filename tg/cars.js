@@ -73,7 +73,33 @@ const boxCol = b => b.elite ? "#ffd23f" : b.star ? "#5ef2ff" : RC[b.r].c;
 function D() {
   if (!S.dc) S.dc = { cars: [], nid: 1, seen: [], sub: "boxes", filt: -1 };
   if (!S.dc.v2) { S.dc.v2 = 1; S.dc.bi = 0; S.dc.free = { rare: 1, epic: 1 }; }   // бесплатные — по id контейнера; при входе показываем звёздный
+  if (!S.dc.v3) { S.dc.v3 = 1; S.dc.slots = Math.min(SLOT_COST.length, Math.max(0, S.dc.cars.length - SLOT0)); }   // у кого тачек уже больше 3 — места под них даём сразу
   return S.dc;
+}
+// ---------- места в гараже: сначала 3, расширение за монеты по одному месту до 15 ----------
+const SLOT0 = 3, SLOT_COST = [40000, 80000, 150000, 250000, 400000, 650000, 1000000, 1600000, 2500000, 4000000, 6000000, 10000000];
+const cap = () => SLOT0 + (D().slots || 0), SLOT_MAX = SLOT0 + SLOT_COST.length;
+const isFull = () => D().cars.length >= cap();
+const slotCost = () => SLOT_COST[D().slots || 0];   // undefined — уже максимум
+const slotBtn = () => slotCost() != null ? `<button class="btn sm" data-act="dcSlot" data-cost="${slotCost()}">🅿️ +1 место — ${fmt(slotCost())} 💰</button>` : `<small class="dc-slmax">Максимум — ${SLOT_MAX} мест</small>`;
+function garageBar() {
+  const n = D().cars.length, c = cap();
+  const cells = Array.from({ length: SLOT_MAX }, (_, i) => `<i class="${i < Math.min(n, c) ? "car" : i < c ? "free" : "lk"}"></i>`).join("");
+  return `<div class="card dc-slots${n >= c ? " full" : ""}"><div class="dc-slt">🅿️ Места в гараже: <b>${n}/${c}</b>${n >= c ? `<span>гараж полон</span>` : ""}</div>
+    <div class="dc-slbar">${cells}</div>${slotBtn()}</div>`;
+}
+function fullModal() {
+  openModal(`<h2>🅿️ Гараж полон</h2><p>Все места заняты (${D().cars.length}/${cap()}). Продай ненужную тачку или расширь гараж — и открывай контейнеры дальше.</p>
+    ${slotBtn()}<button class="btn alt" data-act="dcGoMy">🚘 К моим тачкам</button><button class="btn alt" data-act="closeModal">Закрыть</button>`);
+  refreshDisabled();
+}
+function buySlot() {
+  const c = slotCost(); if (c == null) return;
+  if (S.coins < c) { toast(`Не хватает монет: нужно ${fmt(c)} 💰`); shake($("coinsBox")); return; }
+  S.coins -= c; D().slots = (D().slots || 0) + 1; Snd.level(); vignette("#ffd23f"); buzz(30);
+  toast(`🅿️ Гараж расширен: теперь мест — ${cap()}`); Platform.track("dc_slot_" + cap());
+  if (!$("modal").classList.contains("hidden")) closeModal();
+  renderHeader(); renderCars(); save();
 }
 const plateById = id => S.plates.find(p => p.id === id);
 function carInc(x) {
@@ -243,7 +269,7 @@ function renderCars() {
       <p style="margin:0">Тачка без номера стоит на приколе. Повесь на неё свой номер из гаража — и она начнёт зарабатывать. Чем круче номер, тем больше доход, а <b style="color:var(--gold)">номер той же редкости, что и тачка</b> — ещё ×1.5.</p>
       ${idle ? `<p style="margin:0;color:#ff8a98">🚫 Без номера стоят: ${idle}</p>` : ""}
     </div>
-    <div class="dc-seg">${[["boxes", "📦 Контейнеры"], ["my", `🚘 Мои тачки · ${d.cars.length}`], ["coll", "🏆 Коллекция"]].map(([k, t]) => `<button class="${d.sub === k ? "on" : ""}" data-act="dcSub" data-v="${k}">${t}</button>`).join("")}</div>
+    <div class="dc-seg">${[["boxes", "📦 Контейнеры"], ["my", `🚘 Мои тачки · ${d.cars.length}/${cap()}`], ["coll", "🏆 Коллекция"]].map(([k, t]) => `<button class="${d.sub === k ? "on" : ""}" data-act="dcSub" data-v="${k}">${t}</button>`).join("")}</div>
     <div id="dcBody"></div>`;
   if (d.sub === "boxes") renderBoxes(); else if (d.sub === "my") renderMy(); else renderColl();
 }
@@ -253,7 +279,8 @@ function boxInfo(b, i) {
   const c = boxCol(b), free = b.free && D().free[b.id];
   const segs = b.odds.map((v, r) => v > 0 ? `<i style="flex:${Math.max(v, 3)};background:${RC[r].c};animation-delay:${r * 60}ms"></i>` : "").join("");
   const inside = CARS.filter(x => b.odds[x.r] > 0).sort((a, z) => z.r - a.r || z.p - a.p).slice(0, 10);
-  const btn = free ? `<button class="btn green dc-open" data-act="dcOpen">🎁 Открыть бесплатно</button>`
+  const btn = isFull() ? `<button class="btn alt dc-open" data-act="dcFull">🅿️ Гараж полон (${D().cars.length}/${cap()}) — освободи место</button>`
+    : free ? `<button class="btn green dc-open" data-act="dcOpen">🎁 Открыть бесплатно</button>`
     : b.star ? `<button class="btn star dc-open" data-act="dcOpen">Открыть за ${b.stars} ⭐</button>`
     : `<button class="btn dc-open" data-act="dcOpen">Открыть за ${fmt(b.price)} 💰</button>`;
   return `<div class="dc-name" style="--rc:${c}">${[...b.n].map((ch, k) => `<span style="animation-delay:${k * 22}ms">${ch === " " ? "&nbsp;" : ch}</span>`).join("")}</div>
@@ -341,7 +368,9 @@ function ov() { let o = $("dcOv"); if (!o) { o = document.createElement("div"); 
 async function openBox(paidStar) {
   if (paidStar && (opening || switching)) return setTimeout(() => openBox(true), 1500);   // оплата пришла, пока открывался другой — откроем следом
   const d = D(), si = BOXES.findIndex(x => x.star), i = paidStar ? si : d.bi, b = BOXES[i];
-  if (!b || opening || switching || (!paidStar && !pay(i))) return;
+  if (!b || opening || switching) return;
+  if (!paidStar && isFull()) return fullModal();   // оплаченный звёздный открываем всегда — за него уже заплачено
+  if (!paidStar && !pay(i)) return;
   const win = carOfR(pick6(b.odds)), c = boxCol(b), o = ov();
   opening = { i, b, win, skip: false }; renderHeader(); save();
   $("fx").style.zIndex = 75;
@@ -392,7 +421,7 @@ async function reveal(c) {
     <div class="dco-n">${c.n}</div>
     <div class="dco-i"><div>Стоимость<b>${fmt(c.p)} 💰</b></div><div>С номером<b style="color:var(--ok)">от +${fmt(c.base)}/сек</b></div></div>
     <div class="dco-b"><button class="btn green" data-act="dcPick" data-id="${x.id}">🔢 Повесить номер</button>
-      <div class="row2"><button class="btn alt" data-act="dcSellWon">Продать ${fmt(c.p * SELL)}</button><button class="btn" data-act="dcAgain">Ещё ↻</button></div>
+      <div class="row2"><button class="btn alt" data-act="dcSellWon">Продать ${fmt(c.p * SELL)}</button>${isFull() ? `<button class="btn alt" data-act="dcFull">🅿️ Гараж полон</button>` : `<button class="btn" data-act="dcAgain">Ещё ↻</button>`}</div>
       <button class="btn alt dco-close" data-act="dcClose">Закрыть — тачка останется в гараже</button></div></div>
     <button class="dco-x" data-act="dcClose" aria-label="Закрыть">✕</button>`;
   fitPlates(o);
@@ -408,15 +437,15 @@ function closeOv() { const o = ov(); o.classList.remove("on", "quake"); o.innerH
 function renderMy(flyId) {
   const d = D(), own = d.cars.map(x => ({ x, c: CK[x.k], inc: carInc(x) }));
   const list = own.filter(o => d.filt < 0 || o.c.r === d.filt).sort((a, b) => b.inc - a.inc || b.c.p - a.c.p);
-  $("dcBody").innerHTML = own.length ? `<div class="dc-filters"><button class="${d.filt < 0 ? "on" : ""}" data-act="dcFilt" data-r="-1">Все · ${own.length}</button>${RC.map((r, i) => { const n = own.filter(o => o.c.r === i).length; return n ? `<button class="${d.filt === i ? "on" : ""}" style="--c:${r.c}" data-act="dcFilt" data-r="${i}"><i></i>${r.n} · ${n}</button>` : ""; }).join("")}</div>` +
+  $("dcBody").innerHTML = garageBar() + (own.length ? `<div class="dc-filters"><button class="${d.filt < 0 ? "on" : ""}" data-act="dcFilt" data-r="-1">Все · ${own.length}</button>${RC.map((r, i) => { const n = own.filter(o => o.c.r === i).length; return n ? `<button class="${d.filt === i ? "on" : ""}" style="--c:${r.c}" data-act="dcFilt" data-r="${i}"><i></i>${r.n} · ${n}</button>` : ""; }).join("")}</div>` +
     list.map(({ x, c, inc }) => {
       const p = x.pl != null ? plateById(x.pl) : null, pair = p && p.tier === c.r;
       return `<div class="dc-card${inc ? "" : " idle"}" style="--rc:${RC[c.r].c}" id="dcc${x.id}"><span class="dc-tag">${RC[c.r].tag}</span>${carView(c, x, flyId === x.id)}
         <div class="dc-crow"><div class="t"><b>${c.n}</b>${p ? `<small>+${fmt(inc)}/сек${pair ? " · ×1.5" : ""}</small>` : `<small class="no">🚫 без номера — не зарабатывает</small>`}</div>
         <button class="btn sm${p ? " alt" : " green"}" data-act="dcPick" data-id="${x.id}">🔢 ${p ? "Сменить" : "Номер"}</button></div>
         <div class="dc-acts"><button class="dc-act${d.show === x.id ? " on" : ""}" data-act="dcShow" data-id="${x.id}">${d.show === x.id ? "✓ Стоит в профиле" : "👤 В профиль"}</button><button class="dc-act sell" data-act="dcSell" data-id="${x.id}">Продать за ${fmt(c.p * SELL)} 💰</button></div></div>`;
-    }).join("") : `<div class="dc-empty">Тачек пока нет — открой контейнер 📦</div>`;
-  fitPlates($("dcBody"));
+    }).join("") : `<div class="dc-empty">Тачек пока нет — открой контейнер 📦</div>`);
+  fitPlates($("dcBody")); refreshDisabled();
 }
 function pickPlate(id) {
   const x = D().cars.find(v => v.id === id), c = CK[x.k];
@@ -466,6 +495,9 @@ Object.assign(ACTS, {
   dcSub: d => { D().sub = d.v; renderCars(); },
   dcPrev: () => boxGo(-1), dcNext: () => boxGo(1), dcPickBox: d => boxGo(0, +d.i),
   dcOpen: () => openBox(),
+  dcFull: () => fullModal(),
+  dcSlot: () => buySlot(),
+  dcGoMy: () => { closeModal(); if (opening) closeOv(); D().sub = "my"; renderCars(); },
   dcSkip: () => { if (opening && opening.an) { opening.skip = true; opening.an.finish(); } },
   dcAgain: () => { closeOv(); openBox(); },
   dcClose: () => { if (opening && opening.an && opening.an.playState !== "finished") return; closeOv(); },

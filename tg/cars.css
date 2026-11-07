@@ -88,6 +88,16 @@ nav button em#carsDot{display:none}
 .dc-pair{display:inline-block;margin-left:4px;font-size:10px;padding:1px 6px;border-radius:6px;background:#ffd23f26;color:var(--gold)}
 .dc-card.pop{animation:dccard .6s}
 @keyframes dccard{30%{transform:scale(1.03);box-shadow:0 0 30px var(--rc)}}
+.dc-slots{display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
+.dc-slots.full{border-color:#ff8a98aa;box-shadow:0 0 14px #ff3d7133}
+.dc-slt{font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.dc-slt b{color:var(--gold)}
+.dc-slt span{font-size:11px;font-weight:700;color:#fff;background:#ff3d71;border-radius:6px;padding:2px 7px}
+.dc-slbar{display:grid;grid-template-columns:repeat(15,1fr);gap:3px}
+.dc-slbar i{height:10px;border-radius:3px;background:#ffffff12;border:1px solid #ffffff14}
+.dc-slbar i.car{background:linear-gradient(#ffd23f,#ffb300);border-color:#ffd23f}
+.dc-slbar i.free{background:#ffd23f22;border-color:#ffd23f66}
+.dc-slbar i.lk{opacity:.35}
+.dc-slmax{color:var(--dim);font-size:12px;text-align:center}
 .dc-empty{text-align:center;color:var(--dim);font-size:13px;padding:26px 10px}
 
 /* ---------- коллекция ---------- */
