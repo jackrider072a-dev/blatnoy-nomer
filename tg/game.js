@@ -1289,7 +1289,11 @@ const curLot = () => S.forge.lots.find(l => l.id === S.forge.target) || null;
 const plateSum = () => selPlates().reduce((a, p) => a + p.val, 0);
 const forgeFactor = () => FORGE_EDGE * (1 + 0.05 * up("forge")) * (S.forge.boost ? 1.25 : 1);
 const forgeChanceFor = (inV, lot) => (!lot || inV <= 0) ? 0 : Math.min(FORGE_CAP, forgeFactor() * inV / lot.val);
-const forgeMaxCoins = () => { const l = curLot(); return l ? Math.max(0, Math.min(Math.floor(S.coins), Math.ceil(l.val * FORGE_CAP / forgeFactor()) - plateSum())) : 0; };
+// Монеты только докидываются к своим номерам и не больше их стоимости: иначе тюнинг превращается в магазин легенд за монеты
+// (цели стоят фиксированно, а бланки дорожают с доходом). За каждую попытку — взнос мастеру 10% цены цели, он в шанс не идёт.
+const FORGE_FEE = 0.1, FORGE_COIN_SHARE = 1;
+const forgeFee = lot => !lot || S.forge.tries === 0 ? 0 : Math.round(lot.val * FORGE_FEE);   // первая попытка (обучение) — без взноса
+const forgeMaxCoins = () => { const l = curLot(), ps = plateSum(); return l && ps > 0 ? Math.max(0, Math.min(Math.floor(S.coins - forgeFee(l)), Math.ceil(l.val * FORGE_CAP / forgeFactor()) - ps, Math.floor(ps * FORGE_COIN_SHARE))) : 0; };
 function chanceLabel(ch) {
   const p = ch * 100;
   const r = p < 5 ? ["очень низкий", "#ff3d3d"] : p < 20 ? ["низкий", "#ff8a3c"] : p < 45 ? ["средний", "#ffd23f"] : p < 70 ? ["высокий", "#9be34a"] : ["очень высокий", "#43e07a"];
@@ -1352,7 +1356,7 @@ function renderForge() {
         <div class="ug-card rw ${lot ? "rt" + lot.plate.tier : ""}"><div class="ug-t">${L("Награда")}</div><div class="ug-body">${rwHTML}</div><div class="ug-sum">${lot ? `<b>${fmt(lot.val)}</b> <i>●</i>` : "—"}</div></div>
       </div>
       <div class="gauge" id="gauge">${gaugeSVG()}<div class="ghub"><div class="gnum" id="gnum">0</div><div class="glab" id="glab"></div></div></div>
-      <div class="ug-slider"><div class="ug-sl-top"><span>${L("Добавить монет")}</span><b id="fcoinTxt">0</b></div><input type="range" id="fslider" min="0" max="1000" value="0"></div>
+      <div class="ug-slider"><div class="ug-sl-top"><span>${L("Добавить монет")} <small style="color:#8d99b3">${L("(не больше, чем стоят номера)")}</small></span><b id="fcoinTxt">0</b></div><input type="range" id="fslider" min="0" max="1000" value="0"></div>
       <div class="ug-presets">
         <button data-act="forgeMult" data-m="2">×2</button><button data-act="forgeMult" data-m="4">×4</button><button data-act="forgeMult" data-m="10">×10</button><button data-act="forgeMult" data-m="25">×25</button>
         <button class="pc" data-act="forgePct" data-p="5">5%</button><button class="pc" data-act="forgePct" data-p="25">25%</button><button class="pc" data-act="forgePct" data-p="50">50%</button><button class="pc" data-act="forgePct" data-p="75">75%</button>
@@ -1377,9 +1381,10 @@ function forgeCalc(fromSlider) {
   set("fcoinTxt", e => e.textContent = fmt(S.forge.coins) + " / " + fmt(max));
   if (!fromSlider) set("fslider", e => { e.disabled = max <= 0; e.value = max > 0 ? Math.round(1000 * Math.sqrt(S.forge.coins / max)) : 0; });
   set("btnSpin", e => {
-    const ok = lot && inV > 0 && ch >= FORGE_MIN && !forging;
+    const fee = forgeFee(lot), ok = lot && ps > 0 && ch >= FORGE_MIN && S.coins >= S.forge.coins + fee && !forging;
     e.disabled = !ok; e.classList.toggle("ready", !!ok);
-    $("spinTxt").textContent = !lot ? L("Выбери цель") : inV <= 0 ? L("Выбери номера") : ch < FORGE_MIN ? L("Шанс меньше 1%") : L("Прокачать · {0}%", (ch * 100).toFixed(1));
+    $("spinTxt").textContent = !lot ? L("Выбери цель") : ps <= 0 ? L("Выбери номера") : ch < FORGE_MIN ? L("Шанс меньше 1%") : S.coins < S.forge.coins + fee ? L("Нужно {0} 💰 на взнос", fmt(fee))
+      : fee ? L("Прокачать · {0}% · взнос {1} 💰", (ch * 100).toFixed(1), fmt(fee)) : L("Прокачать · {0}%", (ch * 100).toFixed(1));
   });
   document.querySelectorAll("[data-lotv]").forEach(b => { const c = forgeChanceFor(inV, { val: +b.dataset.lotv }); b.textContent = c > 0 ? (c * 100).toFixed(c < 0.1 ? 1 : 0) + "%" : "—"; b.style.color = chanceLabel(c)[1]; });
 }
@@ -1392,11 +1397,14 @@ function forgeSpin() {
   if (forging) return;
   const lot = curLot(), ps = selPlates(), pSum = plateSum(), inV = pSum + S.forge.coins;
   if (!lot || inV <= 0) return;
+  if (pSum <= 0) return toast(L("Сначала выбери номера для входа"));
+  if (S.forge.coins > pSum * FORGE_COIN_SHARE) { S.forge.coins = Math.floor(pSum * FORGE_COIN_SHARE); forgeCalc(); return; }
   const ch = forgeChanceFor(inV, lot); if (ch < FORGE_MIN) return toast(L("Шанс меньше 1% — добавь номеров или монет"));
-  if (S.coins < S.forge.coins) return Snd.err();
+  const fee = forgeFee(lot);
+  if (S.coins < S.forge.coins + fee) { toast(L("Нужно {0} 💰 на взнос", fmt(fee))); return Snd.err(); }
   ac(); Mus.start();
   const win = (S.forge.tries === 0 && lot.plate.tier <= 2) || Math.random() < ch;   // первая попытка (обучение) удачная, но только до редкого
-  S.coins -= S.forge.coins; S.plates = S.plates.filter(x => !S.forge.sel.includes(x.id)); S.forge.tries++;
+  S.coins -= S.forge.coins + fee; S.plates = S.plates.filter(x => !S.forge.sel.includes(x.id)); S.forge.tries++;
   const pend = { v2: true, win, chance: ch, inV, lot: win ? lot : null, refund: win ? 0 : Math.round(pSum * 0.1) };
   if (win) { S.forge.wins++; if (lot.plate.tier === 4) S.forge.legend++; S.forge.lots = S.forge.lots.filter(l => l.id !== lot.id); }
   S.forgePend = pend; S.forge.sel = []; S.forge.coins = 0; S.forge.boost = false; S.forge.target = null; save();   // итог записан заранее
@@ -2719,7 +2727,9 @@ function ensureQuests() {
 }
 const qDef = q => QUESTS.find(x => x.k === q.k);
 const qProg = q => Math.min(q.n, Math.max(0, qDef(q).s() - q.base));
-const questReward = () => Math.max(300, Math.round(income() * 600 / 10) * 10);   // ~10 минут дохода
+// ~3 минуты обычного дохода (без ×2, ажиотажа и событий; с тачками — их доход cars.js добавляет в priceIncome).
+// Было 10 минут полного дохода: у богатых игроков задание «потаксуй 10 раз» давало сотни миллионов.
+const questReward = () => Math.max(300, Math.round(priceIncome() * 180 / 10) * 10);
 const questsReady = () => questsOn() && S.quests.day === todayStr() ? S.quests.list.filter(q => !q.got && qProg(q) >= q.n).length + (S.quests.list.length && S.quests.list.every(q => q.got) && !S.quests.chest ? 1 : 0) : 0;
 function questsTick() {                               // раз в 5 секунд: новый день — новые задания; выполнено — одна подсказка
   if (!questsOn()) return;
@@ -3084,7 +3094,7 @@ const ACTS = {
     if (forging) return; const lot = curLot(); if (!lot) return toast(L("Сначала выбери цель"));
     const need = +d.p / 100 * lot.val / forgeFactor(), ps = plateSum();
     if (need <= ps) return toast(L("Шанс уже выше {0}% — убери номера", d.p));
-    if (need - ps > forgeMaxCoins()) toast(L("Не хватает монет — выставлен максимум"));
+    if (need - ps > forgeMaxCoins()) toast(need - ps > ps * FORGE_COIN_SHARE ? L("Монет — не больше, чем стоят номера: выставлен максимум") : L("Не хватает монет — выставлен максимум"));
     S.forge.coins = Math.round(need - ps); forgeCalc();
   },
   forgeSpin: () => forgeSpin(),

@@ -116,6 +116,8 @@ function cleanup() {   // номер продали/слили в игре — �
 // ---------- встраиваемся в игру ----------
 const _income = income;
 income = function () { return _income() + carsInc(); };   // тачки с номерами дают доход в общую копилку игры
+const _priceIncome = priceIncome;                          // цена бланков и награды заданий считаются от дохода — тачки тоже в нём,
+priceIncome = function () { return _priceIncome() + carsInc(); };   // иначе богач с тачками покупает бланки по цене новичка
 const _renderTab = renderTab;
 renderTab = function () { if (tab === "cars") { renderCars(); refreshDisabled(); return; } _renderTab(); };
 const _doPrestige = doPrestige;
