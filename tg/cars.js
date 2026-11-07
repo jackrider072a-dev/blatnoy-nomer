@@ -46,7 +46,7 @@ const CARS = [
   ["chiron", "Bugatti Chiron", 5, 40000000, [81, 79.5, 91, 80, 91, 85.5, 81, 85]],
 ].map(([k, n, r, p, q]) => ({ k, n, r, p, q, base: p / INC_SEC }));
 const CK = Object.fromEntries(CARS.map(c => [c.k, c]));
-const IMGV = 2;                                            // поменяли фото — увеличь, чтобы Telegram не показывал старые из кэша
+const IMGV = 3;                                            // поменяли фото — увеличь, чтобы Telegram не показывал старые из кэша
 const img = k => `cars/${k}.webp?v=${IMGV}`;
 // авторы фото (Wikimedia Commons): ключ — [автор, лицензия]
 const CREDITS = { granta: ["Ilya Plekhanov", "CC BY-SA 4.0"], logan: ["Mihnea Lazăr", "CC BY-SA 4.0"], solaris: ["Kevauto", "CC BY-SA 4.0"], rio: ["Vauxford", "CC BY-SA 4.0"],
