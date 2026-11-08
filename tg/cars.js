@@ -10,44 +10,56 @@ const RC = [
   { n: "Обычная", tag: "ОБЫЧНАЯ", c: "#9aa5b8" }, { n: "Редкая", tag: "РЕДКАЯ", c: "#4fc3f7" }, { n: "Эпическая", tag: "ЭПИЧЕСКАЯ", c: "#b388ff" },
   { n: "Легендарная", tag: "ЛЕГЕНДАРНАЯ", c: "#ffb300" }, { n: "Мифическая", tag: "МИФИЧЕСКАЯ", c: "#ff3d71" }, { n: "Суперлегенда", tag: "СУПЕРЛЕГЕНДА", c: "#5ef2ff" },
 ];
+// v5: цены тачек, контейнеров и мест — в 3 раза ниже (вместе с ними и доход тачек)
 const PM = [1, 1.2, 1.4, 1.75, 2.5, 4], PAIR = 1.5, INC_SEC = 5400, SELL = 0.5;   // множитель от номера, пара, окупаемость тачки в секундах, продажа за половину
 // q — место номера на фото в % ширины/высоты картинки: верх-лево, верх-право, низ-право, низ-лево
 const CARS = [
-  ["granta", "Lada Granta", 0, 20000, [5.1, 69.3, 17.7, 69.1, 17.7, 75.8, 5.1, 76.1]],
-  ["logan", "Dacia Logan", 0, 22000, [8.5, 61, 22, 62.5, 22, 70, 8.5, 68.5]],
-  ["solaris", "Hyundai Accent", 0, 24000, [6.5, 63.5, 17.5, 64, 17.5, 70.8, 6.5, 70.3]],
-  ["rio", "Kia Rio", 0, 26000, [84, 69.5, 95, 67.5, 95, 75, 84, 77]],
-  ["polo", "Volkswagen Polo", 0, 27000, [6.5, 65.5, 19.5, 67, 19.5, 75.5, 6.5, 74]],
-  ["vesta", "Lada Vesta", 0, 28000, [7.5, 66, 23.5, 67, 23.5, 75, 7.5, 74]],
-  ["octavia", "Škoda Octavia", 1, 70000, [7, 66, 17, 67, 17, 74.5, 7, 73]],
-  ["passat", "Volkswagen Passat", 1, 78000, [6, 63, 17.5, 64, 17.5, 72, 6, 71]],
-  ["mazda6", "Mazda 6", 1, 85000, [84, 72, 95, 71, 95, 79, 84, 80]],
-  ["tiguan", "Volkswagen Tiguan", 1, 95000, [7, 68.5, 19, 70, 19, 77.5, 7, 76]],
-  ["camry", "Toyota Camry", 1, 110000, [83.5, 67.5, 94, 67.3, 94, 74.3, 83.5, 74.5]],
-  ["a6", "Audi A6", 2, 200000, [3.3, 64, 11.7, 65.2, 11.7, 72.6, 3.3, 70.6]],
-  ["bmw5", "BMW 5 Series", 2, 230000, [10.4, 71, 21.8, 73.4, 21.8, 80.4, 10.4, 77.6]],
-  ["eclass", "Mercedes-Benz E-Class", 2, 250000, [7.3, 72.1, 17.9, 75, 17.9, 81.7, 7.3, 78.8]],
-  ["cayenne", "Porsche Cayenne", 2, 280000, [83.9, 68.4, 92.9, 65.8, 92.9, 72.4, 83.9, 75.5]],
-  ["lc", "Toyota Land Cruiser", 2, 300000, [8.5, 70, 19.5, 70, 19.5, 77.5, 8.5, 77.5]],
-  ["lc300", "Lexus LX", 2, 320000, [7.3, 58.5, 17.5, 58.8, 17.5, 65.3, 7.3, 65]],
-  ["m5", "BMW M5", 3, 600000, [0.8, 73.5, 16.8, 76, 16.8, 83.5, 0.8, 81]],
-  ["rr", "Range Rover", 3, 750000, [86, 61, 96, 59.5, 96, 67, 86, 68.5]],
-  ["gclass", "Mercedes-Benz G-Class", 3, 900000, [83, 60, 91.5, 59.5, 91.5, 66, 83, 66.5]],
-  ["p911", "Porsche 911", 3, 1000000, [89, 68, 98, 66, 98, 72, 89, 74]],
-  ["urus", "Lamborghini Urus", 3, 1200000, [11, 73, 25, 74, 25, 81.5, 11, 80.5]],
-  ["mcl720", "McLaren 720S", 4, 2500000, [85.5, 71, 94, 73.5, 94, 80.5, 85.5, 78]],
-  ["aventador", "Lamborghini Aventador", 4, 3000000, [81, 71, 91, 73.5, 91, 80, 81, 78]],
-  ["sf90", "Ferrari SF90", 4, 3500000, [84, 72, 94, 70, 94, 77, 84, 79]],
-  ["cullinan", "Rolls-Royce Cullinan", 4, 5000000, [12, 67.5, 29, 68.5, 29, 77, 12, 76]],
-  ["phantom", "Rolls-Royce Phantom", 5, 12000000, [5.5, 70.5, 18.5, 71.5, 18.5, 80, 5.5, 79]],
-  ["aurus", "Aurus Senat", 5, 15000000, [93.4, 65.6, 98.9, 65, 98.9, 71.1, 93.4, 71.5]],
-  ["huayra", "Pagani Huayra", 5, 25000000, [80, 80, 90, 81, 90, 86.5, 80, 85.5]],
-  ["jesko", "Koenigsegg Agera RS", 5, 30000000, [3, 64, 13, 67, 13, 73, 3, 70]],   // ключ jesko остаётся ради сохранений; на фото — Agera RS
-  ["chiron", "Bugatti Chiron", 5, 40000000, [81, 79.5, 91, 80, 91, 85.5, 81, 85]],
+  ["granta", "Lada Granta", 0, 6700, [5.1, 69.3, 17.7, 69.1, 17.7, 75.8, 5.1, 76.1]],
+  ["logan", "Dacia Logan", 0, 7300, [8.5, 61, 22, 62.5, 22, 70, 8.5, 68.5]],
+  ["solaris", "Hyundai Accent", 0, 8000, [6.5, 63.5, 17.5, 64, 17.5, 70.8, 6.5, 70.3]],
+  ["rio", "Kia Rio", 0, 8700, [84, 69.5, 95, 67.5, 95, 75, 84, 77]],
+  ["polo", "Volkswagen Polo", 0, 9000, [6.5, 65.5, 19.5, 67, 19.5, 75.5, 6.5, 74]],
+  ["vesta", "Lada Vesta", 0, 9300, [7.5, 66, 23.5, 67, 23.5, 75, 7.5, 74]],
+  ["octavia", "Škoda Octavia", 1, 23000, [7, 66, 17, 67, 17, 74.5, 7, 73]],
+  ["passat", "Volkswagen Passat", 1, 26000, [6, 63, 17.5, 64, 17.5, 72, 6, 71]],
+  ["mazda6", "Mazda 6", 1, 28000, [84, 72, 95, 71, 95, 79, 84, 80]],
+  ["tiguan", "Volkswagen Tiguan", 1, 32000, [7, 68.5, 19, 70, 19, 77.5, 7, 76]],
+  ["camry", "Toyota Camry", 1, 37000, [83.5, 67.5, 94, 67.3, 94, 74.3, 83.5, 74.5]],
+  ["a6", "Audi A6", 2, 67000, [3.3, 64, 11.7, 65.2, 11.7, 72.6, 3.3, 70.6]],
+  ["bmw5", "BMW 5 Series", 2, 77000, [10.4, 71, 21.8, 73.4, 21.8, 80.4, 10.4, 77.6]],
+  ["eclass", "Mercedes-Benz E-Class", 2, 83000, [7.3, 72.1, 17.9, 75, 17.9, 81.7, 7.3, 78.8]],
+  ["cayenne", "Porsche Cayenne", 2, 93000, [83.9, 68.4, 92.9, 65.8, 92.9, 72.4, 83.9, 75.5]],
+  ["lc", "Toyota Land Cruiser", 2, 100000, [8.5, 70, 19.5, 70, 19.5, 77.5, 8.5, 77.5]],
+  ["lc300", "Lexus LX", 2, 110000, [7.3, 58.5, 17.5, 58.8, 17.5, 65.3, 7.3, 65]],
+  ["m5", "BMW M5", 3, 200000, [0.8, 73.5, 16.8, 76, 16.8, 83.5, 0.8, 81]],
+  ["rr", "Range Rover", 3, 250000, [86, 61, 96, 59.5, 96, 67, 86, 68.5]],
+  ["gclass", "Mercedes-Benz G-Class", 3, 300000, [83, 60, 91.5, 59.5, 91.5, 66, 83, 66.5]],
+  ["p911", "Porsche 911", 3, 330000, [89, 68, 98, 66, 98, 72, 89, 74]],
+  ["urus", "Lamborghini Urus", 3, 400000, [11, 73, 25, 74, 25, 81.5, 11, 80.5]],
+  ["mcl720", "McLaren 720S", 4, 830000, [85.5, 71, 94, 73.5, 94, 80.5, 85.5, 78]],
+  ["aventador", "Lamborghini Aventador", 4, 1000000, [81, 71, 91, 73.5, 91, 80, 81, 78]],
+  ["sf90", "Ferrari SF90", 4, 1200000, [84, 72, 94, 70, 94, 77, 84, 79]],
+  ["cullinan", "Rolls-Royce Cullinan", 4, 1700000, [12, 67.5, 29, 68.5, 29, 77, 12, 76]],
+  ["phantom", "Rolls-Royce Phantom", 5, 4000000, [5.5, 70.5, 18.5, 71.5, 18.5, 80, 5.5, 79]],
+  ["aurus", "Aurus Senat", 5, 5000000, [93.4, 65.6, 98.9, 65, 98.9, 71.1, 93.4, 71.5]],
+  ["huayra", "Pagani Huayra", 5, 8300000, [80, 80, 90, 81, 90, 86.5, 80, 85.5]],
+  ["jesko", "Koenigsegg Agera RS", 5, 10000000, [3, 64, 13, 67, 13, 73, 3, 70]],   // ключ jesko остаётся ради сохранений; на фото — Agera RS
+  ["chiron", "Bugatti Chiron", 5, 13000000, [81, 79.5, 91, 80, 91, 85.5, 81, 85]],
 ].map(([k, n, r, p, q]) => ({ k, n, r, p, q, base: p / INC_SEC }));
 const CK = Object.fromEntries(CARS.map(c => [c.k, c]));
+// build.ps1: window.CARS_CLEAN (ВК и Яндекс) — фото из cars-clean с затёртыми логотипами; window.CARS_NOBRAND (только ВК) — прозвища вместо марок
+const NOBRAND = !!window.CARS_NOBRAND, CLEAN = !!window.CARS_CLEAN;
+if (NOBRAND) {
+  const NN = { granta: "Народный седан", logan: "Бюджетник", solaris: "Таксист", rio: "Городской седан", polo: "Студент", vesta: "Свежак с завода",
+    octavia: "Практичный лифтбек", passat: "Бизнес-лайт", mazda6: "Красный самурай", tiguan: "Семейный кроссовер", camry: "Три с половиной",
+    a6: "Немецкий бизнес", bmw5: "Пятёрка", eclass: "Министерский", cayenne: "Перчик", lc: "Крузак", lc300: "Люкс-внедорожник",
+    m5: "Бешеная пятёрка", rr: "Британский лорд", gclass: "Кубик", p911: "Спорт-классика", urus: "Бык-кроссовер",
+    mcl720: "Британская ракета", aventador: "Бык V12", sf90: "Красный гибрид", cullinan: "Алмаз",
+    phantom: "Дворец на колёсах", aurus: "Кортеж", huayra: "Ветер Анд", jesko: "Шведский призрак", chiron: "Король скорости" };
+  CARS.forEach(c => { c.n = NN[c.k]; Lprops(c, "n"); });
+}
 const IMGV = 3;                                            // поменяли фото — увеличь, чтобы Telegram не показывал старые из кэша
-const img = k => `cars/${k}.webp?v=${IMGV}`;
+const img = k => `cars/${k}.webp?v=${IMGV}${CLEAN ? "c" : ""}`;   // у фото без логотипов своя метка — кэш не подсунет старые с логотипами
 // авторы фото (Wikimedia Commons): ключ — [автор, лицензия]
 const CREDITS = { granta: ["Ilya Plekhanov", "CC BY-SA 4.0"], logan: ["Mihnea Lazăr", "CC BY-SA 4.0"], solaris: ["Kevauto", "CC BY-SA 4.0"], rio: ["Vauxford", "CC BY-SA 4.0"],
   polo: ["M 93", "CC BY-SA 3.0 DE"], vesta: ["Throwawayacc222", "CC0"], octavia: ["Mike-fiesta", "CC BY-SA 4.0"], passat: ["M 93", "CC BY-SA 3.0 DE"], mazda6: ["Vauxford", "CC BY-SA 4.0"],
@@ -60,14 +72,18 @@ const CREDITS = { granta: ["Ilya Plekhanov", "CC BY-SA 4.0"], logan: ["Mihnea La
 // звёздный — первым: его видно сразу при входе и в ленте контейнеров
 const BOXES = [
   { id: "star", n: "Звёздный контейнер", sn: "Звёздный", r: 5, stars: 49, odds: [0, 0, 0, 0, 70, 30], star: 1, note: "Мифическая или суперлегенда — всегда" },
-  { id: "common", n: "Обычный контейнер", sn: "Обычный", r: 0, price: 150000, odds: [75, 20, 4.5, .5, 0, 0], note: "С него все начинают" },
-  { id: "rare", n: "Редкий контейнер", sn: "Редкий", r: 1, price: 500000, odds: [20, 55, 20, 5, 0, 0], free: 1, note: "В основном редкие тачки" },
-  { id: "epic", n: "Эпический контейнер", sn: "Эпический", r: 2, price: 1500000, odds: [0, 30, 55, 14, 1, 0], free: 1, note: "Обычных тачек внутри нет" },
-  { id: "leg", n: "Легендарный контейнер", sn: "Легендарный", r: 3, price: 5000000, odds: [0, 0, 50, 44, 5.9, .1], note: "Почти половина — легендарные" },
-  { id: "elite", n: "Элитный контейнер", sn: "Элитный", r: 3, price: 12000000, odds: [0, 0, 0, 75, 24, 1], elite: 1, note: "Только легендарные и выше" },
+  { id: "common", n: "Обычный контейнер", sn: "Обычный", r: 0, price: 50000, odds: [75, 20, 4.5, .5, 0, 0], note: "С него все начинают" },
+  { id: "rare", n: "Редкий контейнер", sn: "Редкий", r: 1, price: 170000, odds: [20, 55, 20, 5, 0, 0], free: 1, note: "В основном редкие тачки" },
+  { id: "epic", n: "Эпический контейнер", sn: "Эпический", r: 2, price: 500000, odds: [0, 30, 55, 14, 1, 0], free: 1, note: "Обычных тачек внутри нет" },
+  { id: "leg", n: "Легендарный контейнер", sn: "Легендарный", r: 3, price: 1700000, odds: [0, 0, 50, 44, 5.9, .1], note: "Почти половина — легендарные" },
+  { id: "elite", n: "Элитный контейнер", sn: "Элитный", r: 3, price: 4000000, odds: [0, 0, 0, 75, 24, 1], elite: 1, note: "Только легендарные и выше" },
 ];
+RC.forEach(r => Lprops(r, "n", "tag")); BOXES.forEach(b => Lprops(b, "n", "sn", "note"));   // переводятся при чтении (английский — в i18n.js)
 // звёздный (он первый в списке) — только там, где есть оплата звёздами. Проверяем каждый раз: SDK Telegram грузится уже после старта игры
-const minBi = () => Platform.canPay ? 0 : 1;
+const minBi = () => sells("box_star", 49) ? 0 : 1;   // Telegram — звёзды, ВК — голоса, Яндекс — если товар box_star есть в каталоге
+const starPrice = () => priceOf("box_star", 49);
+// обычный контейнер бесплатно за рекламу — раз в AD_BOX_GAP
+const AD_BOX = "common", AD_BOX_GAP = 15 * 60000;
 const boxCol = b => b.elite ? "#ffd23f" : b.star ? "#5ef2ff" : RC[b.r].c;
 
 // ---------- состояние (хранится в сохранении игры) ----------
@@ -78,27 +94,27 @@ function D() {
   return S.dc;
 }
 // ---------- места в гараже: сначала 3, расширение за монеты по одному месту до 15 ----------
-const SLOT0 = 3, SLOT_COST = [40000, 80000, 150000, 250000, 400000, 650000, 1000000, 1600000, 2500000, 4000000, 6000000, 10000000];
+const SLOT0 = 3, SLOT_COST = [13000, 27000, 50000, 83000, 130000, 220000, 330000, 530000, 830000, 1300000, 2000000, 3300000];
 const cap = () => SLOT0 + (D().slots || 0), SLOT_MAX = SLOT0 + SLOT_COST.length;
 const isFull = () => D().cars.length >= cap();
 const slotCost = () => SLOT_COST[D().slots || 0];   // undefined — уже максимум
-const slotBtn = () => slotCost() != null ? `<button class="btn sm" data-act="dcSlot" data-cost="${slotCost()}">🅿️ +1 место — ${fmt(slotCost())} 💰</button>` : `<small class="dc-slmax">Максимум — ${SLOT_MAX} мест</small>`;
+const slotBtn = () => slotCost() != null ? `<button class="btn sm" data-act="dcSlot" data-cost="${slotCost()}">${L("🅿️ +1 место — {0} 💰", fmt(slotCost()))}</button>` : `<small class="dc-slmax">${L("Максимум — {0} мест", SLOT_MAX)}</small>`;
 function garageBar() {
   const n = D().cars.length, c = cap();
   const cells = Array.from({ length: SLOT_MAX }, (_, i) => `<i class="${i < Math.min(n, c) ? "car" : i < c ? "free" : "lk"}"></i>`).join("");
-  return `<div class="card dc-slots${n >= c ? " full" : ""}"><div class="dc-slt">🅿️ Места в гараже: <b>${n}/${c}</b>${n >= c ? `<span>гараж полон</span>` : ""}</div>
+  return `<div class="card dc-slots${n >= c ? " full" : ""}"><div class="dc-slt">${L("🅿️ Места в гараже:")} <b>${n}/${c}</b>${n >= c ? `<span>${L("гараж полон")}</span>` : ""}</div>
     <div class="dc-slbar">${cells}</div>${slotBtn()}</div>`;
 }
 function fullModal() {
-  openModal(`<h2>🅿️ Гараж полон</h2><p>Все места заняты (${D().cars.length}/${cap()}). Продай ненужную тачку или расширь гараж — и открывай контейнеры дальше.</p>
-    ${slotBtn()}<button class="btn alt" data-act="dcGoMy">🚘 К моим тачкам</button><button class="btn alt" data-act="closeModal">Закрыть</button>`);
+  openModal(`<h2>${L("🅿️ Гараж полон")}</h2><p>${L("Все места заняты ({0}/{1}). Продай ненужную тачку или расширь гараж — и открывай контейнеры дальше.", D().cars.length, cap())}</p>
+    ${slotBtn()}<button class="btn alt" data-act="dcGoMy">${L("🚘 К моим тачкам")}</button><button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
   refreshDisabled();
 }
 function buySlot() {
   const c = slotCost(); if (c == null) return;
-  if (S.coins < c) { toast(`Не хватает монет: нужно ${fmt(c)} 💰`); shake($("coinsBox")); return; }
+  if (S.coins < c) { toast(L("Не хватает монет: нужно {0} 💰", fmt(c))); shake($("coinsBox")); return; }
   S.coins -= c; D().slots = (D().slots || 0) + 1; Snd.level(); vignette("#ffd23f"); buzz(30);
-  toast(`🅿️ Гараж расширен: теперь мест — ${cap()}`); Platform.track("dc_slot_" + cap());
+  toast(L("🅿️ Гараж расширен: теперь мест — {0}", cap())); Platform.track("dc_slot_" + cap());
   if (!$("modal").classList.contains("hidden")) closeModal();
   renderHeader(); renderCars(); save();
 }
@@ -151,7 +167,7 @@ cleanSnap = function (g) {                                 // чужой сни�
 };
 function profCarHTML(car) {
   const c = CK[car[0]], R = RC[c.r], p = car[1] ? snapPlate(car[1]) : null;
-  return `<div class="pcar" style="--rc:${R.c}"><div class="pcar-h"><span>🚘 Тачка</span><b>${R.tag}</b></div>
+  return `<div class="pcar" style="--rc:${R.c}"><div class="pcar-h"><span>${L("🚘 Тачка")}</span><b>${R.tag}</b></div>
     <img src="${img(c.k)}" alt=""><div class="pcar-n">${escapeHTML(c.n)}</div>
     ${p ? `<div class="dc-frame${p.tier === c.r ? " pair" : ""}" style="--pc:${TIERS[p.tier].color}"><span class="dc-fr">${plateHTML(p)}</span></div>` : ""}</div>`;
 }
@@ -166,8 +182,8 @@ openProfile = function () {                                // в редакто�
   _openProfile();
   const ed = document.querySelector("#mbox .pfedit"); if (!ed) return;
   const d = D(), list = d.cars.map(x => ({ x, c: CK[x.k] })).sort((a, b) => b.c.r - a.c.r || b.c.p - a.c.p).slice(0, 30);
-  ed.insertAdjacentHTML("beforeend", `<label>🚘 Тачка в профиле — одна, её видят все</label>
-    <div class="pfcars">${list.length ? list.map(({ x, c }) => `<button class="${d.show === x.id ? "on" : ""}" style="--rc:${RC[c.r].c}" data-act="dcShow" data-id="${x.id}"><img src="${img(c.k)}" alt=""><span>${escapeHTML(c.n)}</span></button>`).join("") : `<p class="hint">Тачек пока нет — открой контейнер во вкладке «Тачки»</p>`}</div>`);
+  ed.insertAdjacentHTML("beforeend", `<label>${L("🚘 Тачка в профиле — одна, её видят все")}</label>
+    <div class="pfcars">${list.length ? list.map(({ x, c }) => `<button class="${d.show === x.id ? "on" : ""}" style="--rc:${RC[c.r].c}" data-act="dcShow" data-id="${x.id}"><img src="${img(c.k)}" alt=""><span>${escapeHTML(c.n)}</span></button>`).join("") : `<p class="hint">${L("Тачек пока нет — открой контейнер во вкладке «Тачки»")}</p>`}</div>`);
 };
 
 // ---------- звук ----------
@@ -254,8 +270,8 @@ function carView(c, x, fly) {
   const p = x && x.pl != null ? plateById(x.pl) : null;
   const pair = p && p.tier === c.r;
   const frame = `<div class="dc-frame${p ? "" : " empty"}${pair ? " pair" : ""}" style="--pc:${p ? TIERS[p.tier].color : "#8d99b3"}" ${x && x.id ? `data-act="dcPick" data-id="${x.id}"` : ""}>
-    <span class="dc-fr">${p ? `<span class="dc-fly${fly ? " go" : ""}">${plateHTML(p)}</span>` : `<span class="dc-add">＋ Повесить номер</span>`}</span>
-    ${p ? `<span class="dc-fl" style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}${pair ? " · 💎 пара" : ""}</span>` : ""}</div>`;
+    <span class="dc-fr">${p ? `<span class="dc-fly${fly ? " go" : ""}">${plateHTML(p)}</span>` : `<span class="dc-add">${L("＋ Повесить номер")}</span>`}</span>
+    ${p ? `<span class="dc-fl" style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}${pair ? " · " + L("💎 пара") : ""}</span>` : ""}</div>`;
   return `<div class="dc-car" data-k="${c.k}"><img src="${img(c.k)}" alt=""></div>${frame}`;
 }
 function fitPlates() {}
@@ -264,15 +280,15 @@ addEventListener("resize", () => fitPlates());
 // ===================== ВКЛАДКА =====================
 function renderCars() {
   cleanup(); preload();
-  if (Platform.canPay && !D().starShown) { D().starShown = 1; D().bi = 0; }   // в Telegram при первом заходе сразу показываем звёздный
+  if (minBi() === 0 && !D().starShown) { D().starShown = 1; D().bi = 0; }   // в Telegram при первом заходе сразу показываем звёздный
   if (D().bi >= BOXES.length || D().bi < minBi()) D().bi = minBi();
   const d = D(), el = $("tab-cars"), inc = carsInc(), idle = d.cars.filter(x => !carInc(x)).length;
   el.innerHTML = `<div class="card dc-head">
-      <div class="dc-inc">🏎️ Тачки приносят <b>+${fmt(inc)}/сек</b></div>
-      <p style="margin:0">Тачка без номера стоит на приколе. Повесь на неё свой номер из гаража — и она начнёт зарабатывать. Чем круче номер, тем больше доход, а <b style="color:var(--gold)">номер той же редкости, что и тачка</b> — ещё ×1.5.</p>
-      ${idle ? `<p style="margin:0;color:#ff8a98">🚫 Без номера стоят: ${idle}</p>` : ""}
+      <div class="dc-inc">${L("🏎️ Тачки приносят")} <b>${L("+{0}/30 сек", fmt(inc * PAY_SEC))}</b></div>
+      <p style="margin:0">${L("Тачка без номера стоит на приколе. Повесь на неё свой номер из гаража — и она начнёт зарабатывать. Чем круче номер, тем больше доход, а")} <b style="color:var(--gold)">${L("номер той же редкости, что и тачка")}</b> ${L("— ещё ×1.5.")}</p>
+      ${idle ? `<p style="margin:0;color:#ff8a98">${L("🚫 Без номера стоят: {0}", idle)}</p>` : ""}
     </div>
-    <div class="dc-seg">${[["boxes", "📦 Контейнеры"], ["my", `🚘 Мои тачки · ${d.cars.length}/${cap()}`], ["coll", "🏆 Коллекция"]].map(([k, t]) => `<button class="${d.sub === k ? "on" : ""}" data-act="dcSub" data-v="${k}">${t}</button>`).join("")}</div>
+    <div class="dc-seg">${[["boxes", L("📦 Контейнеры")], ["my", L("🚘 Мои тачки · {0}", d.cars.length + "/" + cap())], ["coll", L("🏆 Коллекция")]].map(([k, t]) => `<button class="${d.sub === k ? "on" : ""}" data-act="dcSub" data-v="${k}">${t}</button>`).join("")}</div>
     <div id="dcBody"></div>`;
   if (d.sub === "boxes") renderBoxes(); else if (d.sub === "my") renderMy(); else renderColl();
 }
@@ -282,13 +298,15 @@ function boxInfo(b, i) {
   const c = boxCol(b), free = b.free && D().free[b.id];
   const segs = b.odds.map((v, r) => v > 0 ? `<i style="flex:${Math.max(v, 3)};background:${RC[r].c};animation-delay:${r * 60}ms"></i>` : "").join("");
   const inside = CARS.filter(x => b.odds[x.r] > 0).sort((a, z) => z.r - a.r || z.p - a.p).slice(0, 10);
-  const btn = isFull() ? `<button class="btn alt dc-open" data-act="dcFull">🅿️ Гараж полон (${D().cars.length}/${cap()}) — освободи место</button>`
-    : free ? `<button class="btn green dc-open" data-act="dcOpen">🎁 Открыть бесплатно</button>`
-    : b.star ? `<button class="btn star dc-open" data-act="dcOpen">Открыть за ${b.stars} ⭐</button>`
-    : `<button class="btn dc-open" data-act="dcOpen">Открыть за ${fmt(b.price)} 💰</button>`;
+  const btn = isFull() ? `<button class="btn alt dc-open" data-act="dcFull">${L("🅿️ Гараж полон ({0}) — освободи место", D().cars.length + "/" + cap())}</button>`
+    : free ? `<button class="btn green dc-open" data-act="dcOpen">${L("🎁 Открыть бесплатно")}</button>`
+    : b.star ? `<button class="btn star dc-open" data-act="dcOpen">${L("Открыть за {0}", starPrice())}</button>`
+    : `<button class="btn dc-open" data-act="dcOpen">${L("Открыть за {0} 💰", fmt(b.price))}</button>`
+      + (b.id === AD_BOX && Platform.adsOK ? (() => { const w = (D().adBox || 0) - Date.now();
+        return `<button class="btn ${w > 0 ? "alt" : "green"} dc-open" data-act="dcAdBox">${w > 0 ? L("📺 Бесплатно через") + ` <span class="timer" data-until="${D().adBox}"></span>` : L("📺 Открыть бесплатно за рекламу")}</button>`; })() : "");
   return `<div class="dc-name" style="--rc:${c}">${[...b.n].map((ch, k) => `<span style="animation-delay:${k * 22}ms">${ch === " " ? "&nbsp;" : ch}</span>`).join("")}</div>
-    <div class="dc-note">${b.note}</div>${free ? `<span class="dc-free">первый раз бесплатно!</span>` : ""}
-    ${b.star ? `<div class="dc-promo">💎 Почти каждый третий — <b>суперлегенда</b>: Bugatti, Koenigsegg, Pagani, Aurus, Rolls-Royce</div>` : ""}
+    <div class="dc-note">${b.note}</div>${free ? `<span class="dc-free">${L("первый раз бесплатно!")}</span>` : ""}
+    ${b.star ? `<div class="dc-promo">${(NOBRAND ? L("💎 Почти каждый третий — <b>суперлегенда</b>") : L("💎 Почти каждый третий — <b>суперлегенда</b>: Bugatti, Koenigsegg, Pagani, Aurus, Rolls-Royce"))}</div>` : ""}
     <div class="dc-bar">${segs}</div>
     <div class="dc-leg">${b.odds.map((v, r) => v > 0 ? `<span style="--c:${RC[r].c}">${RC[r].n} ${v}%</span>` : "").join("")}</div>
     <div class="dc-thumbs">${inside.map((x, k) => `<div style="--c:${RC[x.r].c};animation-delay:${120 + k * 45}ms"><img src="${img(x.k)}">${x.n}</div>`).join("")}</div>
@@ -299,13 +317,13 @@ function orbs(b) { return b.r >= 3 || b.star ? Array.from({ length: b.star ? 7 :
 function boxList() {
   const d = D();
   return `<div class="dc-list" id="dcList">${BOXES.map((b, i) => { if (i < minBi()) return "";
-    const free = b.free && d.free[b.id], price = b.star ? `${b.stars} ⭐` : free ? "бесплатно" : fmt(b.price) + " 💰";
+    const free = b.free && d.free[b.id], price = b.star ? starPrice() : free ? L("бесплатно") : fmt(b.price) + " 💰";
     return `<div class="dc-li${b.star ? " hit" : ""}${i === d.bi ? " on" : ""}${free ? " fr" : ""}" style="--rc:${boxCol(b)}" data-act="dcPickBox" data-i="${i}">
-      ${b.star ? `<span class="dc-badge">🔥 ХИТ</span>` : free ? `<span class="dc-badge g">🎁</span>` : ""}
-      ${crate(b)}<b>${b.sn}</b><small>${price}</small>${b.star ? `<em>30% суперлегенда</em>` : ""}</div>`;
+      ${b.star ? `<span class="dc-badge">${L("🔥 ХИТ")}</span>` : free ? `<span class="dc-badge g">🎁</span>` : ""}
+      ${crate(b)}<b>${b.sn}</b><small>${price}</small>${b.star ? `<em>${L("30% суперлегенда")}</em>` : ""}</div>`;
   }).join("")}</div>`;
 }
-const starStage = b => b.star ? `<div class="dc-twinkle"></div><div class="dc-ribbon">⭐ Лучший шанс на суперлегенду — 30%</div>` : "";
+const starStage = b => b.star ? `<div class="dc-twinkle"></div><div class="dc-ribbon">${L("⭐ Лучший шанс на суперлегенду — 30%")}</div>` : "";
 function renderBoxes() {
   const d = D(), b = BOXES[d.bi], c = boxCol(b);
   $("dcBody").innerHTML = boxList() + `<div class="dc-show${b.r >= 3 || b.star ? " hot" : ""}${b.star ? " star" : ""}" id="dcShow" style="--rc:${c}">
@@ -325,7 +343,7 @@ async function boxGo(dir, to) {   // смена контейнера: стары
   const d = D(), n = to != null ? to : d.bi + dir; if (switching || n < minBi() || n >= BOXES.length || n === d.bi) return;
   dir = Math.sign(n - d.bi);
   switching = true; d.bi = n;
-  document.querySelectorAll("#dcList .dc-li").forEach((x, i) => x.classList.toggle("on", i === n));
+  document.querySelectorAll("#dcList .dc-li").forEach(x => x.classList.toggle("on", +x.dataset.i === n));   // по номеру контейнера, а не по позиции: без звёздного лента сдвинута на один
   const li = document.querySelector(`#dcList .dc-li[data-i="${n}"]`); if (li) li.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   const b = BOXES[n], c = boxCol(b), show = $("dcShow"), cr = $("dcCrate"), info = $("dcInfo");
   Sx.whoosh(dir); buzz(10);
@@ -338,7 +356,7 @@ async function boxGo(dir, to) {   // смена контейнера: стары
   show.style.setProperty("--rc", c); show.classList.toggle("hot", b.r >= 3 || !!b.star); show.classList.toggle("star", !!b.star);
   $("dcStar").innerHTML = starStage(b);
   $("dcOrbs").innerHTML = orbs(b);
-  await out.finished; out.cancel();
+  await Promise.race([out.finished, wait(400)]); out.cancel();   // анимация на паузе (вкладка скрыта) — не ждём вечно
   cr.innerHTML = crate(b);
   const inn = cr.animate([
     { transform: `translateX(${dir * 150}%) rotateY(${dir * 80}deg) rotateZ(${dir * 10}deg) scale(.45)`, opacity: 0, filter: "blur(6px) brightness(2)" },
@@ -353,7 +371,7 @@ async function boxGo(dir, to) {   // смена контейнера: стары
   const r = show.getBoundingClientRect();
   fx.burst(r.left + r.width / 2, r.top + r.height * .78, 10 + b.r * 6, [c, "#fff"], { speed: 160 + b.r * 30, up: 120, g: 500, life: .7 });
   if (b.r >= 3 || b.star) { show.animate([{ boxShadow: `0 0 0 ${c}` }, { boxShadow: `0 0 50px ${c}` }, { boxShadow: `0 0 30px ${c}66` }], { duration: 700 }); }
-  await inn.finished; switching = false; save();
+  await Promise.race([inn.finished, wait(800)]); switching = false; save();
 }
 
 // ---------- открытие ----------
@@ -364,21 +382,22 @@ function pay(i) {
   const d = D(), b = BOXES[i];
   if (b.free && d.free[b.id]) { d.free[b.id] = 0; return true; }
   if (b.star) { shopBuy("box_star"); return false; }   // оплата звёздами через бота; после оплаты shopGrant("box_star") откроет контейнер
-  if (S.coins < b.price) { toast(`Не хватает монет: нужно ${fmt(b.price)} 💰`); shake($("coinsBox")); return false; }
+  if (S.coins < b.price) { toast(L("Не хватает монет: нужно {0} 💰", fmt(b.price))); shake($("coinsBox")); return false; }
   S.coins -= b.price; Platform.track("box_" + b.id); return true;
 }
 function ov() { let o = $("dcOv"); if (!o) { o = document.createElement("div"); o.id = "dcOv"; document.body.appendChild(o); } return o; }
-async function openBox(paidStar) {
+async function openBox(paidStar, viaAd) {
   if (paidStar && (opening || switching)) return setTimeout(() => openBox(true), 1500);   // оплата пришла, пока открывался другой — откроем следом
-  const d = D(), si = BOXES.findIndex(x => x.star), i = paidStar ? si : d.bi, b = BOXES[i];
+  const d = D(), si = BOXES.findIndex(x => x.star), i = paidStar ? si : viaAd ? BOXES.findIndex(x => x.id === AD_BOX) : d.bi, b = BOXES[i];
   if (!b || opening || switching) return;
-  if (!paidStar && isFull()) return fullModal();   // оплаченный звёздный открываем всегда — за него уже заплачено
-  if (!paidStar && !pay(i)) return;
+  if (!paidStar && !viaAd && isFull()) return fullModal();   // оплаченный звёздный и «за рекламу» открываем всегда — за них уже «заплачено»
+  if (!paidStar && !viaAd && !pay(i)) return;
+  if (viaAd) Platform.track("box_ad");
   const win = carOfR(pick6(b.odds)), c = boxCol(b), o = ov();
   opening = { i, b, win, skip: false }; renderHeader(); save();
   $("fx").style.zIndex = 75;
   o.style.setProperty("--rc", c); o.classList.add("on");
-  o.innerHTML = `<div class="dco"><div class="dco-t">${b.n}</div>${crate(b)}<div class="dco-m">Вскрываем…</div></div>`;
+  o.innerHTML = `<div class="dco"><div class="dco-t">${b.n}</div>${crate(b)}<div class="dco-m">${L("Вскрываем…")}</div></div>`;
   const cr = o.querySelector(".cr");
   for (let k = 1; k <= 3; k++) { await wait(k === 1 ? 500 : 420); cr.classList.remove("s1", "s2", "s3"); void cr.getBBox(); cr.classList.add("s" + k); Sx.thud(k); buzz(30 * k); }
   await wait(520); cr.classList.add("boom"); Sx.boom(); flash(); buzz(90);
@@ -395,9 +414,9 @@ async function roulette(b, win) {
     if ((i === N - W - 1 || i === N - W + 1) && Math.random() < .55) r = Math.max(r, b.odds.findLastIndex(v => v > 0) - (Math.random() < .5 ? 0 : 1));   // «почти!»
     return carOfR(r);
   });
-  o.innerHTML = `<button class="dco-skip" data-act="dcSkip">Пропустить ⏩</button><div class="dco"><div class="dco-t">${b.n}</div>
+  o.innerHTML = `<button class="dco-skip" data-act="dcSkip">${L("Пропустить ⏩")}</button><div class="dco"><div class="dco-t">${b.n}</div>
     <div class="dco-rl"><div class="dco-mark"></div><div class="dco-strip" id="dcStrip">${items.map((c, i) => `<div class="dco-ri" style="--rc:${RC[c.r].c}" ${i === N - W ? 'id="dcWin"' : ""}><img src="${img(c.k)}"><b>${c.n}</b></div>`).join("")}</div></div>
-    <div class="dco-m">Крутим…</div></div>`;
+    <div class="dco-m">${L("Крутим…")}</div></div>`;
   const strip = $("dcStrip"), vw = o.querySelector(".dco-rl").clientWidth;
   const target = -((N - W) * step + 60) + vw / 2 + (Math.random() - .5) * 90;
   const an = strip.animate([{ transform: "translateX(0)" }, { transform: `translateX(${target}px)` }], { duration: win.r === 5 ? 7200 : 5600, easing: "cubic-bezier(.08,.72,.12,1)", fill: "forwards" });
@@ -419,14 +438,14 @@ async function reveal(c) {
   }
   o.style.setProperty("--rc", R.c);
   o.innerHTML = `<div class="dco" style="--rc:${R.c}"><div class="dco-rays${sup ? " tri" : ""}"></div>
-    <div class="dco-tag${sup ? " tri" : ""}">${R.tag}${isNew ? " • НОВАЯ!" : ""}</div>
+    <div class="dco-tag${sup ? " tri" : ""}">${R.tag}${isNew ? " • " + L("НОВАЯ!") : ""}</div>
     ${carView(c, x)}
     <div class="dco-n">${c.n}</div>
-    <div class="dco-i"><div>Стоимость<b>${fmt(c.p)} 💰</b></div><div>С номером<b style="color:var(--ok)">от +${fmt(c.base)}/сек</b></div></div>
-    <div class="dco-b"><button class="btn green" data-act="dcPick" data-id="${x.id}">🔢 Повесить номер</button>
-      <div class="row2"><button class="btn alt" data-act="dcSellWon">Продать ${fmt(c.p * SELL)}</button>${isFull() ? `<button class="btn alt" data-act="dcFull">🅿️ Гараж полон</button>` : `<button class="btn" data-act="dcAgain">Ещё ↻</button>`}</div>
-      <button class="btn alt dco-close" data-act="dcClose">Закрыть — тачка останется в гараже</button></div></div>
-    <button class="dco-x" data-act="dcClose" aria-label="Закрыть">✕</button>`;
+    <div class="dco-i"><div>${L("Стоимость")}<b>${fmt(c.p)} 💰</b></div><div>${L("С номером")}<b style="color:var(--ok)">${L("от +{0}/30 сек", fmt(c.base * PAY_SEC))}</b></div></div>
+    <div class="dco-b"><button class="btn green" data-act="dcPick" data-id="${x.id}">${L("🔢 Повесить номер")}</button>
+      <div class="row2"><button class="btn alt" data-act="dcSellWon">${L("Продать {0}", fmt(c.p * SELL))}</button>${isFull() ? `<button class="btn alt" data-act="dcFull">${L("🅿️ Гараж полон")}</button>` : `<button class="btn" data-act="dcAgain">${L("Ещё ↻")}</button>`}</div>
+      <button class="btn alt dco-close" data-act="dcClose">${L("Закрыть — тачка останется в гараже")}</button></div></div>
+    <button class="dco-x" data-act="dcClose" aria-label="${L("Закрыть")}">✕</button>`;
   fitPlates(o);
   flash(); Sx.win(c.r); buzz(c.r >= 3 ? 200 : 60);
   const cx = innerWidth / 2, cy = innerHeight * .4, cols = sup ? ["#fff", "#2f6bff", "#ff2e3e", "#5ef2ff"] : [R.c, "#fff"];
@@ -440,25 +459,25 @@ function closeOv() { const o = ov(); o.classList.remove("on", "quake"); o.innerH
 function renderMy(flyId) {
   const d = D(), own = d.cars.map(x => ({ x, c: CK[x.k], inc: carInc(x) }));
   const list = own.filter(o => d.filt < 0 || o.c.r === d.filt).sort((a, b) => b.inc - a.inc || b.c.p - a.c.p);
-  $("dcBody").innerHTML = garageBar() + (own.length ? `<div class="dc-filters"><button class="${d.filt < 0 ? "on" : ""}" data-act="dcFilt" data-r="-1">Все · ${own.length}</button>${RC.map((r, i) => { const n = own.filter(o => o.c.r === i).length; return n ? `<button class="${d.filt === i ? "on" : ""}" style="--c:${r.c}" data-act="dcFilt" data-r="${i}"><i></i>${r.n} · ${n}</button>` : ""; }).join("")}</div>` +
+  $("dcBody").innerHTML = garageBar() + (own.length ? `<div class="dc-filters"><button class="${d.filt < 0 ? "on" : ""}" data-act="dcFilt" data-r="-1">${L("Все · {0}", own.length)}</button>${RC.map((r, i) => { const n = own.filter(o => o.c.r === i).length; return n ? `<button class="${d.filt === i ? "on" : ""}" style="--c:${r.c}" data-act="dcFilt" data-r="${i}"><i></i>${r.n} · ${n}</button>` : ""; }).join("")}</div>` +
     list.map(({ x, c, inc }) => {
       const p = x.pl != null ? plateById(x.pl) : null, pair = p && p.tier === c.r;
       return `<div class="dc-card${inc ? "" : " idle"}" style="--rc:${RC[c.r].c}" id="dcc${x.id}"><span class="dc-tag">${RC[c.r].tag}</span>${carView(c, x, flyId === x.id)}
-        <div class="dc-crow"><div class="t"><b>${c.n}</b>${p ? `<small>+${fmt(inc)}/сек${pair ? " · ×1.5" : ""}</small>` : `<small class="no">🚫 без номера — не зарабатывает</small>`}</div>
-        <button class="btn sm${p ? " alt" : " green"}" data-act="dcPick" data-id="${x.id}">🔢 ${p ? "Сменить" : "Номер"}</button></div>
-        <div class="dc-acts"><button class="dc-act${d.show === x.id ? " on" : ""}" data-act="dcShow" data-id="${x.id}">${d.show === x.id ? "✓ Стоит в профиле" : "👤 В профиль"}</button><button class="dc-act sell" data-act="dcSell" data-id="${x.id}">Продать за ${fmt(c.p * SELL)} 💰</button></div></div>`;
-    }).join("") : `<div class="dc-empty">Тачек пока нет — открой контейнер 📦</div>`);
+        <div class="dc-crow"><div class="t"><b>${c.n}</b>${p ? `<small>${L("+{0}/30 сек", fmt(inc * PAY_SEC))}${pair ? " · ×1.5" : ""}</small>` : `<small class="no">${L("🚫 без номера — не зарабатывает")}</small>`}</div>
+        <button class="btn sm${p ? " alt" : " green"}" data-act="dcPick" data-id="${x.id}">🔢 ${p ? L("Сменить") : L("Номер")}</button></div>
+        <div class="dc-acts"><button class="dc-act${d.show === x.id ? " on" : ""}" data-act="dcShow" data-id="${x.id}">${d.show === x.id ? L("✓ Стоит в профиле") : L("👤 В профиль")}</button><button class="dc-act sell" data-act="dcSell" data-id="${x.id}">${L("Продать за {0} 💰", fmt(c.p * SELL))}</button></div></div>`;
+    }).join("") : `<div class="dc-empty">${L("Тачек пока нет — открой контейнер 📦")}</div>`);
   fitPlates($("dcBody")); refreshDisabled();
 }
 function pickPlate(id) {
   const x = D().cars.find(v => v.id === id), c = CK[x.k];
   const on = new Map(D().cars.filter(v => v.pl != null).map(v => [v.pl, v]));
   const list = S.plates.slice().sort((a, b) => b.tier - a.tier || b.val - a.val).slice(0, 60);
-  openModal(`<h2>🔢 Номер на ${c.n}</h2><p style="font-size:12px;color:var(--dim);margin:0">Идеально подходит <b style="color:${RC[c.r].c}">${TIERS[c.r].name}</b> номер — доход ×1.5</p>
+  openModal(`<h2>${L("🔢 Номер на {0}", c.n)}</h2><p style="font-size:12px;color:var(--dim);margin:0">${L("Идеально подходит {0} номер — доход ×1.5", `<b style="color:${RC[c.r].c}">${TIERS[c.r].name}</b>`)}</p>
     <div class="dc-pick">${list.length ? list.map(p => { const m = PM[p.tier] * (p.tier === c.r ? PAIR : 1), other = on.get(p.id);
-      return `<div class="item${x.pl === p.id ? " cur" : ""}" data-act="dcHang" data-id="${id}" data-p="${p.id}">${plateHTML(p)}<div class="info"><b style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}</b><br>${other && other.id !== id ? `сейчас на ${CK[other.k].n}` : x.pl === p.id ? "висит сейчас" : ""}</div>
-        <div class="dc-mult">+${fmt(c.base * m)}/сек${p.tier === c.r ? "<small>💎 пара</small>" : ""}</div></div>`; }).join("") : `<div class="dc-empty">В гараже нет номеров — купи бланки на вкладке «Номера»</div>`}</div>
-    ${x.pl != null ? `<button class="btn alt" data-act="dcUnhang" data-id="${id}">Снять номер</button>` : ""}<button class="btn alt" data-act="closeModal">Закрыть</button>`);
+      return `<div class="item${x.pl === p.id ? " cur" : ""}" data-act="dcHang" data-id="${id}" data-p="${p.id}">${plateHTML(p)}<div class="info"><b style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}</b><br>${other && other.id !== id ? L("сейчас на {0}", CK[other.k].n) : x.pl === p.id ? L("висит сейчас") : ""}</div>
+        <div class="dc-mult">${L("+{0}/30 сек", fmt(c.base * m * PAY_SEC))}${p.tier === c.r ? `<small>${L("💎 пара")}</small>` : ""}</div></div>`; }).join("") : `<div class="dc-empty">${L("В гараже нет номеров — купи бланки на вкладке «Номера»")}</div>`}</div>
+    ${x.pl != null ? `<button class="btn alt" data-act="dcUnhang" data-id="${id}">${L("Снять номер")}</button>` : ""}<button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
 }
 async function hang(id, pid) {
   const d = D(), x = d.cars.find(v => v.id === id), c = CK[x.k], p = plateById(pid); if (!x || !p) return;
@@ -473,17 +492,17 @@ async function hang(id, pid) {
   if (pl) { const r = pl.getBoundingClientRect(); for (const sx of [r.left + 4, r.right - 4]) { Sx.screw(); fx.burst(sx, r.top + r.height / 2, 8, ["#fff", "#ffd23f"], { speed: 140, life: .4 }); buzz(12); await wait(120); } }
   if (card) card.classList.add("pop");
   const pair = p.tier === c.r;
-  if (pair) { vignette(RC[c.r].c); Sx.win(Math.min(c.r, 4)); toast(`💎 Идеальная пара! ${TIERS[p.tier].name} номер на ${RC[c.r].n.toLowerCase()} тачке — ×1.5`); }
-  else { tone(880, .12, "triangle", .1); tone(1320, .2, "triangle", .08, .08); toast(`${c.n} поехала: +${fmt(carInc(x))}/сек`); }
+  if (pair) { vignette(RC[c.r].c); Sx.win(Math.min(c.r, 4)); toast(L("💎 Идеальная пара! {0} номер на {1} тачке — ×1.5", TIERS[p.tier].name, RC[c.r].n.toLowerCase())); }
+  else { tone(880, .12, "triangle", .1); tone(1320, .2, "triangle", .08, .08); toast(L("{0} поехала: +{1}/30 сек", c.n, fmt(carInc(x) * PAY_SEC))); }
   renderHeader(); save();
 }
 
 // ---------- коллекция ----------
 function renderColl() {
   const seen = D().seen, got = CARS.filter(c => seen.includes(c.k)).length;
-  $("dcBody").innerHTML = `<div class="card" style="margin-bottom:4px"><b>Собрано ${got} из ${CARS.length}</b><div class="dc-prog"><i style="width:${got / CARS.length * 100}%"></i></div></div>` +
+  $("dcBody").innerHTML = `<div class="card" style="margin-bottom:4px"><b>${L("Собрано {0} из {1}", got, CARS.length)}</b><div class="dc-prog"><i style="width:${got / CARS.length * 100}%"></i></div></div>` +
     RC.map((r, ri) => { const l = CARS.filter(c => c.r === ri), g = l.filter(c => seen.includes(c.k)).length;
-      return `<div class="dc-rh" style="--rc:${r.c}">${r.n} <small>${g}/${l.length}${ri < 5 ? ` · весь набор: +${(ri + 1) * 5}% к доходу тачек` : " · самые редкие тачки"}</small></div>
+      return `<div class="dc-rh" style="--rc:${r.c}">${r.n} <small>${g}/${l.length}${ri < 5 ? " · " + L("весь набор: +{0}% к доходу тачек", (ri + 1) * 5) : " · " + L("самые редкие тачки")}</small></div>
         <div class="dc-grid">${l.map(c => { const lk = !seen.includes(c.k); return `<div class="dc-cc${lk ? " lk" : ""}${ri === 5 && !lk ? " sl" : ""}" style="--rc:${r.c}"><img src="${img(c.k)}" loading="lazy"><b>${lk ? "???" : c.n}</b><small>${lk ? r.n : fmt(c.p) + " 💰"}</small></div>`; }).join("")}</div>`; }).join("");
 }
 
@@ -492,12 +511,19 @@ function sellCar(id) {
   const d = D(), x = d.cars.find(v => v.id === id); if (!x) return; const c = CK[x.k], p = x.pl != null && plateById(x.pl);
   if (p && p.dcLock) { p.lock = false; delete p.dcLock; }
   if (d.show === id) d.show = null;
-  d.cars = d.cars.filter(v => v.id !== id); gain(c.p * SELL); Snd.sell(); fx.fly(innerWidth / 2, innerHeight / 2, 10); toast(`Продано: +${fmt(c.p * SELL)} 💰`); save();
+  d.cars = d.cars.filter(v => v.id !== id); gain(c.p * SELL); Snd.sell(); fx.fly(innerWidth / 2, innerHeight / 2, 10); toast(L("Продано: +{0} 💰", fmt(c.p * SELL))); save();
 }
 Object.assign(ACTS, {
   dcSub: d => { D().sub = d.v; renderCars(); },
   dcPrev: () => boxGo(-1), dcNext: () => boxGo(1), dcPickBox: d => boxGo(0, +d.i),
   dcOpen: () => openBox(),
+  dcAdBox: () => {                                         // обычный контейнер за рекламу: место в гараже проверяем до рекламы
+    const w = (D().adBox || 0) - Date.now();
+    if (w > 0) return toast(L("Следующий бесплатный контейнер — через {0}", mmss(w)));
+    if (isFull()) return fullModal();
+    if (opening || switching) return;
+    rewardedAd(() => { D().adBox = Date.now() + AD_BOX_GAP; save(); openBox(false, true); });
+  },
   dcFull: () => fullModal(),
   dcSlot: () => buySlot(),
   dcGoMy: () => { closeModal(); if (opening) closeOv(); D().sub = "my"; renderCars(); },
@@ -506,7 +532,7 @@ Object.assign(ACTS, {
   dcClose: () => { if (opening && opening.an && opening.an.playState !== "finished") return; closeOv(); },
   dcShow: d => {                                       // одна тачка в профиле — её видят друзья и рейтинг
     const id = +d.id, dd = D(); dd.show = dd.show === id ? null : id; save(); try { sendState(); } catch (e) {}
-    toast(dd.show ? "👤 Тачка теперь в профиле — её видят друзья и рейтинг" : "Тачка убрана из профиля");
+    toast(dd.show ? L("👤 Тачка теперь в профиле — её видят друзья и рейтинг") : L("Тачка убрана из профиля"));
     if (!$("modal").classList.contains("hidden") && $("pfNick")) { pfSync(); openProfile(); } else if (tab === "cars") renderCars();
   },
   dcSellWon: () => { const id = opening.id; closeOv(); sellCar(id); renderCars(); },
@@ -515,7 +541,7 @@ Object.assign(ACTS, {
   dcUnhang: d => { const x = D().cars.find(v => v.id === +d.id), p = x && plateById(x.pl); if (p && p.dcLock) { p.lock = false; delete p.dcLock; } if (x) x.pl = null; closeModal(); renderCars(); save(); },
   dcSell: (d, e, el) => {                              // продажа в два нажатия, чтобы не продать тачку случайно
     if (!el.dataset.sure) {
-      el.dataset.sure = 1; const was = el.textContent; el.textContent = "Точно? Жми ещё раз"; el.classList.add("sure");
+      el.dataset.sure = 1; const was = el.textContent; el.textContent = L("Точно? Жми ещё раз"); el.classList.add("sure");
       setTimeout(() => { if (el.isConnected) { delete el.dataset.sure; el.textContent = was; el.classList.remove("sure"); } }, 3000);
       return;
     }

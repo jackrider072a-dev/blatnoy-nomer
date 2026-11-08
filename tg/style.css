@@ -664,3 +664,10 @@ body.hold-royal .plate:not(.other),.oh-royal .plate.other{outline:.16em solid #f
 #subgate .sgnote{font-size:13px;color:#8a93ab;margin-top:4px}
 #subgate .sgnote b{color:#ffd45c}
 @keyframes sgfly{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-8px) rotate(6deg)}}
+
+/* иконка валюты из каталога Яндекс Игр (ян) рядом с ценой в магазине */
+img.cur { height: 1.05em; width: auto; vertical-align: -0.18em; margin-left: 3px; }
+
+/* полоска до выплаты гаража (раз в 30 с) */
+.inc .paybar { display: block; height: 3px; margin-top: 3px; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
+.inc .paybar i { display: block; height: 100%; width: 0; background: #7dff8a; transition: width 1s linear; }

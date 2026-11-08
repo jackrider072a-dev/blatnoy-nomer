@@ -24,19 +24,23 @@ const SERIES_INFO = {
   "ММР": "Загадочная серия «больших людей»"
 };
 const TIERS = [
-  { name: "Обычный",  val: 12,    color: "#9aa5b8" },
-  { name: "Красивый", val: 80,    color: "#4fc3f7" },
-  { name: "Редкий",   val: 400,   color: "#b388ff" },
-  { name: "Блатной",  val: 2500,  color: "#ffb300" },
-  { name: "Легенда",  val: 20000, color: "#ff3d71" },
-  { name: "Суперлегенда", val: 250000, color: "#5ef2ff" }
+  { name: "Обычный",  val: 10,    color: "#9aa5b8" },
+  { name: "Красивый", val: 40,    color: "#4fc3f7" },
+  { name: "Редкий",   val: 150,   color: "#b388ff" },
+  { name: "Блатной",  val: 1000,  color: "#ffb300" },
+  { name: "Легенда",  val: 7000,  color: "#ff3d71" },
+  { name: "Суперлегенда", val: 70000, color: "#5ef2ff" }
 ];
+// экономика v5 (09.11.2026): номера дешевле в 2–3 раза, доход ниже в ~6 раз, выплата раз в 30 с; темп проверен симулятором
+// (активный игрок: легенда ~1 ч, переезд ~10 ч, чёрный бланк и суперлегенда ~15 ч чистой игры)
+const ECO_OLD_VAL = [12, 80, 400, 2500, 20000, 250000];   // цены до v5 — для пересчёта старых сохранений
 const PACKS = {
-  basic: { name: "Обычный бланк",  icon: "📄", price: 100,  w: [70, 20, 7.6, 2.37, 0.03, 0.002], lvl: 1,  xp: 2 },
-  prem:  { name: "Премиум-бланк",  icon: "💼", price: 700,  w: [0, 50, 32, 17.5, 0.5, 0.02],    lvl: 4,  xp: 8 },
-  elite: { name: "Элитный бланк",  icon: "👑", price: 1500, w: [0, 0, 59, 40, 1, 0.08],          lvl: 12, xp: 30 },
-  black: { name: "Чёрный бланк",   icon: "🖤", price: 12000, w: [0, 0, 0, 70, 27, 3],           lvl: 15, xp: 80 }
+  basic: { name: "Обычный бланк",  icon: "📄", price: 100,   w: [71.5, 20, 7.4, 1.08, 0.02, 0.002], lvl: 1,  xp: 2 },
+  prem:  { name: "Премиум-бланк",  icon: "💼", price: 1500,  w: [0, 60, 35.3, 4.5, 0.2, 0.01],      lvl: 4,  xp: 8 },
+  elite: { name: "Элитный бланк",  icon: "👑", price: 4000,  w: [0, 0, 64, 34, 1.8, 0.08],          lvl: 12, xp: 30 },
+  black: { name: "Чёрный бланк",   icon: "🖤", price: 25000, w: [0, 0, 0, 75, 23.5, 1.5],           lvl: 15, xp: 80 }
 };
+const PAY_SEC = 30;                         // гараж платит раз в 30 секунд
 const TOP = TIERS.length - 1;               // самая высокая редкость
 const UPS = [
   { id: "luck",  name: "🍀 Удача",            base: 800,   mul: 2.0, max: 40, desc: "Шанс на красивые, редкие и блатные ×1.12 за уровень (легенды — слабее, они «прям редкие»)" },
@@ -44,7 +48,7 @@ const UPS = [
   { id: "taxi",  name: "🚕 Таксопарк",         base: 200,   mul: 1.8, max: 60, desc: "+3 к заработку за тап «Таксовать»" },
   { id: "crit",  name: "💥 Чаевые",            base: 1500,  mul: 2.2, max: 10, desc: "+5% шанс, что тап в такси даст ×10" },
   { id: "slots", name: "🏠 Парковочные места", base: 500,   mul: 1.9, max: 30, desc: "+2 места в гараже" },
-  { id: "park",  name: "📈 Сдача в аренду",    base: 600,   mul: 2.1, max: 40, desc: "+25% дохода с гаража за уровень" },
+  { id: "park",  name: "📈 Сдача в аренду",    base: 600,   mul: 2.1, max: 40, desc: "+15% дохода с гаража за уровень" },
   { id: "bot",   name: "🤖 Помощник",         base: 15000, mul: 2.6, max: 15, desc: "Сам покупает обычные бланки: раз в 25с÷(1+0.5×ур.)" },
   { id: "forge", name: "🔨 Золотые руки мастера", base: 2000, mul: 2.3, max: 10, desc: "+5% к шансу успеха в мастерской за уровень (от текущего шанса)" },
   { id: "pity",  name: "🎯 Гарантия",          base: 50000, mul: 3.2, max: 5,  desc: "Гарантированный блатной номер на 10 покупок раньше" }
@@ -53,15 +57,16 @@ const UPS = [
 Lprops(SERIES_INFO, ...Object.keys(SERIES_INFO));
 TIERS.forEach(t => Lprops(t, "name")); Object.values(PACKS).forEach(p => Lprops(p, "name")); UPS.forEach(u => Lprops(u, "name", "desc"));
 const PITY_BASE = 120;
-const INC_DIV = 400;                       // доход номера в сек = цена / INC_DIV × INC_K[редкость]
+const INC_DIV = 1000;                     // доход номера в сек = цена / INC_DIV × INC_K[редкость]
 // Баланс (симуляция активного игрока): слияние наверху больше не множит деньги «из воздуха» — легенда приносит ×0.75, суперлегенда ×0.58
 // от прежнего. Вместе с ценой бланков от дохода (PACK_SEC) это убирает миллиарды за пару часов: ~1.4 млн за час, ~76 млн за 6 часов.
 const INC_K = [1, 1, 1, 1, 0.75, 0.576];
 // цена бланка ≈ столько секунд дохода гаража (в степени 0.8 — рост дохода всё равно ускоряет покупки), но не меньше базовой
-const PACK_SEC = { basic: 5, prem: 25, elite: 60, black: 300 };
+const PACK_SEC = { basic: 5, prem: 40, elite: 90, black: 400 };
+const PARK = 0.15;                         // «Сдача в аренду»: +15% дохода за уровень (было 25%)
 // слияние: сколько номеров редкости t нужно на один номер редкости t+1. Чем выше, тем больше нужно — иначе цепочка слияний
 // умножает деньги быстрее, чем игрок успевает их тратить (из 81 обычного за 8 тыс. выходила легенда за 20 тыс.)
-const MERGE_NEED = [3, 3, 4, 5, 8];
+const MERGE_NEED = [3, 5, 8, 12, 15];      // v5: слияние наверху «с потерей» (12 блатных дороже легенды) — легенды и суперлегенды снова редкость
 const SAVE_KEY = "blatnoy_nomer_v3";       // новый ключ = у всех чистый старт после ребаланса
 const DAILY = [200, 400, 700, 1200, 2000, 3500, "prem"];
 const BUYER_MIN = 70, BUYER_MAX = 160;
@@ -88,11 +93,11 @@ const yesterdayStr = () => { const d = new Date(Date.now() - 864e5); return d.ge
 
 // ===================== СОСТОЯНИЕ =====================
 const fresh = () => ({
-  v: 4, sets: {}, merges: 0, mergeBest: 0, story: { ch: 0, intro: false, ev: {} }, tut: 0, title: "", achClaim: {}, coins: START_COINS, drawn: 0, goal: 0, forge: { sel: [], coins: 0, target: null, lots: [], lotsAt: 0, boost: false, tries: 0, wins: 0, legend: 0 }, forgePend: null, earned: 0, earnedRun: 0, plates: [], found: {}, up: {}, bought: 0, sold: 0,
+  v: 5, sets: {}, merges: 0, mergeBest: 0, story: { ch: 0, intro: false, ev: {} }, tut: 0, title: "", achClaim: {}, coins: START_COINS, drawn: 0, goal: 0, forge: { sel: [], coins: 0, target: null, lots: [], lotsAt: 0, boost: false, tries: 0, wins: 0, legend: 0 }, forgePend: null, earned: 0, earnedRun: 0, plates: [], found: {}, up: {}, bought: 0, sold: 0,
   tc: [0, 0, 0, 0, 0, 0], pity: 0, xp: 0, lvl: 1, pts: 0, prest: 0, orders: [], ordAt: 0, ach: {},
   daily: { last: "", streak: 0 }, mini: { best: 0, next: 0, plays: 0 },
   set: { music: true, sfx: true, vib: true, auto: -1, city: true }, market: null, t: Date.now(), nid: 1,
-  playSec: 0, ordersDone: 0, buffUntil: 0, buyers: 0, taxis: 0, botAcc: 0, adNext: 0,
+  playSec: 0, payAcc: 0, payT: 0, ordersDone: 0, buffUntil: 0, buyers: 0, taxis: 0, botAcc: 0, adNext: 0,
   subs: { at: 0, n: 0 },                               // бонусы за подписку (только Telegram): tg/vk — получено, at/n — когда и сколько раз звали
   paid: { x2: 0, got: [], starter: 0, starterUntil: 0 }, // покупки за звёзды (Telegram): x2 — доход ×2 навсегда, got — id уже выданных платежей, набор новичка
   quests: { day: "", list: [], chest: 0 },              // задания дня: list — [{ k, n, base, got, nt }], chest — сундук за все три забран
@@ -126,6 +131,15 @@ function normalize(r) {                              // сохранение (л
     for (const p of s.plates) s.found["t:" + p.tier] = true;
     for (let t = 0; t < TIERS.length; t++) if (s.tc[t]) s.found["t:" + t] = true;
     s.v = 4;
+  }
+  if (!(r.v >= 5)) {                                                      // экономика v5: цены номеров по новой таблице, деньги — в той же пропорции
+    const rescale = p => { if (p && TIERS[p.tier]) p.val = Math.max(1, Math.round(p.val * TIERS[p.tier].val / ECO_OLD_VAL[p.tier])); };
+    s.plates.forEach(rescale); rescale(s.pend);
+    s.coins = Math.round((s.coins || 0) * 0.3); s.earnedRun = Math.round((s.earnedRun || 0) * 0.3);
+    s.orders = (s.orders || []).map(o => Object.assign(o, { reward: Math.round(o.reward * 0.4) }));
+    s.forge.lots = []; s.forge.lotsAt = 0;                               // лоты мастерской создадутся заново по новым ценам
+    if (r.v) s.ecoNote = 1;                                              // старому игроку — одно сообщение об обновлении
+    s.v = 5;
   }
   return s;
 }
@@ -450,13 +464,13 @@ function markFound(p) {
 // ===================== ЭКОНОМИКА =====================
 function gain(n) { S.coins += n; S.earned += n; S.earnedRun += n; }
 const slots = () => 12 + 2 * up("slots");
-function incMult() { return (1 + 0.25 * up("park")) * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus() + albumBonus()) * (Date.now() < S.buffUntil ? 2 : 1) * (S.paid.x2 ? 2 : 1) * evMult("inc"); }
+function incMult() { return (1 + PARK * up("park")) * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus() + albumBonus()) * (Date.now() < S.buffUntil ? 2 : 1) * (S.paid.x2 ? 2 : 1) * evMult("inc"); }
 const incOf = p => p.val / INC_DIV * (INC_K[p.tier] || 1);
 function income() { let s = 0; for (const p of S.plates) s += incOf(p); return s * incMult(); }
 const plateInc = p => incOf(p) * incMult();
 const incStr = v => v < 10 ? v.toFixed(2) : v < 1000 ? v.toFixed(1) : fmt(Math.round(v));   // доход в секунду: копейки у дешёвых, «1.51 млн» у дорогих
 // доход для цены бланков — без временных и купленных множителей (×2 навсегда, ажиотаж, события): они должны давать больше бланков, а не дороже
-function priceIncome() { let s = 0; for (const p of S.plates) s += incOf(p); return s * (1 + 0.25 * up("park")) * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus() + albumBonus()); }
+function priceIncome() { let s = 0; for (const p of S.plates) s += incOf(p); return s * (1 + PARK * up("park")) * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus() + albumBonus()); }
 const nice = v => { const k = Math.pow(10, Math.max(0, Math.floor(Math.log10(v)) - 1)); return Math.round(v / k) * k; };   // 2 значащие цифры — цена не скачет каждую секунду
 function packPrice(id) {
   const base = Math.max(60, Math.round(PACKS[id].price * Math.pow(0.93, up("disc"))));
@@ -466,7 +480,7 @@ function packPrice(id) {
 const upCost = u => Math.round(u.base * Math.pow(u.mul, up(u.id)));
 const taxiTap = () => (5 + 3 * up("taxi")) * (1 + 0.02 * (S.lvl - 1));
 const xpNeed = l => Math.round(60 * Math.pow(l, 1.7));
-const adReward = () => Math.max(500, Math.round(income() * 150));
+const adReward = () => Math.max(200, Math.round(income() * 150));
 const XP_TIER = [1, 2, 6, 25, 150, 1000];
 
 // рынок: «в тренде» повышает цену продажи
@@ -841,7 +855,7 @@ function renderHeader() {
   $("lvlnum").textContent = L("Ур. {0}", S.lvl);
   $("xpbar").style.width = (S.xp / xpNeed(S.lvl) * 100) + "%";
   $("ptsLabel").textContent = (S.title ? "🏷 " + L(S.title) + " " : "") + (S.pts ? "⭐ " + S.pts : "");
-  $("inc").textContent = L("{0}/сек", fmt(income()));
+  $("inc").textContent = L("+{0}/30 сек", fmt(income() * PAY_SEC));
   const bb = $("btnBuff"), left = S.buffUntil - Date.now();
   if (bb) { bb.disabled = left > 0; bb.textContent = left > 0 ? L("🔥 Доход ×2 · {0}", mmss(left)) : L("🔥 Доход ×2 на 5 мин (📺 реклама)"); }
   const ab = $("btnAd"), aleft = S.adNext - Date.now();     // бонус за рекламу — не чаще раза в AD_GAP
@@ -873,7 +887,8 @@ function renderPacks() {
 // кнопки рекламы прячем, если площадка её не даёт (блокировщик, пробный запуск) — пустых кнопок быть не должно
 function syncAdButtons() {
   $("btnAd").style.display = Platform.adsOK ? "" : "none";
-  $("btnShop").style.display = Platform.canPay && S.tut === -1 ? "" : "none";   // магазин за звёзды — Telegram, после обучения
+  $("btnShop").style.display = Platform.canPay && S.tut === -1 ? "" : "none";   // магазин (Telegram, ВК, Яндекс) — после обучения
+  $("btnShop").textContent = shopIco() + " " + L("Магазин");
   $("btnBuff").style.display = Platform.adsOK && S.lvl >= 3 && S.plates.length ? "" : "none";   // доход ×2 имеет смысл, когда гараж уже приносит деньги
 }
 // вкладки открываются по мере роста, чтобы новичок не тонул в кнопках
@@ -915,7 +930,7 @@ function renderGarageList() {
   list.slice(0, 150).forEach(p => {
     const mm = marketMult(p), sel = gSel && gSel.has(p.id);
     if (gSel) { h += `<div class="item pick ${sel ? "on" : ""}" data-act="gPick" data-id="${p.id}"><span class="gchk">${sel ? "✓" : ""}</span>${plateHTML(p, "small")}<div class="info"><b style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}</b>${isLocked(p) ? " 🔒" : ""}<br><small>${fmt(sellVal(p))} 💰</small></div></div>`; return; }
-    h += `<div class="item"><span data-act="plateInfo" data-id="${p.id}" style="cursor:pointer">${plateHTML(p, "small")}</span><div class="info" data-act="plateInfo" data-id="${p.id}" style="cursor:pointer"><b style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}</b>${mm > 1 ? " 📈" : ""}${isCombo(p) ? " 🎯" : ""}${p.bought ? " 🏷" : ""} ℹ<br>${L("+{0}/сек", incStr(plateInc(p)))}<br><small>${L("нажми — история номера")}</small></div>
+    h += `<div class="item"><span data-act="plateInfo" data-id="${p.id}" style="cursor:pointer">${plateHTML(p, "small")}</span><div class="info" data-act="plateInfo" data-id="${p.id}" style="cursor:pointer"><b style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}</b>${mm > 1 ? " 📈" : ""}${isCombo(p) ? " 🎯" : ""}${p.bought ? " 🏷" : ""} ℹ<br>${L("+{0}/30 сек", incStr(plateInc(p) * PAY_SEC))}<br><small>${L("нажми — история номера")}</small></div>
       <button class="lockbtn ${isLocked(p) ? "on" : ""}" data-act="lockPlate" data-id="${p.id}" title="${L("Замок: не сливать и не продавать")}">${isLocked(p) ? "🔒" : "🔓"}</button>
       ${isLocked(p) ? `<button class="sold-lock" disabled>${L("Под замком")}</button>` : `<button data-act="sellPlate" data-id="${p.id}">${L("Продать {0}", fmt(sellVal(p)))}</button>`}</div>`;
   });
@@ -944,7 +959,7 @@ function gSelDo(what) {
   gSel = null; save(); renderGarage(); renderMergeBar();
 }
 function renderGarage() {
-  let h = `<h2>${L("🏠 Гараж")} <small>${L("{0}/{1} мест · доход {2}/сек", S.plates.length, slots(), fmt(income()))}</small></h2>
+  let h = `<h2>${L("🏠 Гараж")} <small>${L("{0}/{1} мест · доход {2}/30 сек", S.plates.length, slots(), fmt(income() * PAY_SEC))}</small></h2>
     <div class="chips"><small style="align-self:center">${L("Продать всё ниже:")}</small>
     ${[0, 1, 2].map(t => `<button class="chip" data-act="sellTier" data-t="${t}" style="color:${TIERS[t].color}">≤ ${TIERS[t].name}</button>`).join("")}</div>`;
   const locked = S.plates.filter(isLocked).length;
@@ -992,7 +1007,7 @@ function genOrder() {
   else if (r < 0.85 && L >= 4) o = { k: "digits", d: pick(SPECIAL_DIGITS) };
   else if (L >= 6) o = { k: "series", s: pick(BLAT_SER) };
   else o = { k: "tier", t: 1 };
-  const base = o.k === "tier" ? TIERS[o.t].val * 1.8 : o.k === "digits" ? 700 : 4500;
+  const base = o.k === "tier" ? TIERS[o.t].val * 1.8 : o.k === "digits" ? 300 : 2000;
   o.reward = Math.round(base * (1 + 0.06 * L)); o.id = S.nid++; o.who = pick(Object.keys(CLIENT_LINE)); return o;
 }
 function orderMatch(o, p) { return o.k === "tier" ? p.tier >= o.t : o.k === "digits" ? p.d === o.d : seriesOf(p) === o.s; }
@@ -1013,6 +1028,7 @@ function renderOrders() {
   });
   const wait = S.ordAt - Date.now();
   h += `<button class="btn alt" data-act="orderReroll" ${wait > 0 ? "disabled" : ""}>${L("🔄 Обновить заказы")} ${wait > 0 ? '<span class="timer" data-until="' + S.ordAt + '"></span>' : L("(бесплатно)")}</button>`;
+  if (wait > 0 && Platform.adsOK) h += `<button class="btn" data-act="orderRerollAd">${L("📺 Обновить сейчас (реклама)")}</button>`;
   $("tab-orders").innerHTML = h;
 }
 function orderDo(id) {
@@ -1081,7 +1097,7 @@ function renderMore() {
   <div class="profbox" data-act="profile">${myCard(true)}</div>
   <div class="row"><button class="btn alt" data-act="profile">${L("✏️ Мой профиль")}</button>${Platform.canShare ? `<button class="btn ${reqsN ? "green ready" : "alt"}" data-act="friends">${L("👥 Друзья")}${reqsN ? ` <b class="badge">${reqsN}</b>` : ""}</button>` : ""}</div>
   ${isAdmin ? `<button class="btn red" data-act="admin">🛠 Админка</button>` : ""}
-  ${Platform.canPay ? `<button class="btn star" data-act="shop">${L("⭐ Магазин — деньги, номера, ×2 навсегда")}</button>` : ""}
+  ${Platform.canPay ? `<button class="btn star" data-act="shop">${shopIco()} ${L("Магазин — деньги, номера, ×2 навсегда")}</button>` : ""}
   ${questsHTML()}
   ${Platform.canShare ? `<div class="card"><h3>${L("🤝 Пригласи друга")}</h3><p>${L("Друг сразу получит блатной номер, а ты — блатной, когда друг дойдёт до 3 уровня. Друзей — без ограничений!")}</p>
     ${refs.n ? `<p style="font-size:13px;color:#8d99b3">${L("Пришли по твоей ссылке: {0} · втянулись: {1}", refs.n, refs.done)}</p>` : ""}
@@ -1096,7 +1112,7 @@ function renderMore() {
     ${S.lvl >= 4 && miniWait > 0 && Platform.adsOK ? `<button class="btn alt" data-act="miniAd">${L("🎁 Сбросить перезарядку (📺 реклама)")}</button>` : ""}</div>`;
   const gain_ = prestigeGain();
   h += `<div class="card"><h3>${L("🏛 Переезд в Москву")} <small>${L("(престиж)")}</small></h3><p>${L("Сбрось деньги, гараж и апгрейды — и получи ⭐ «Связи»: каждая даёт навсегда +10% дохода и +3% к удаче.")} ${L("Сейчас ⭐ {0}. За этот забег:", S.pts)} <b style="color:#ffb300">+${gain_} ⭐</b></p>
-    <button class="btn ${gain_ > 0 ? "red" : "alt"}" data-act="prestige" ${S.lvl >= 10 && gain_ > 0 ? "" : "disabled"}>${S.lvl < 10 ? L("🔒 Откроется на уровне {0}", 10) : gain_ > 0 ? L("Переехать (+{0} ⭐)", gain_) : L("Нужно заработать ещё (от {0} за забег)", fmt(1500000))}</button></div>`;
+    <button class="btn ${gain_ > 0 ? "red" : "alt"}" data-act="prestige" ${S.lvl >= 10 && gain_ > 0 ? "" : "disabled"}>${S.lvl < 10 ? L("🔒 Откроется на уровне {0}", 10) : gain_ > 0 ? L("Переехать (+{0} ⭐)", gain_) : L("Нужно заработать ещё (от {0} за забег)", fmt(PREST_DIV))}</button></div>`;
   h += `<div class="card"><h3>${L("📖 История")} <small>${Math.min(S.story.ch, STORY.length)}/${STORY.length}</small></h3>` +
     STORY.map((c, i) => { const st = i < S.story.ch ? "✅" : i === S.story.ch ? "▶" : "🔒";
       return `<div class="ach ${i > S.story.ch ? "lock" : ""}"><div class="ai">${st}</div><div><b>${L("Глава {0} · {1}", i + 1, i > S.story.ch ? "???" : L(c.t))}</b><small>${i <= S.story.ch && c.title ? L("титул «{0}»", L(c.title)) : ""}</small></div><div></div></div>`; }).join("") + `</div>`;
@@ -1116,7 +1132,8 @@ function renderMore() {
   $("tab-more").innerHTML = h;
   const sel = $("autoSel"); if (sel) sel.onchange = () => { S.set.auto = +sel.value; save(); };
 }
-const prestigeGain = () => Math.floor(Math.sqrt(S.earnedRun / 1500000));
+const PREST_DIV = 3000000;                              // v5: «связи» за переезд — от заработанного за забег
+const prestigeGain = () => Math.floor(Math.sqrt(S.earnedRun / PREST_DIV));
 function doPrestige() {
   const g = prestigeGain(); if (g < 1) return;
   const keep = { drawn: S.drawn, goal: S.goal, achClaim: S.achClaim, story: S.story, tut: S.tut, title: S.title, sets: S.sets, merges: S.merges, mergeBest: S.mergeBest, forge: Object.assign({}, S.forge, { sel: [], coins: 0, target: null, lots: [], boost: false }), found: S.found, ach: S.ach, lvl: S.lvl, xp: S.xp, set: S.set, mini: S.mini, daily: S.daily, tc: S.tc, bought: S.bought, sold: S.sold, earned: S.earned, ordersDone: S.ordersDone, playSec: S.playSec, taxis: S.taxis, buyers: S.buyers, subs: S.subs, paid: S.paid, quests: S.quests, album: S.album, soc: S.soc, cos: S.cos, bot: Object.assign({}, S.bot, { log: [] }), prof: Object.assign({}, S.prof, { pins: [] }) };   // покупки и бонусы за подписку переезд не обнуляет
@@ -1147,7 +1164,7 @@ function startMini() {
         m.items.splice(i, 1);
         if (it.cop) { m.t -= 3; m.combo = 0; Snd.err(); m.pops.push({ x: it.x, y: it.y, t: 0, txt: L("−3 сек"), col: "#ff3d71" }); }
         else {
-          m.combo++; const v = Math.round([4, 25, 120, 800, 5000][it.tier] * (1 + Math.min(m.combo, 20) * 0.05)); m.score += v;
+          m.combo++; const v = Math.round([2, 10, 50, 300, 2000][it.tier] * (1 + Math.min(m.combo, 20) * 0.05)); m.score += v;
           Snd.coin(); if (it.tier >= 2) Snd.win(it.tier - 1);
           m.pops.push({ x: it.x, y: it.y, t: 0, txt: "+" + fmt(v), col: TIERS[it.tier].color });
         }
@@ -1222,41 +1239,43 @@ function checkDaily() {
   const d = S.daily.streak;
   const days = DAILY.map((r, i) => `<div class="day ${i + 1 === d ? "cur" : i + 1 < d ? "got" : ""}">${L("День {0}", i + 1)}<b>${r === "prem" ? "💼" : fmt(r)}</b></div>`).join("");
   openModal(`<h2>${L("🎁 Ежедневный бонус")}</h2><p style="font-size:13px;color:#8d99b3">${L("Заходи каждый день — на 7-й день ждёт номер из премиум-бланка!")}</p><div class="days">${days}</div>
+    ${DAILY[d - 1] !== "prem" && Platform.adsOK ? `<button class="btn star" data-act="claimDaily2">${L("📺 Забрать ×2 (+{0})", fmt(dailyCash(d) * 2))}</button>` : ""}
     <button class="btn green" data-act="claimDaily">${L("Забрать")}</button>`, true);
 }
-function claimDaily() {
+const dailyCash = d => Math.round(DAILY[d - 1] * (1 + 0.05 * S.lvl));
+function claimDaily(mult = 1) {
   const r = DAILY[S.daily.streak - 1]; S.daily.last = todayStr(); closeModal(); Snd.win(2);
   if (r === "prem") {
     const p = drawPlate("prem"); markFound(p); S.tc[p.tier]++; keepPlate(p); if (p.tier >= 3) jackpot(p); else { fx.confetti(100); bigText(TIERS[p.tier].name + "!", TIERS[p.tier].color); }
     toast(L("💼 Номер в гараже: {0}", p.l1 + p.d + p.l23 + " " + p.reg)); Snd.win(p.tier);
-  } else { const v = Math.round(r * (1 + 0.05 * S.lvl)); gain(v); fx.fly(innerWidth / 2, innerHeight / 2, 14); toast("+" + fmt(v) + " 💰"); }
+  } else { const v = dailyCash(S.daily.streak) * mult; gain(v); if (mult > 1) fx.confetti(60); fx.fly(innerWidth / 2, innerHeight / 2, 14); toast("+" + fmt(v) + " 💰"); }
   renderAll(); save();
 }
 
 // ===================== ДОСТИЖЕНИЯ =====================
 const found = pre => Object.keys(S.found).filter(k => k.startsWith(pre)).length;
 const ACH = [
-  { id: "b1", i: "🛒", n: "Первый номер", d: "Купи номер", c: () => S.bought >= 1, r: 50 },
-  { id: "b2", i: "🧾", n: "Постоянный клиент", d: "Купи 50 номеров", c: () => S.bought >= 50, r: 600 },
-  { id: "b3", i: "🏭", n: "Оптовик", d: "Купи 500 номеров", c: () => S.bought >= 500, r: 8000 },
-  { id: "t2", i: "💜", n: "Редкая находка", d: "Выбей редкий номер", c: () => S.tc[2] + S.tc[3] + S.tc[4] + S.tc[5] >= 1, r: 150 },
-  { id: "t3", i: "⭐", n: "Блатной!", d: "Выбей блатной номер", c: () => S.tc[3] + S.tc[4] + S.tc[5] >= 1, r: 1000 },
-  { id: "t4", i: "🔥", n: "Легенда", d: "Выбей легендарный номер", c: () => S.tc[4] + S.tc[5] >= 1, r: 6000 },
-  { id: "t5", i: "🦅", n: "Спецсерия", d: "Выбей суперлегендарный номер", c: () => S.tc[5] >= 1, r: 60000 },
-  { id: "s4", i: "📖", n: "Коллекционер", d: "Найди 4 блатные серии", c: () => found("s:") >= 4, r: 3000 },
-  { id: "s7", i: "📚", n: "Все серии", d: "Найди все 7 серий", c: () => found("s:") >= 7, r: 25000 },
-  { id: "g1", i: "🏠", n: "Полный гараж", d: "Заполни все места в гараже", c: () => S.plates.length >= slots(), r: 500 },
-  { id: "e1", i: "💵", n: "Миллионер", d: "Заработай 1 млн за всё время", c: () => S.earned >= 1e6, r: 10000 },
-  { id: "e2", i: "💎", n: "Миллиардер", d: "Заработай 1 млрд за всё время", c: () => S.earned >= 1e9, r: 1e6 },
-  { id: "o1", i: "📋", n: "Исполнитель", d: "Выполни 10 заказов", c: () => S.ordersDone >= 10, r: 1500 },
-  { id: "m1", i: "🎣", n: "Ловец номеров", d: "Набери 2000 очков в мини-игре", c: () => S.mini.best >= 2000, r: 1000 },
-  { id: "l1", i: "🎖", n: "Опытный", d: "Достигни 10 уровня", c: () => S.lvl >= 10, r: 3000 },
-  { id: "p1", i: "🏛", n: "Новая жизнь", d: "Переедь в Москву", c: () => S.prest >= 1, r: 5000 },
-  { id: "x1", i: "🚕", n: "Таксист", d: "Тапни «Таксовать» 500 раз", c: () => S.taxis >= 500, r: 500 },
-  { id: "f1", i: "🔨", n: "Мастер тюнинга", d: "Удачно улучши номер в мастерской", c: () => S.forge.wins >= 1, r: 300 },
-  { id: "f2", i: "🎲", n: "Рискованный", d: "Сделай легенду в мастерской", c: () => S.forge.legend >= 1, r: 5000 },
-  { id: "f3", i: "🧯", n: "Упорство", d: "Сделай 20 попыток в мастерской", c: () => S.forge.tries >= 20, r: 1000 },
-  { id: "y1", i: "🚘", n: "Лови покупателя", d: "Поймай 5 богатых покупателей", c: () => S.buyers >= 5, r: 500 }
+  { id: "b1", i: "🛒", n: "Первый номер", d: "Купи номер", c: () => S.bought >= 1, r: 20 },
+  { id: "b2", i: "🧾", n: "Постоянный клиент", d: "Купи 50 номеров", c: () => S.bought >= 50, r: 240 },
+  { id: "b3", i: "🏭", n: "Оптовик", d: "Купи 500 номеров", c: () => S.bought >= 500, r: 3200 },
+  { id: "t2", i: "💜", n: "Редкая находка", d: "Выбей редкий номер", c: () => S.tc[2] + S.tc[3] + S.tc[4] + S.tc[5] >= 1, r: 60 },
+  { id: "t3", i: "⭐", n: "Блатной!", d: "Выбей блатной номер", c: () => S.tc[3] + S.tc[4] + S.tc[5] >= 1, r: 400 },
+  { id: "t4", i: "🔥", n: "Легенда", d: "Выбей легендарный номер", c: () => S.tc[4] + S.tc[5] >= 1, r: 2400 },
+  { id: "t5", i: "🦅", n: "Спецсерия", d: "Выбей суперлегендарный номер", c: () => S.tc[5] >= 1, r: 24000 },
+  { id: "s4", i: "📖", n: "Коллекционер", d: "Найди 4 блатные серии", c: () => found("s:") >= 4, r: 1200 },
+  { id: "s7", i: "📚", n: "Все серии", d: "Найди все 7 серий", c: () => found("s:") >= 7, r: 10000 },
+  { id: "g1", i: "🏠", n: "Полный гараж", d: "Заполни все места в гараже", c: () => S.plates.length >= slots(), r: 200 },
+  { id: "e1", i: "💵", n: "Миллионер", d: "Заработай 1 млн за всё время", c: () => S.earned >= 1e6, r: 4000 },
+  { id: "e2", i: "💎", n: "Миллиардер", d: "Заработай 1 млрд за всё время", c: () => S.earned >= 1e9, r: 400000 },
+  { id: "o1", i: "📋", n: "Исполнитель", d: "Выполни 10 заказов", c: () => S.ordersDone >= 10, r: 600 },
+  { id: "m1", i: "🎣", n: "Ловец номеров", d: "Набери 800 очков в мини-игре", c: () => S.mini.best >= 800, r: 400 },
+  { id: "l1", i: "🎖", n: "Опытный", d: "Достигни 10 уровня", c: () => S.lvl >= 10, r: 1200 },
+  { id: "p1", i: "🏛", n: "Новая жизнь", d: "Переедь в Москву", c: () => S.prest >= 1, r: 2000 },
+  { id: "x1", i: "🚕", n: "Таксист", d: "Тапни «Таксовать» 500 раз", c: () => S.taxis >= 500, r: 200 },
+  { id: "f1", i: "🔨", n: "Мастер тюнинга", d: "Удачно улучши номер в мастерской", c: () => S.forge.wins >= 1, r: 120 },
+  { id: "f2", i: "🎲", n: "Рискованный", d: "Сделай легенду в мастерской", c: () => S.forge.legend >= 1, r: 2000 },
+  { id: "f3", i: "🧯", n: "Упорство", d: "Сделай 20 попыток в мастерской", c: () => S.forge.tries >= 20, r: 400 },
+  { id: "y1", i: "🚘", n: "Лови покупателя", d: "Поймай 5 богатых покупателей", c: () => S.buyers >= 5, r: 200 }
 ];
 ACH.forEach(a => Lprops(a, "n", "d"));
 const achReward = a => a.r;                  // награды — не больше стоимости самого достижения, чтобы не ломать экономику
@@ -1453,17 +1472,17 @@ function applyForge(silent) {
 // ===================== КОЛЛЕКЦИЯ: наборы номеров с вечным бонусом к доходу =====================
 // k: ключи из S.found (t: редкость, d: цифры, r: регион, s: серия); b: +% к доходу навсегда; r: разовая награда
 const SETS = [
-  { id: "start", n: "Первая коллекция",  k: ["t:0", "t:1", "t:2"],          b: 5,  r: 150 },
-  { id: "lucky", n: "Счастливые цифры",  k: ["d:777", "d:007", "d:001"],    b: 10, r: 700 },
-  { id: "even",  n: "Ровный счёт",       k: ["d:999", "d:888", "d:555"],    b: 10, r: 700 },
-  { id: "round", n: "Круглые и дерзкие", k: ["d:100", "d:666"],             b: 8,  r: 500 },
-  { id: "msk",   n: "Москва",            k: ["r:77", "r:97", "r:99"],       b: 10, r: 1000 },
-  { id: "msk2",  n: "Новая Москва",      k: ["r:177", "r:197", "r:199"],    b: 12, r: 1500 },
-  { id: "msk3",  n: "Трёхзначная столица", k: ["r:777", "r:799"],           b: 12, r: 1500 },
-  { id: "biz",   n: "Деловые серии",     k: ["s:ООО", "s:МОС", "s:ВОС"],    b: 15, r: 4000 },
-  { id: "vip",   n: "VIP-серии",         k: ["s:ААА", "s:ММР"],             b: 15, r: 4000 },
-  { id: "top",   n: "Вершина",           k: ["t:3", "t:4", "t:5"],          b: 25, r: 15000 },
-  { id: "leg",   n: "Легенды",           k: ["s:АМР", "s:ЕКХ"],             b: 30, r: 40000 }
+  { id: "start", n: "Первая коллекция",  k: ["t:0", "t:1", "t:2"],          b: 3,  r: 60 },
+  { id: "lucky", n: "Счастливые цифры",  k: ["d:777", "d:007", "d:001"],    b: 6, r: 280 },
+  { id: "even",  n: "Ровный счёт",       k: ["d:999", "d:888", "d:555"],    b: 6, r: 280 },
+  { id: "round", n: "Круглые и дерзкие", k: ["d:100", "d:666"],             b: 5,  r: 200 },
+  { id: "msk",   n: "Москва",            k: ["r:77", "r:97", "r:99"],       b: 6, r: 400 },
+  { id: "msk2",  n: "Новая Москва",      k: ["r:177", "r:197", "r:199"],    b: 7, r: 600 },
+  { id: "msk3",  n: "Трёхзначная столица", k: ["r:777", "r:799"],           b: 7, r: 600 },
+  { id: "biz",   n: "Деловые серии",     k: ["s:ООО", "s:МОС", "s:ВОС"],    b: 9, r: 1600 },
+  { id: "vip",   n: "VIP-серии",         k: ["s:ААА", "s:ММР"],             b: 9, r: 1600 },
+  { id: "top",   n: "Вершина",           k: ["t:3", "t:4", "t:5"],          b: 15, r: 6000 },
+  { id: "leg",   n: "Легенды",           k: ["s:АМР", "s:ЕКХ"],             b: 18, r: 16000 }
 ];
 SETS.forEach(s => Lprops(s, "n"));
 const setBonus = () => SETS.reduce((a, s) => a + (S.sets[s.id] ? s.b : 0), 0) / 100;
@@ -1502,20 +1521,20 @@ function setsHTML() {
 const ALL_REG = [...ELITE_REG, ...NORMAL_REG];
 const NICE_DIG = [...new Set([...SPECIAL_DIGITS, ..."123456789".split("").map(x => x + x + x), ..."123456789".split("").map(x => x + "00"), "123", "321", "234", "456"])];
 const ALBUM = [
-  { id: "reg", n: "Регионы России", ico: "🗺", k: ALL_REG.map(r => "r:" + r), b: 10, plate: 3, hint: "Любой номер с этим регионом" },
-  { id: "dig", n: "Красивые цифры", ico: "🔢", k: NICE_DIG.map(d => "d:" + d), b: 10, plate: 3, hint: "Номер с такими цифрами" },
-  { id: "let", n: "Три одинаковые буквы", ico: "🔤", k: LETTERS.map(x => "l:" + x), b: 5, plate: 3, hint: "Номер вида А…АА" },
-  { id: "combo", n: "Цифры = регион", ico: "🎯", k: ALL_REG.map(r => "c:" + r), b: 10, plate: 3, hint: "Номер, где цифры совпадают с регионом: 077 и 77" },
-  { id: "ser", n: "Блатные серии", ico: "🚘", k: [...BLAT_SER, ...LEGEND_SER].map(s => "s:" + s), b: 15, plate: 4, hint: "Номер этой серии" },
-  { id: "spec", n: "Особые номера", ico: "🚓", k: ["x:taxi", "x:police", "x:army", "x:diplo"], b: 20, plate: 4, hint: "Такси, полиция, военный и дипломатический — выпадают очень редко" },
-  { id: "gov", n: "АМР 97 — суперлегенды", ico: "💎", k: SUPER_DIGITS.map(d => "g:" + d), b: 50, plate: 5, hint: "Суперлегенда с этими цифрами" }
+  { id: "reg", n: "Регионы России", ico: "🗺", k: ALL_REG.map(r => "r:" + r), b: 6, plate: 3, hint: "Любой номер с этим регионом" },
+  { id: "dig", n: "Красивые цифры", ico: "🔢", k: NICE_DIG.map(d => "d:" + d), b: 6, plate: 3, hint: "Номер с такими цифрами" },
+  { id: "let", n: "Три одинаковые буквы", ico: "🔤", k: LETTERS.map(x => "l:" + x), b: 3, plate: 3, hint: "Номер вида А…АА" },
+  { id: "combo", n: "Цифры = регион", ico: "🎯", k: ALL_REG.map(r => "c:" + r), b: 6, plate: 3, hint: "Номер, где цифры совпадают с регионом: 077 и 77" },
+  { id: "ser", n: "Блатные серии", ico: "🚘", k: [...BLAT_SER, ...LEGEND_SER].map(s => "s:" + s), b: 9, plate: 4, hint: "Номер этой серии" },
+  { id: "spec", n: "Особые номера", ico: "🚓", k: ["x:taxi", "x:police", "x:army", "x:diplo"], b: 12, plate: 4, hint: "Такси, полиция, военный и дипломатический — выпадают очень редко" },
+  { id: "gov", n: "АМР 97 — суперлегенды", ico: "💎", k: SUPER_DIGITS.map(d => "g:" + d), b: 30, plate: 5, hint: "Суперлегенда с этими цифрами" }
 ];
 ALBUM.forEach(a => Lprops(a, "n", "hint"));
 const ALBUM_TOTAL = ALBUM.reduce((a, pg) => a + pg.k.length, 0);
 const albumHave = pg => pg.k.filter(k => S.album.got[k]).length;
 const albumCount = () => ALBUM.reduce((a, pg) => a + albumHave(pg), 0);
 const albumBonus = () => ALBUM.reduce((a, pg) => a + (S.album.rw[pg.id + "2"] ? pg.b : 0), 0) / 100;
-const albumHalfCash = () => Math.max(2000, Math.round(income() * 1800 / 10) * 10);   // ~30 минут дохода
+const albumHalfCash = () => Math.max(600, Math.round(income() * 1800 / 10) * 10);   // ~30 минут дохода
 // награды страницы: 1 — половина собрана, 2 — вся
 const albumCan = (pg, st) => !S.album.rw[pg.id + st] && albumHave(pg) >= (st === 1 ? Math.ceil(pg.k.length / 2) : pg.k.length);
 const albumReady = () => ALBUM.reduce((a, pg) => a + (albumCan(pg, 1) ? 1 : 0) + (albumCan(pg, 2) ? 1 : 0), 0);
@@ -1897,22 +1916,22 @@ function applyCos() {
 function openCos(t) {
   if (t) cosTab = t;
   const ex = { l1: "А", d: "777", l23: "АА", reg: "77", tier: 3 };
-  const list = COS[cosTab].filter(x => S.cos.own.includes(cosTab + ":" + x.id) || x.p || (Platform.canPay && x.st)).map(x => {   // без Telegram-оплаты звёздное не показываем
+  const list = COS[cosTab].filter(x => S.cos.own.includes(cosTab + ":" + x.id) || x.p || (x.st && sells("cos_" + cosTab + "_" + x.id, x.st))).map(x => {   // платное — только там, где его продают
     const own = S.cos.own.includes(cosTab + ":" + x.id), on = S.cos[cosTab] === x.id;
     const prev = cosTab === "hold" ? `<div class="oh-${x.id}">${plateHTML(ex, "small other")}</div>` : cosTab === "fx" ? `<div class="ppins pfx-${x.id}">${plateHTML(ex, "small")}</div>` : `<div class="garswatch gar-${x.id}">🚘</div>`;
     const btn = on ? `<button class="btn sm alt" data-act="cosSet" data-k="${cosTab}" data-v="">${L("✓ Снять")}</button>`
       : own ? `<button class="btn sm green" data-act="cosSet" data-k="${cosTab}" data-v="${x.id}">${L("Надеть")}</button>`
-      : x.vip ? `<button class="btn sm star" data-act="shopBuy" data-k="cos_vip">👑 ⭐ ${VIP_ST}</button>`
-      : x.st ? `<button class="btn sm star" data-act="shopBuy" data-k="cos_${cosTab}_${x.id}">⭐ ${x.st}</button>`
+      : x.vip ? (sells("cos_vip", VIP_ST) ? `<button class="btn sm star" data-act="shopBuy" data-k="cos_vip">👑 ${priceOf("cos_vip", VIP_ST)}</button>` : "")
+      : x.st ? `<button class="btn sm star" data-act="shopBuy" data-k="cos_${cosTab}_${x.id}">${priceOf("cos_" + cosTab + "_" + x.id, x.st)}</button>`
       : `<button class="btn sm ${S.coins >= x.p ? "green" : "alt"}" data-act="cosBuy" data-k="${cosTab}" data-v="${x.id}" ${S.coins >= x.p ? "" : "disabled"}>${fmt(x.p)} 💰</button>`;
     const tag = x.vip ? `<small class="cvip">${L("👑 из пакета «Хозяин района»")}</small>` : x.st ? `<small class="cst">${L("✨ с анимацией")}</small>` : "";
     return `<div class="cosrow ${on ? "on" : ""} ${x.vip ? "vip" : x.st ? "st" : ""}"><div class="cosprev">${prev}</div><div class="cosn"><b>${x.n}</b>${own ? `<small>${L("куплено")}</small>` : tag}</div>${btn}</div>`;
   }).join("");
   const vipBox = isVip() ? `<div class="vipbox own"><b>👑 ${L("Ты — Хозяин района")}</b><small>${L("Золотое имя с короной видят все: в рейтинге, у друзей и в профиле")}</small></div>`
-    : Platform.canPay ? `<div class="vipbox"><div class="vipb-h">👑 ${L("Хозяин района")}</div>
+    : sells("cos_vip", VIP_ST) ? `<div class="vipbox"><div class="vipb-h">👑 ${L("Хозяин района")}</div>
       <div class="vipb-prev oh-royal pfx-crown">${plateHTML({ l1: "А", d: "001", l23: "МР", reg: "97", tier: 5 }, "mid other")}</div>
       <ul><li>${L("Королевская рамка на всех номерах")}</li><li>${L("Эффект «Корона» у закреплённых номеров")}</li><li>${L("Интерьер «Дворец» в гараже")}</li><li><b>${L("Золотое имя с 👑 в рейтинге, у друзей и в профиле — видят все")}</b></li></ul>
-      <button class="btn star" data-act="shopBuy" data-k="cos_vip">${L("Стать Хозяином района")} · ⭐ ${VIP_ST}</button></div>` : "";
+      <button class="btn star" data-act="shopBuy" data-k="cos_vip">${L("Стать Хозяином района")} · ${priceOf("cos_vip", VIP_ST)}</button></div>` : "";
   openModal(`<h2>${L("🎨 Оформление")}</h2><div class="atabs">${COS_TABS.map(([k, n]) => `<button class="btn sm ${k === cosTab ? "green" : "alt"}" data-act="cos" data-t="${k}">${L(n)}</button>`).join("")}</div>
     <p class="hint">${cosTab === "hold" ? L("Рамка на всех твоих номерах — в гараже, профиле и рейтинге.") : cosTab === "fx" ? L("Эффект у номеров, закреплённых в профиле.") : L("Интерьер твоего гаража — его видят все, кто к тебе заходит.")} ${L("Покупается навсегда.")}</p>
     ${vipBox}<div class="card coslist">${list}</div><button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
@@ -1940,39 +1959,39 @@ const CHARS = {
 };
 Object.values(CHARS).forEach(c => Lprops(c, "n"));
 const CLIENT_LINE = { tamara: "Чтобы как у людей!", gosha: "Для ролика, бро!", sanych: "На дачу ездить солидно", liza: "Клиенту в подарок" };
-const DUEL = 25000;                                     // стоимость гаража Артура в главе «Дуэль»
+const DUEL = 15000;                                     // стоимость гаража Артура в главе «Дуэль»
 // задание: c — условие, либо v/n — счётчик с прогресс-баром
 const STORY = [
-  { t: "Гараж на окраине", r: 300,
+  { t: "Гараж на окраине", r: 200,
     intro: [],
     tasks: [{ t: "Пройди обучение у дяди Валеры", c: () => S.tut < 0 }],
     outro: [["valera", "Ну всё, гараж твой. Держи на развитие — и не подведи старика!"]] },
-  { t: "Первые клиенты", r: 600,
+  { t: "Первые клиенты", r: 400,
     intro: [["tamara", "Здравствуйте! Мне сказали, тут номера продают… Нужен красивый, чтобы как у людей!"],
             ["valera", "Видал? Клиенты пошли. Заказы теперь во вкладке «Заказы» — платят больше, чем скупщики."]],
     tasks: [{ t: "Выполни 2 заказа", v: () => S.ordersDone, n: 2 }, { t: "Сделай 3 слияния", v: () => S.merges, n: 3 }],
     outro: [["tamara", "Ой, какая красота! Всем подругам расскажу!"], ["valera", "Сарафанное радио — лучшая реклама. Молодец!"]] },
-  { t: "Соперник", r: 1500, title: "Коллекционер",
+  { t: "Соперник", r: 800, title: "Коллекционер",
     intro: [["artur", "Это что, гараж? Я думал, сарай. И номера у тебя — как у курьера."],
             ["valera", "Не слушай его, это Артур «Номерной», главный коллекционер района. Собери пару наборов и добудь блатной — пусть знает."]],
     tasks: [{ t: "Собери 2 набора коллекции", v: setsDone, n: 2 }, { t: "Выбей или слей блатной номер", c: hasBlat }],
     outro: [["artur", "Ладно, признаю: для новичка неплохо. Но до меня тебе далеко."]] },
-  { t: "Большая ставка", r: 3000, title: "Рисковый",
+  { t: "Большая ставка", r: 1500, title: "Рисковый",
     intro: [["artur", "Настоящие коллекционеры номера не копят — тюнингуют. Слабо рискнуть по-крупному?"],
             ["valera", "Возьми его на слабо. Только с головой: ставь то, что не жалко."]],
     tasks: [{ t: "Удачные улучшения в «Тюнинге»", v: () => S.forge.wins, n: 3 }, { t: "Купи улучшения", v: upSum, n: 5 }],
     outro: [["artur", "…Хм, рука у тебя лёгкая. Но это ещё ничего не значит."]] },
-  { t: "Дуэль", r: 6000, title: "Гроза Артура",
-    intro: [["artur", "Давай по-честному: чей гараж дороже — тот и король района. Мой стоит 25 000."],
+  { t: "Дуэль", r: 3000, title: "Гроза Артура",
+    intro: [["artur", "Давай по-честному: чей гараж дороже — тот и король района. Мой стоит 15 000."],
             ["valera", "Номера в гараже считаются по стоимости. Сливай, тюнингуй — и обгони его!"]],
     tasks: [{ t: "Гараж дороже, чем у Артура", v: garageVal, n: DUEL }, { t: "Достигни 8 уровня", v: () => S.lvl, n: 8 }],
     outro: [["artur", "Не может быть… Ладно. Район твой. Но в Москве тебя съедят."], ["valera", "Слышал? Москва зовёт. Готовься к переезду."]] },
-  { t: "Переезд в Москву", r: 10000, title: "Столичный",
+  { t: "Переезд в Москву", r: 5000, title: "Столичный",
     intro: [["valera", "В Москве номера дороже, а связи важнее денег. Переедешь — начнёшь с нуля, но со связями ⭐."],
             ["valera", "Переезд — во вкладке «Ещё», с 10 уровня. А гараж я за тобой придержу."]],
     tasks: [{ t: "Достигни 10 уровня", v: () => S.lvl, n: 10 }, { t: "Переезжай в Москву (престиж)", c: () => S.prest >= 1 }],
     outro: [["valera", "Ну как столица? Говорят, там уже про тебя спрашивают."], ["artur", "Ты и тут? Ну, посмотрим, кто кого."]] },
-  { t: "Охота за АМР", r: 50000, title: "Король номеров",
+  { t: "Охота за АМР", r: 20000, title: "Король номеров",
     intro: [["gosha", "Бро, ходит слух: где-то есть «АМР» 97-го с красивыми цифрами. Найдёшь — сниму про тебя ролик!"],
             ["artur", "Я ищу его пять лет. Удачи, новичок."]],
     tasks: [{ t: "Выбей или слей легенду", c: hasLegend }, { t: "Собери наборы коллекции", v: setsDone, n: 8 }, { t: "Добудь суперлегенду", c: () => S.tc[5] >= 1 || S.mergeBest >= 5 }],
@@ -2218,7 +2237,7 @@ function plateInfo(p, canSell) {
   tl.push(`<b>${L("Сегодня")}</b> — ${p.got ? L("попал к тебе {0}.", new Date(p.got).toLocaleDateString(I18N.loc)) : L("у тебя в гараже.")}`);
   const pr = PACKS.basic.w[t], rum = [pk(RUMORS[t]), pk(RUMORS[t])];
   return `<h2 class="t${t}">${L(["Обычный номер", "Красивый номер", "Редкий номер", "Блатной номер", "Легендарный номер", "Суперлегендарный номер"][t])}</h2><div style="margin-bottom:4px"><b>${nick}</b></div>${plateHTML(p, "")}${p.bought ? `<p class="hint" style="margin:6px 0 0">${L("🏷 Оформлен в МРЭО на заказ за {0} 💰 — не идёт в альбом и коллекции", fmt(p.paid || 0))}</p>` : ""}
-    <p style="font-size:12px;color:#8d99b3;margin:10px 0">${L("Цена {0} 💰 · доход +{1}/сек · шанс из обычного бланка ≈ {2}%", fmt(sellVal(p)), incStr(plateInc(p)), pctStr(pr))}</p>
+    <p style="font-size:12px;color:#8d99b3;margin:10px 0">${L("Цена {0} 💰 · доход +{1}/30 сек · шанс из обычного бланка ≈ {2}%", fmt(sellVal(p)), incStr(plateInc(p) * PAY_SEC), pctStr(pr))}</p>
     ${(() => { if (p.sk) return ""; const m = p.val / TIERS[t].val, parts = patParts(p).parts.map(x => x[0]).filter(x => !/ПОЛНЫЙ/.test(x));
       return Math.abs(m - 1) > 0.04 ? `<p class="patline">${m > 1 ? L("💎 Цена ×{0} к обычному «{1}»: {2}", m.toFixed(2), TIERS[t].name, parts.join(", ") || L("удачный рисунок")) : L("Цена ×{0} к обычному «{1}» — рисунок попроще", m.toFixed(2), TIERS[t].name)}</p>` : ""; })()}
     <div class="card" style="text-align:left"><h3>${L("🧾 О номере")}</h3>${facts.map(f => `<p style="margin:0 0 6px;font-size:13px;color:#cfd6e6">${f}</p>`).join("")}</div>
@@ -2262,9 +2281,12 @@ Platform.init({
   mute: setMuted,
   busy: b => $("adwait").classList.toggle("hidden", !b),
   ads: () => { renderPacks(); renderHeader(); if (tab === "more") renderMore(); if (tab === "forge") renderForge(); },   // реклама стала недоступна — прячем её кнопки
+  shop: () => { renderPacks(); if (tab === "more" || tab === "cars") renderTab(); },   // Яндекс: каталог покупок загрузился позже старта
   lang: l => { if (I18N.set(l)) { applyLang(); if (!$("menu").classList.contains("hidden")) showMenu(); } }
 }).then(() => {
-  renderSubs(); if (Platform.hasCloud) cloudLoad();
+  renderSubs();
+  // ВК, Яндекс: оплаченное, но не выданное прошлый раз — выдаём уже поверх сохранения из облака
+  (Platform.hasCloud ? cloudLoad() : Promise.resolve()).then(() => { if (Platform.direct) setTimeout(() => claimPaid(1), 1500); });
   // Telegram: игрок регистрируется на сервере; уже подписан на канал (например, подписался и закрыл игру) — бонус сразу
   if (Platform.name === "tg") Platform.hello().then(j => {
     Platform.track(j ? "srv_ok" : "srv_fail"); if (!j) return;
@@ -2301,7 +2323,7 @@ setInterval(() => {                                   // один раз пос�
 if (/[?&](vk_app_id|vk_user_id)=|[?&]platform=vk\b/.test(location.search)) showMenu();
 // ----- облачное сохранение (если площадка его даёт). localStorage остаётся запасным вариантом.
 function cloudLoad() {
-  Platform.load().then(c => {
+  return Platform.load().then(c => {
     cloudOK = true;
     const has = !RESET && c && c.v;
     // главное хранилище площадки (CrazyGames) — всегда источник истины;
@@ -2326,7 +2348,12 @@ setInterval(() => cloudFlush(false), 15000);
 document.addEventListener("visibilitychange", () => { if (document.hidden) cloudFlush(true); });
 addEventListener("pagehide", () => cloudFlush(true));
 function rewardedAd(cb) {                             // локально (без площадки) награда выдаётся сразу
-  Platform.rewarded().then(ok => { if (ok) cb(); else toast(L("Реклама недоступна")); });
+  Platform.rewarded().then(ok => {
+    if (ok) return cb();
+    let why = "";                                     // ВК: короткий код ответа — чтобы по скриншоту понять, почему награды нет
+    try { const e = window.__vkAdLast; if (e !== undefined) why = " · " + JSON.stringify((e && (e.error_data || e.result !== undefined && { result: e.result })) || e).slice(0, 60); } catch (x) {}
+    toast(L("Реклама недоступна") + why);
+  });
 }
 const interstitial = () => Platform.interstitial();
 // ----- бонусы за подписку на паблики — только в Telegram (правила Яндекса запрещают внешние ссылки, у ВК бонусы за вступление под запретом)
@@ -2335,7 +2362,7 @@ const SUBS = [
   { k: "vk", url: "https://vk.ru/nomer_blatnoy", ico: "💙", name: "группу ВКонтакте" }
 ];
 const subsLeft = () => Platform.name === "tg" ? SUBS.filter(s => !S.subs[s.k]) : [];
-const subReward = () => Math.max(500, Math.round(income() * 300 / 10) * 10);   // ~5 минут дохода гаража, но не меньше 500
+const subReward = () => Math.max(200, Math.round(income() * 300 / 10) * 10);   // ~5 минут дохода гаража, но не меньше 500
 const subsHTML = cls => subsLeft().map(s => `<button class="btn ${cls} subbtn" data-act="subGo" data-k="${s.k}">${s.ico} ${L("Подпишись на {0}", L(s.name))} <b>+${fmt(subReward())} 💰</b></button>`).join("");
 function renderSubs() {                               // компактная полоска на главном экране (после обучения), пока есть неполученные бонусы
   const left = S.tut === -1 ? subsLeft() : [];
@@ -2404,26 +2431,32 @@ const SHOP = [
   { k: "legend", st: 149, ico: "👑", n: "Легенда", d: () => L("Случайный легендарный номер — сразу в гараж") },
   { k: "x2", st: 199, ico: "🔥", n: "Доход ×2 навсегда", d: () => L("Гараж приносит вдвое больше — навсегда, даже после переезда") }
 ];
-const shopCash = k => k === "cash_l" ? Math.max(20000, Math.round(income() * 10800 / 10) * 10) : k === "starter" ? Math.max(5000, Math.round(income() * 3600 / 10) * 10) : Math.max(3000, Math.round(income() * 1800 / 10) * 10);
+// цена: st — в звёздах Telegram; площадка показывает свою валюту (голоса ВК, яны из каталога Яндекса). null — товар здесь не продаётся
+const priceOf = (k, st) => Platform.price(k, st);
+const sells = (k, st) => Platform.canPay && !!priceOf(k, st || 1);
+const shopIco = () => Platform.name === "tg" ? "⭐" : "🛒";
+const SHOP_NOTE = () => Platform.name === "vk" ? L("Покупки за голоса ВКонтакте. Спасибо, что поддерживаешь игру!")
+  : Platform.name === "ya" ? L("Покупки за яны Яндекс Игр. Спасибо, что поддерживаешь игру!") : L("Покупки за звёзды Telegram. Спасибо, что поддерживаешь игру!");
+const shopCash = k => k === "cash_l" ? Math.max(6000, Math.round(income() * 10800 / 10) * 10) : k === "starter" ? Math.max(1500, Math.round(income() * 3600 / 10) * 10) : Math.max(1000, Math.round(income() * 1800 / 10) * 10);
 // набор новичка: одна покупка, предложение действует сутки с первого открытия магазина или всплывашки
-const starterOn = () => Platform.canPay && !S.paid.starter && (!S.paid.starterUntil || Date.now() < S.paid.starterUntil);
+const starterOn = () => sells("starter", 15) && !S.paid.starter && (!S.paid.starterUntil || Date.now() < S.paid.starterUntil);
 function starterStart() { if (!S.paid.starterUntil) { S.paid.starterUntil = Date.now() + 864e5; save(); } }
 function openShop() {
   Platform.track("shop_open"); if (starterOn()) starterStart();
-  const items = SHOP.filter(s => !(s.k === "x2" && S.paid.x2) && (s.k !== "starter" || starterOn()));
-  openModal(`<h2>${L("⭐ Магазин")}</h2><p>${L("Покупки за звёзды Telegram. Спасибо, что поддерживаешь игру!")}</p>
-    ${items.map(s => `<button class="btn ${s.k === "x2" || s.k === "starter" ? "star" : "alt"} shopbtn" data-act="shopBuy" data-k="${s.k}"><span>${s.ico} ${L(s.n)}${s.k === "starter" ? ` <i class="sale">−70%</i>` : ""}<small>${s.d()}${s.k === "starter" ? " · " + L("осталось") + ` <span class="timer" data-until="${S.paid.starterUntil}"></span>` : ""}</small></span><b>⭐ ${s.st}</b></button>`).join("")}
+  const items = SHOP.filter(s => sells(s.k, s.st) && !(s.k === "x2" && S.paid.x2) && (s.k !== "starter" || starterOn()));
+  openModal(`<h2>${shopIco()} ${L("Магазин")}</h2><p>${SHOP_NOTE()}</p>
+    ${items.map(s => `<button class="btn ${s.k === "x2" || s.k === "starter" ? "star" : "alt"} shopbtn" data-act="shopBuy" data-k="${s.k}"><span>${s.ico} ${L(s.n)}${s.k === "starter" ? ` <i class="sale">−70%</i>` : ""}<small>${s.d()}${s.k === "starter" ? " · " + L("осталось") + ` <span class="timer" data-until="${S.paid.starterUntil}"></span>` : ""}</small></span><b>${priceOf(s.k, s.st)}</b></button>`).join("")}
     ${S.paid.x2 ? `<div class="hint">${L("🔥 Доход ×2 навсегда уже куплен")}</div>` : ""}
-    <div class="hint">${L("Условия покупок — /terms, помощь с оплатой — /paysupport в боте.")}</div>
+    ${Platform.name === "tg" ? `<div class="hint">${L("Условия покупок — /terms, помощь с оплатой — /paysupport в боте.")}</div>` : ""}
     <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
 }
 setInterval(() => {                                   // один раз: предложить набор новичка, когда игрок освоился (6+ минут игры после обучения)
-  if (!starterOn() || S.paid.starterUntil || S.tut !== -1 || S.playSec < 360 || !srvOK) return;
+  if (!starterOn() || S.paid.starterUntil || S.tut !== -1 || S.playSec < 360 || !(srvOK || Platform.direct)) return;
   if (!$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden") || jpState || Talk.cur || rolling || pending || cinemaQueue.length) return;
   starterStart(); Platform.track("starter_show");
   openModal(`<h2>${L("🎁 Набор новичка")}</h2><p>${L("Только для новичков и только 24 часа — в 3 раза дешевле обычного:")}</p>
     <div class="card" style="text-align:left"><p>💰 <b>+${fmt(shopCash("starter"))}</b> ${L("— час дохода гаража")}</p><p>🚘 <b>${L("Блатной номер")}</b> ${L("— сразу в гараж")}</p><p>🔥 <b>${L("Доход ×2")}</b> ${L("— на целый час")}</p></div>
-    <button class="btn star shopbtn" data-act="shopBuy" data-k="starter"><span>${L("Забрать набор")} <i class="sale">−70%</i></span><b>⭐ 15</b></button>
+    <button class="btn star shopbtn" data-act="shopBuy" data-k="starter"><span>${L("Забрать набор")} <i class="sale">−70%</i></span><b>${priceOf("starter", 15)}</b></button>
     <button class="btn alt" data-act="closeModal">${L("Не сейчас")}</button>`);
 }, 10000);
 // выдача: покупки и подарки (why — откуда подарок: друг, рейтинг)
@@ -2458,19 +2491,22 @@ const GIFT_WHY = id => /^refnew_/.test(id) ? L("🎁 Подарок за то, �
 // Во время обучения не забираем — подарок дождётся на сервере.
 let claimBusy = false;
 function claimPaid(tries, afterPay) {
-  if (claimBusy || !Platform.canShare || (S.tut !== -1 && !afterPay)) return; claimBusy = true;
+  if (claimBusy || !(Platform.canShare || Platform.direct) || (S.tut !== -1 && !afterPay)) return; claimBusy = true;
   Platform.claim().then(items => {
     claimBusy = false;
-    if (items) setEvent(items.ev);
+    if (items && !Platform.direct) setEvent(items.ev);    // события из админки — только с сервера Telegram
     const got = (items || []).filter(x => !S.paid.got.includes(x.id));
     if (got.length) {
       got.forEach(x => { S.paid.got.push(x.id); shopGrant(x.item, GIFT_WHY(x.id)); });
       S.paid.got = S.paid.got.slice(-50); save(); cloudFlush(true); renderAll();
-    } else if (tries > 1) setTimeout(() => claimPaid(tries - 1, afterPay), 2000);
+    }
+    if (Platform.direct) (items || []).forEach(x => Platform.consume(x));   // ВК, Яндекс: выдано (или уже было выдано раньше) — закрываем покупку
+    if (got.length) return;
+    if (tries > 1) setTimeout(() => claimPaid(tries - 1, afterPay), 2000);
     else if (afterPay) toast(L("Оплата получена — покупка зачислится при следующем запуске игры"));
   });
 }
-setInterval(() => { if (srvOK && !document.hidden) claimPaid(1); }, 90000);
+setInterval(() => { if ((srvOK || Platform.direct) && !document.hidden) claimPaid(1); }, 90000);
 let shopBusy = false;
 function shopBuy(k) {
   if (shopBusy) return; shopBusy = true; Platform.track("shop_try_" + k);
@@ -2729,7 +2765,7 @@ const qDef = q => QUESTS.find(x => x.k === q.k);
 const qProg = q => Math.min(q.n, Math.max(0, qDef(q).s() - q.base));
 // ~3 минуты обычного дохода (без ×2, ажиотажа и событий; с тачками — их доход cars.js добавляет в priceIncome).
 // Было 10 минут полного дохода: у богатых игроков задание «потаксуй 10 раз» давало сотни миллионов.
-const questReward = () => Math.max(300, Math.round(priceIncome() * 180 / 10) * 10);
+const questReward = () => Math.max(100, Math.round(priceIncome() * 180 / 10) * 10);
 const questsReady = () => questsOn() && S.quests.day === todayStr() ? S.quests.list.filter(q => !q.got && qProg(q) >= q.n).length + (S.quests.list.length && S.quests.list.every(q => q.got) && !S.quests.chest ? 1 : 0) : 0;
 function questsTick() {                               // раз в 5 секунд: новый день — новые задания; выполнено — одна подсказка
   if (!questsOn()) return;
@@ -3101,6 +3137,8 @@ const ACTS = {
   forgeBoost: () => rewardedAd(() => { S.forge.boost = true; toast(L("🔨 Мастер позван: шанс ×1.25")); if (tab === "forge") renderForge(); save(); }),
   plateInfo: d => showInfo(+d.id), sellFromInfo: d => { sellPlate(+d.id); closeModal(); },
   orderDo: d => orderDo(+d.id), orderReroll: () => orderReroll(),
+  orderRerollAd: () => rewardedAd(() => { S.ordAt = 0; orderReroll(); toast(L("📋 Новые заказы!")); }),
+  claimDaily2: () => rewardedAd(() => claimDaily(2)),   // ежедневные деньги ×2 за рекламу
   buyUp: d => buyUp(d.id),
   miniStart: () => { closeModal(); startMini(); },
   miniAd: () => rewardedAd(() => { S.mini.next = 0; renderMore(); save(); }),
@@ -3151,10 +3189,28 @@ setInterval(() => {                                   // плавный счёт
   dispCoins = Math.abs(diff) < 1 ? S.coins : dispCoins + diff * 0.25;
   $("coins").textContent = fmt(dispCoins);
 }, 50);
+// гараж копит доход и выплачивает его раз в PAY_SEC секунд; накопленное хранится в сохранении (payAcc, payT)
+function payTick(dt) {
+  S.payAcc = (S.payAcc || 0) + income() * dt; S.payT = (S.payT || 0) + dt;
+  if (S.payT >= PAY_SEC) {
+    S.payT = 0; const v = S.payAcc; S.payAcc = 0;
+    if (v >= 1) {
+      gain(v); const r = $("inc").getBoundingClientRect();
+      floatText(r.left, r.bottom + 4, "+" + fmt(v), "#7dff8a"); fx.fly(r.left + r.width / 2, r.bottom, Math.min(10, 3 + Math.floor(Math.log10(v + 1)))); Snd.coin();
+    }
+  }
+  const b = $("payBar"); if (b) b.style.width = Math.min(100, S.payT / PAY_SEC * 100) + "%";
+}
 setInterval(() => {
   const now = Date.now(), dt = Math.min((now - lastTick) / 1000, 5); lastTick = now;
   if (hidden) return;
-  S.playSec += dt; gain(income() * dt);
+  S.playSec += dt; payTick(dt);
+  if (S.ecoNote && $("modal").classList.contains("hidden") && $("menu").classList.contains("hidden") && !Talk.cur && !cinemaQueue.length) {   // один раз после обновления экономики
+    delete S.ecoNote; save();
+    openModal(`<h2>${L("🔧 Обновление экономики")}</h2><p>${L("Мы пересобрали экономику, чтобы играть было интереснее и дольше:")}</p>
+      <div class="card" style="text-align:left"><p>⏱ ${L("Гараж теперь платит раз в 30 секунд — следи за зелёной полоской в шапке")}</p><p>🏷 ${L("Номера стали дешевле, а легенды и суперлегенды — по-настоящему редкими")}</p><p>💰 ${L("Твои номера и деньги пересчитаны по новым ценам. Апгрейды, тачки, покупки и сюжет — на месте")}</p></div>
+      <button class="btn green" data-act="closeModal">${L("Понятно")}</button>`);
+  }
   if (tab === "buy" && !rolling) { const pp = packPrice("basic"); if (pp !== renderPacks.pp) { renderPacks.pp = pp; renderPacks(); } }
   // помощник покупает бланки сам
   if (up("bot") > 0 && S.bot.on) { botT += dt; if (botT >= botEvery()) { botT = 0; if (!rolling) botBuy(); } }
