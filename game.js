@@ -2333,7 +2333,12 @@ setInterval(() => cloudFlush(false), 15000);
 document.addEventListener("visibilitychange", () => { if (document.hidden) cloudFlush(true); });
 addEventListener("pagehide", () => cloudFlush(true));
 function rewardedAd(cb) {                             // локально (без площадки) награда выдаётся сразу
-  Platform.rewarded().then(ok => { if (ok) cb(); else toast(L("Реклама недоступна")); });
+  Platform.rewarded().then(ok => {
+    if (ok) return cb();
+    let why = "";                                     // ВК: короткий код ответа — чтобы по скриншоту понять, почему награды нет
+    try { const e = window.__vkAdLast; if (e !== undefined) why = " · " + JSON.stringify((e && (e.error_data || e.result !== undefined && { result: e.result })) || e).slice(0, 60); } catch (x) {}
+    toast(L("Реклама недоступна") + why);
+  });
 }
 const interstitial = () => Platform.interstitial();
 // ----- бонусы за подписку на паблики — только в Telegram (правила Яндекса запрещают внешние ссылки, у ВК бонусы за вступление под запретом)

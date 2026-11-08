@@ -121,7 +121,9 @@ const VK_ADAPTER = (() => {
         try { vkBridge.subscribe(e => { const t = e && e.detail && e.detail.type; if (t === "VKWebAppViewHide") ctx.pause(true); if (t === "VKWebAppViewRestore") ctx.pause(false); }); } catch (e) {}
       });
     },
-    rewarded: () => show("reward").then(r => !!(r && r.result), () => false),
+    // реклама досмотрена = ответ без ошибки: клиенты ВК отвечают по-разному ({ result: true }, true, {}), явный отказ — только result: false;
+    // если досмотреть не дали — bridge возвращает ошибку (reject)
+    rewarded: () => show("reward").then(r => { window.__vkAdLast = r; return r !== false && !(r && r.result === false); }, e => { window.__vkAdLast = e; return false; }),
     interstitial: () => show("interstitial").catch(() => {}),
     load() {
       return vkBridge.send("VKWebAppStorageGet", { keys: ["bn_n"] }).then(r => {
