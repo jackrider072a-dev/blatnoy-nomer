@@ -667,3 +667,7 @@ body.hold-royal .plate:not(.other),.oh-royal .plate.other{outline:.16em solid #f
 
 /* иконка валюты из каталога Яндекс Игр (ян) рядом с ценой в магазине */
 img.cur { height: 1.05em; width: auto; vertical-align: -0.18em; margin-left: 3px; }
+
+/* полоска до выплаты гаража (раз в 30 с) */
+.inc .paybar { display: block; height: 3px; margin-top: 3px; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
+.inc .paybar i { display: block; height: 100%; width: 0; background: #7dff8a; transition: width 1s linear; }

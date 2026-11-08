@@ -10,40 +10,41 @@ const RC = [
   { n: "Обычная", tag: "ОБЫЧНАЯ", c: "#9aa5b8" }, { n: "Редкая", tag: "РЕДКАЯ", c: "#4fc3f7" }, { n: "Эпическая", tag: "ЭПИЧЕСКАЯ", c: "#b388ff" },
   { n: "Легендарная", tag: "ЛЕГЕНДАРНАЯ", c: "#ffb300" }, { n: "Мифическая", tag: "МИФИЧЕСКАЯ", c: "#ff3d71" }, { n: "Суперлегенда", tag: "СУПЕРЛЕГЕНДА", c: "#5ef2ff" },
 ];
+// v5: цены тачек, контейнеров и мест — в 3 раза ниже (вместе с ними и доход тачек)
 const PM = [1, 1.2, 1.4, 1.75, 2.5, 4], PAIR = 1.5, INC_SEC = 5400, SELL = 0.5;   // множитель от номера, пара, окупаемость тачки в секундах, продажа за половину
 // q — место номера на фото в % ширины/высоты картинки: верх-лево, верх-право, низ-право, низ-лево
 const CARS = [
-  ["granta", "Lada Granta", 0, 20000, [5.1, 69.3, 17.7, 69.1, 17.7, 75.8, 5.1, 76.1]],
-  ["logan", "Dacia Logan", 0, 22000, [8.5, 61, 22, 62.5, 22, 70, 8.5, 68.5]],
-  ["solaris", "Hyundai Accent", 0, 24000, [6.5, 63.5, 17.5, 64, 17.5, 70.8, 6.5, 70.3]],
-  ["rio", "Kia Rio", 0, 26000, [84, 69.5, 95, 67.5, 95, 75, 84, 77]],
-  ["polo", "Volkswagen Polo", 0, 27000, [6.5, 65.5, 19.5, 67, 19.5, 75.5, 6.5, 74]],
-  ["vesta", "Lada Vesta", 0, 28000, [7.5, 66, 23.5, 67, 23.5, 75, 7.5, 74]],
-  ["octavia", "Škoda Octavia", 1, 70000, [7, 66, 17, 67, 17, 74.5, 7, 73]],
-  ["passat", "Volkswagen Passat", 1, 78000, [6, 63, 17.5, 64, 17.5, 72, 6, 71]],
-  ["mazda6", "Mazda 6", 1, 85000, [84, 72, 95, 71, 95, 79, 84, 80]],
-  ["tiguan", "Volkswagen Tiguan", 1, 95000, [7, 68.5, 19, 70, 19, 77.5, 7, 76]],
-  ["camry", "Toyota Camry", 1, 110000, [83.5, 67.5, 94, 67.3, 94, 74.3, 83.5, 74.5]],
-  ["a6", "Audi A6", 2, 200000, [3.3, 64, 11.7, 65.2, 11.7, 72.6, 3.3, 70.6]],
-  ["bmw5", "BMW 5 Series", 2, 230000, [10.4, 71, 21.8, 73.4, 21.8, 80.4, 10.4, 77.6]],
-  ["eclass", "Mercedes-Benz E-Class", 2, 250000, [7.3, 72.1, 17.9, 75, 17.9, 81.7, 7.3, 78.8]],
-  ["cayenne", "Porsche Cayenne", 2, 280000, [83.9, 68.4, 92.9, 65.8, 92.9, 72.4, 83.9, 75.5]],
-  ["lc", "Toyota Land Cruiser", 2, 300000, [8.5, 70, 19.5, 70, 19.5, 77.5, 8.5, 77.5]],
-  ["lc300", "Lexus LX", 2, 320000, [7.3, 58.5, 17.5, 58.8, 17.5, 65.3, 7.3, 65]],
-  ["m5", "BMW M5", 3, 600000, [0.8, 73.5, 16.8, 76, 16.8, 83.5, 0.8, 81]],
-  ["rr", "Range Rover", 3, 750000, [86, 61, 96, 59.5, 96, 67, 86, 68.5]],
-  ["gclass", "Mercedes-Benz G-Class", 3, 900000, [83, 60, 91.5, 59.5, 91.5, 66, 83, 66.5]],
-  ["p911", "Porsche 911", 3, 1000000, [89, 68, 98, 66, 98, 72, 89, 74]],
-  ["urus", "Lamborghini Urus", 3, 1200000, [11, 73, 25, 74, 25, 81.5, 11, 80.5]],
-  ["mcl720", "McLaren 720S", 4, 2500000, [85.5, 71, 94, 73.5, 94, 80.5, 85.5, 78]],
-  ["aventador", "Lamborghini Aventador", 4, 3000000, [81, 71, 91, 73.5, 91, 80, 81, 78]],
-  ["sf90", "Ferrari SF90", 4, 3500000, [84, 72, 94, 70, 94, 77, 84, 79]],
-  ["cullinan", "Rolls-Royce Cullinan", 4, 5000000, [12, 67.5, 29, 68.5, 29, 77, 12, 76]],
-  ["phantom", "Rolls-Royce Phantom", 5, 12000000, [5.5, 70.5, 18.5, 71.5, 18.5, 80, 5.5, 79]],
-  ["aurus", "Aurus Senat", 5, 15000000, [93.4, 65.6, 98.9, 65, 98.9, 71.1, 93.4, 71.5]],
-  ["huayra", "Pagani Huayra", 5, 25000000, [80, 80, 90, 81, 90, 86.5, 80, 85.5]],
-  ["jesko", "Koenigsegg Agera RS", 5, 30000000, [3, 64, 13, 67, 13, 73, 3, 70]],   // ключ jesko остаётся ради сохранений; на фото — Agera RS
-  ["chiron", "Bugatti Chiron", 5, 40000000, [81, 79.5, 91, 80, 91, 85.5, 81, 85]],
+  ["granta", "Lada Granta", 0, 6700, [5.1, 69.3, 17.7, 69.1, 17.7, 75.8, 5.1, 76.1]],
+  ["logan", "Dacia Logan", 0, 7300, [8.5, 61, 22, 62.5, 22, 70, 8.5, 68.5]],
+  ["solaris", "Hyundai Accent", 0, 8000, [6.5, 63.5, 17.5, 64, 17.5, 70.8, 6.5, 70.3]],
+  ["rio", "Kia Rio", 0, 8700, [84, 69.5, 95, 67.5, 95, 75, 84, 77]],
+  ["polo", "Volkswagen Polo", 0, 9000, [6.5, 65.5, 19.5, 67, 19.5, 75.5, 6.5, 74]],
+  ["vesta", "Lada Vesta", 0, 9300, [7.5, 66, 23.5, 67, 23.5, 75, 7.5, 74]],
+  ["octavia", "Škoda Octavia", 1, 23000, [7, 66, 17, 67, 17, 74.5, 7, 73]],
+  ["passat", "Volkswagen Passat", 1, 26000, [6, 63, 17.5, 64, 17.5, 72, 6, 71]],
+  ["mazda6", "Mazda 6", 1, 28000, [84, 72, 95, 71, 95, 79, 84, 80]],
+  ["tiguan", "Volkswagen Tiguan", 1, 32000, [7, 68.5, 19, 70, 19, 77.5, 7, 76]],
+  ["camry", "Toyota Camry", 1, 37000, [83.5, 67.5, 94, 67.3, 94, 74.3, 83.5, 74.5]],
+  ["a6", "Audi A6", 2, 67000, [3.3, 64, 11.7, 65.2, 11.7, 72.6, 3.3, 70.6]],
+  ["bmw5", "BMW 5 Series", 2, 77000, [10.4, 71, 21.8, 73.4, 21.8, 80.4, 10.4, 77.6]],
+  ["eclass", "Mercedes-Benz E-Class", 2, 83000, [7.3, 72.1, 17.9, 75, 17.9, 81.7, 7.3, 78.8]],
+  ["cayenne", "Porsche Cayenne", 2, 93000, [83.9, 68.4, 92.9, 65.8, 92.9, 72.4, 83.9, 75.5]],
+  ["lc", "Toyota Land Cruiser", 2, 100000, [8.5, 70, 19.5, 70, 19.5, 77.5, 8.5, 77.5]],
+  ["lc300", "Lexus LX", 2, 110000, [7.3, 58.5, 17.5, 58.8, 17.5, 65.3, 7.3, 65]],
+  ["m5", "BMW M5", 3, 200000, [0.8, 73.5, 16.8, 76, 16.8, 83.5, 0.8, 81]],
+  ["rr", "Range Rover", 3, 250000, [86, 61, 96, 59.5, 96, 67, 86, 68.5]],
+  ["gclass", "Mercedes-Benz G-Class", 3, 300000, [83, 60, 91.5, 59.5, 91.5, 66, 83, 66.5]],
+  ["p911", "Porsche 911", 3, 330000, [89, 68, 98, 66, 98, 72, 89, 74]],
+  ["urus", "Lamborghini Urus", 3, 400000, [11, 73, 25, 74, 25, 81.5, 11, 80.5]],
+  ["mcl720", "McLaren 720S", 4, 830000, [85.5, 71, 94, 73.5, 94, 80.5, 85.5, 78]],
+  ["aventador", "Lamborghini Aventador", 4, 1000000, [81, 71, 91, 73.5, 91, 80, 81, 78]],
+  ["sf90", "Ferrari SF90", 4, 1200000, [84, 72, 94, 70, 94, 77, 84, 79]],
+  ["cullinan", "Rolls-Royce Cullinan", 4, 1700000, [12, 67.5, 29, 68.5, 29, 77, 12, 76]],
+  ["phantom", "Rolls-Royce Phantom", 5, 4000000, [5.5, 70.5, 18.5, 71.5, 18.5, 80, 5.5, 79]],
+  ["aurus", "Aurus Senat", 5, 5000000, [93.4, 65.6, 98.9, 65, 98.9, 71.1, 93.4, 71.5]],
+  ["huayra", "Pagani Huayra", 5, 8300000, [80, 80, 90, 81, 90, 86.5, 80, 85.5]],
+  ["jesko", "Koenigsegg Agera RS", 5, 10000000, [3, 64, 13, 67, 13, 73, 3, 70]],   // ключ jesko остаётся ради сохранений; на фото — Agera RS
+  ["chiron", "Bugatti Chiron", 5, 13000000, [81, 79.5, 91, 80, 91, 85.5, 81, 85]],
 ].map(([k, n, r, p, q]) => ({ k, n, r, p, q, base: p / INC_SEC }));
 const CK = Object.fromEntries(CARS.map(c => [c.k, c]));
 // build.ps1: window.CARS_CLEAN (ВК и Яндекс) — фото из cars-clean с затёртыми логотипами; window.CARS_NOBRAND (только ВК) — прозвища вместо марок
@@ -71,11 +72,11 @@ const CREDITS = { granta: ["Ilya Plekhanov", "CC BY-SA 4.0"], logan: ["Mihnea La
 // звёздный — первым: его видно сразу при входе и в ленте контейнеров
 const BOXES = [
   { id: "star", n: "Звёздный контейнер", sn: "Звёздный", r: 5, stars: 49, odds: [0, 0, 0, 0, 70, 30], star: 1, note: "Мифическая или суперлегенда — всегда" },
-  { id: "common", n: "Обычный контейнер", sn: "Обычный", r: 0, price: 150000, odds: [75, 20, 4.5, .5, 0, 0], note: "С него все начинают" },
-  { id: "rare", n: "Редкий контейнер", sn: "Редкий", r: 1, price: 500000, odds: [20, 55, 20, 5, 0, 0], free: 1, note: "В основном редкие тачки" },
-  { id: "epic", n: "Эпический контейнер", sn: "Эпический", r: 2, price: 1500000, odds: [0, 30, 55, 14, 1, 0], free: 1, note: "Обычных тачек внутри нет" },
-  { id: "leg", n: "Легендарный контейнер", sn: "Легендарный", r: 3, price: 5000000, odds: [0, 0, 50, 44, 5.9, .1], note: "Почти половина — легендарные" },
-  { id: "elite", n: "Элитный контейнер", sn: "Элитный", r: 3, price: 12000000, odds: [0, 0, 0, 75, 24, 1], elite: 1, note: "Только легендарные и выше" },
+  { id: "common", n: "Обычный контейнер", sn: "Обычный", r: 0, price: 50000, odds: [75, 20, 4.5, .5, 0, 0], note: "С него все начинают" },
+  { id: "rare", n: "Редкий контейнер", sn: "Редкий", r: 1, price: 170000, odds: [20, 55, 20, 5, 0, 0], free: 1, note: "В основном редкие тачки" },
+  { id: "epic", n: "Эпический контейнер", sn: "Эпический", r: 2, price: 500000, odds: [0, 30, 55, 14, 1, 0], free: 1, note: "Обычных тачек внутри нет" },
+  { id: "leg", n: "Легендарный контейнер", sn: "Легендарный", r: 3, price: 1700000, odds: [0, 0, 50, 44, 5.9, .1], note: "Почти половина — легендарные" },
+  { id: "elite", n: "Элитный контейнер", sn: "Элитный", r: 3, price: 4000000, odds: [0, 0, 0, 75, 24, 1], elite: 1, note: "Только легендарные и выше" },
 ];
 RC.forEach(r => Lprops(r, "n", "tag")); BOXES.forEach(b => Lprops(b, "n", "sn", "note"));   // переводятся при чтении (английский — в i18n.js)
 // звёздный (он первый в списке) — только там, где есть оплата звёздами. Проверяем каждый раз: SDK Telegram грузится уже после старта игры
@@ -93,7 +94,7 @@ function D() {
   return S.dc;
 }
 // ---------- места в гараже: сначала 3, расширение за монеты по одному месту до 15 ----------
-const SLOT0 = 3, SLOT_COST = [40000, 80000, 150000, 250000, 400000, 650000, 1000000, 1600000, 2500000, 4000000, 6000000, 10000000];
+const SLOT0 = 3, SLOT_COST = [13000, 27000, 50000, 83000, 130000, 220000, 330000, 530000, 830000, 1300000, 2000000, 3300000];
 const cap = () => SLOT0 + (D().slots || 0), SLOT_MAX = SLOT0 + SLOT_COST.length;
 const isFull = () => D().cars.length >= cap();
 const slotCost = () => SLOT_COST[D().slots || 0];   // undefined — уже максимум
@@ -283,7 +284,7 @@ function renderCars() {
   if (D().bi >= BOXES.length || D().bi < minBi()) D().bi = minBi();
   const d = D(), el = $("tab-cars"), inc = carsInc(), idle = d.cars.filter(x => !carInc(x)).length;
   el.innerHTML = `<div class="card dc-head">
-      <div class="dc-inc">${L("🏎️ Тачки приносят")} <b>${L("+{0}/сек", fmt(inc))}</b></div>
+      <div class="dc-inc">${L("🏎️ Тачки приносят")} <b>${L("+{0}/30 сек", fmt(inc * PAY_SEC))}</b></div>
       <p style="margin:0">${L("Тачка без номера стоит на приколе. Повесь на неё свой номер из гаража — и она начнёт зарабатывать. Чем круче номер, тем больше доход, а")} <b style="color:var(--gold)">${L("номер той же редкости, что и тачка")}</b> ${L("— ещё ×1.5.")}</p>
       ${idle ? `<p style="margin:0;color:#ff8a98">${L("🚫 Без номера стоят: {0}", idle)}</p>` : ""}
     </div>
@@ -342,7 +343,7 @@ async function boxGo(dir, to) {   // смена контейнера: стары
   const d = D(), n = to != null ? to : d.bi + dir; if (switching || n < minBi() || n >= BOXES.length || n === d.bi) return;
   dir = Math.sign(n - d.bi);
   switching = true; d.bi = n;
-  document.querySelectorAll("#dcList .dc-li").forEach((x, i) => x.classList.toggle("on", i === n));
+  document.querySelectorAll("#dcList .dc-li").forEach(x => x.classList.toggle("on", +x.dataset.i === n));   // по номеру контейнера, а не по позиции: без звёздного лента сдвинута на один
   const li = document.querySelector(`#dcList .dc-li[data-i="${n}"]`); if (li) li.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   const b = BOXES[n], c = boxCol(b), show = $("dcShow"), cr = $("dcCrate"), info = $("dcInfo");
   Sx.whoosh(dir); buzz(10);
@@ -355,7 +356,7 @@ async function boxGo(dir, to) {   // смена контейнера: стары
   show.style.setProperty("--rc", c); show.classList.toggle("hot", b.r >= 3 || !!b.star); show.classList.toggle("star", !!b.star);
   $("dcStar").innerHTML = starStage(b);
   $("dcOrbs").innerHTML = orbs(b);
-  await out.finished; out.cancel();
+  await Promise.race([out.finished, wait(400)]); out.cancel();   // анимация на паузе (вкладка скрыта) — не ждём вечно
   cr.innerHTML = crate(b);
   const inn = cr.animate([
     { transform: `translateX(${dir * 150}%) rotateY(${dir * 80}deg) rotateZ(${dir * 10}deg) scale(.45)`, opacity: 0, filter: "blur(6px) brightness(2)" },
@@ -370,7 +371,7 @@ async function boxGo(dir, to) {   // смена контейнера: стары
   const r = show.getBoundingClientRect();
   fx.burst(r.left + r.width / 2, r.top + r.height * .78, 10 + b.r * 6, [c, "#fff"], { speed: 160 + b.r * 30, up: 120, g: 500, life: .7 });
   if (b.r >= 3 || b.star) { show.animate([{ boxShadow: `0 0 0 ${c}` }, { boxShadow: `0 0 50px ${c}` }, { boxShadow: `0 0 30px ${c}66` }], { duration: 700 }); }
-  await inn.finished; switching = false; save();
+  await Promise.race([inn.finished, wait(800)]); switching = false; save();
 }
 
 // ---------- открытие ----------
@@ -440,7 +441,7 @@ async function reveal(c) {
     <div class="dco-tag${sup ? " tri" : ""}">${R.tag}${isNew ? " • " + L("НОВАЯ!") : ""}</div>
     ${carView(c, x)}
     <div class="dco-n">${c.n}</div>
-    <div class="dco-i"><div>${L("Стоимость")}<b>${fmt(c.p)} 💰</b></div><div>${L("С номером")}<b style="color:var(--ok)">${L("от +{0}/сек", fmt(c.base))}</b></div></div>
+    <div class="dco-i"><div>${L("Стоимость")}<b>${fmt(c.p)} 💰</b></div><div>${L("С номером")}<b style="color:var(--ok)">${L("от +{0}/30 сек", fmt(c.base * PAY_SEC))}</b></div></div>
     <div class="dco-b"><button class="btn green" data-act="dcPick" data-id="${x.id}">${L("🔢 Повесить номер")}</button>
       <div class="row2"><button class="btn alt" data-act="dcSellWon">${L("Продать {0}", fmt(c.p * SELL))}</button>${isFull() ? `<button class="btn alt" data-act="dcFull">${L("🅿️ Гараж полон")}</button>` : `<button class="btn" data-act="dcAgain">${L("Ещё ↻")}</button>`}</div>
       <button class="btn alt dco-close" data-act="dcClose">${L("Закрыть — тачка останется в гараже")}</button></div></div>
@@ -462,7 +463,7 @@ function renderMy(flyId) {
     list.map(({ x, c, inc }) => {
       const p = x.pl != null ? plateById(x.pl) : null, pair = p && p.tier === c.r;
       return `<div class="dc-card${inc ? "" : " idle"}" style="--rc:${RC[c.r].c}" id="dcc${x.id}"><span class="dc-tag">${RC[c.r].tag}</span>${carView(c, x, flyId === x.id)}
-        <div class="dc-crow"><div class="t"><b>${c.n}</b>${p ? `<small>${L("+{0}/сек", fmt(inc))}${pair ? " · ×1.5" : ""}</small>` : `<small class="no">${L("🚫 без номера — не зарабатывает")}</small>`}</div>
+        <div class="dc-crow"><div class="t"><b>${c.n}</b>${p ? `<small>${L("+{0}/30 сек", fmt(inc * PAY_SEC))}${pair ? " · ×1.5" : ""}</small>` : `<small class="no">${L("🚫 без номера — не зарабатывает")}</small>`}</div>
         <button class="btn sm${p ? " alt" : " green"}" data-act="dcPick" data-id="${x.id}">🔢 ${p ? L("Сменить") : L("Номер")}</button></div>
         <div class="dc-acts"><button class="dc-act${d.show === x.id ? " on" : ""}" data-act="dcShow" data-id="${x.id}">${d.show === x.id ? L("✓ Стоит в профиле") : L("👤 В профиль")}</button><button class="dc-act sell" data-act="dcSell" data-id="${x.id}">${L("Продать за {0} 💰", fmt(c.p * SELL))}</button></div></div>`;
     }).join("") : `<div class="dc-empty">${L("Тачек пока нет — открой контейнер 📦")}</div>`);
@@ -475,7 +476,7 @@ function pickPlate(id) {
   openModal(`<h2>${L("🔢 Номер на {0}", c.n)}</h2><p style="font-size:12px;color:var(--dim);margin:0">${L("Идеально подходит {0} номер — доход ×1.5", `<b style="color:${RC[c.r].c}">${TIERS[c.r].name}</b>`)}</p>
     <div class="dc-pick">${list.length ? list.map(p => { const m = PM[p.tier] * (p.tier === c.r ? PAIR : 1), other = on.get(p.id);
       return `<div class="item${x.pl === p.id ? " cur" : ""}" data-act="dcHang" data-id="${id}" data-p="${p.id}">${plateHTML(p)}<div class="info"><b style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}</b><br>${other && other.id !== id ? L("сейчас на {0}", CK[other.k].n) : x.pl === p.id ? L("висит сейчас") : ""}</div>
-        <div class="dc-mult">${L("+{0}/сек", fmt(c.base * m))}${p.tier === c.r ? `<small>${L("💎 пара")}</small>` : ""}</div></div>`; }).join("") : `<div class="dc-empty">${L("В гараже нет номеров — купи бланки на вкладке «Номера»")}</div>`}</div>
+        <div class="dc-mult">${L("+{0}/30 сек", fmt(c.base * m * PAY_SEC))}${p.tier === c.r ? `<small>${L("💎 пара")}</small>` : ""}</div></div>`; }).join("") : `<div class="dc-empty">${L("В гараже нет номеров — купи бланки на вкладке «Номера»")}</div>`}</div>
     ${x.pl != null ? `<button class="btn alt" data-act="dcUnhang" data-id="${id}">${L("Снять номер")}</button>` : ""}<button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
 }
 async function hang(id, pid) {
@@ -492,7 +493,7 @@ async function hang(id, pid) {
   if (card) card.classList.add("pop");
   const pair = p.tier === c.r;
   if (pair) { vignette(RC[c.r].c); Sx.win(Math.min(c.r, 4)); toast(L("💎 Идеальная пара! {0} номер на {1} тачке — ×1.5", TIERS[p.tier].name, RC[c.r].n.toLowerCase())); }
-  else { tone(880, .12, "triangle", .1); tone(1320, .2, "triangle", .08, .08); toast(L("{0} поехала: +{1}/сек", c.n, fmt(carInc(x)))); }
+  else { tone(880, .12, "triangle", .1); tone(1320, .2, "triangle", .08, .08); toast(L("{0} поехала: +{1}/30 сек", c.n, fmt(carInc(x) * PAY_SEC))); }
   renderHeader(); save();
 }
 

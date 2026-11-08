@@ -34,9 +34,9 @@ function Lprops(o, ...keys) {
 
 I18N.en = {
   // ----- интерфейс
-  "доход с гаража": "garage income", "В гараж": "Keep", "Шансы выпадения": "Drop chances",
+  "В гараж": "Keep", "Шансы выпадения": "Drop chances",
   "Номера": "Plates", "Гараж": "Garage", "Тюнинг": "Tuning", "Заказы": "Orders", "Апгрейды": "Upgrades", "Ещё": "More",
-  "Ур. {0}": "Lv. {0}", "{0}/сек": "{0}/sec", "+{0}/сек": "+{0}/sec", "{0} мин": "{0} min",
+  "Ур. {0}": "Lv. {0}", "{0}/сек": "{0}/sec", "+{0}/сек": "+{0}/sec", "+{0}/30 сек": "+{0}/30 sec", "{0} мин": "{0} min",
   "Бланк номера": "Blank plate",
   "Купи свой первый номер — тебя ждёт подарок! 🎁": "Buy your first plate — a gift is waiting for you! 🎁",
   "Купи бланк номера — повезёт, и выпадет «блатной»!": "Buy a plate pack — with luck you'll get a VIP one!",
@@ -107,7 +107,7 @@ I18N.en = {
   "в {0} раз дороже обычного номера": "{0}× more valuable than a common plate",
 
   // ----- гараж
-  "🏠 Гараж": "🏠 Garage", "{0}/{1} мест · доход {2}/сек": "{0}/{1} spots · income {2}/sec", "Продать всё ниже:": "Sell all up to:",
+  "🏠 Гараж": "🏠 Garage", "{0}/{1} мест · доход {2}/30 сек": "{0}/{1} spots · income {2}/30 sec", "Продать всё ниже:": "Sell all up to:",
   "Гараж пуст. Купи номер и нажми «В гараж» — номера приносят доход, даже когда тебя нет.": "Your garage is empty. Buy a plate and tap «Keep» — plates earn money even while you're away.",
   "нажми — история номера": "tap for the plate's story", "Продать {0}": "Sell {0}",
   "Нечего продавать": "Nothing to sell", "Продано {0} шт. на {1}": "Sold {0} plates for {1}",
@@ -126,7 +126,7 @@ I18N.en = {
   "🚕 Таксопарк": "🚕 Taxi fleet", "+4 к заработку за тап «Таксовать»": "+4 earnings per «Taxi» tap",
   "💥 Чаевые": "💥 Tips", "+5% шанс, что тап в такси даст ×10": "+5% chance that a taxi tap pays ×10",
   "🏠 Парковочные места": "🏠 Parking spots", "+2 места в гараже": "+2 garage spots",
-  "📈 Сдача в аренду": "📈 Rentals", "+25% дохода с гаража за уровень": "+25% garage income per level",
+  "📈 Сдача в аренду": "📈 Rentals", "+15% дохода с гаража за уровень": "+15% garage income per level",
   "🤖 Помощник": "🤖 Assistant", "Сам покупает обычные бланки: раз в 25с÷(1+0.5×ур.)": "Buys basic packs for you: every 25s÷(1+0.5×lv.)",
   "🔨 Золотые руки мастера": "🔨 Master's golden hands", "+5% к шансу успеха в мастерской за уровень (от текущего шанса)": "+5% workshop success chance per level (of the current chance)",
   "🎯 Гарантия": "🎯 Guarantee", "Гарантированный блатной номер на 10 покупок раньше": "Guaranteed VIP plate 10 purchases sooner",
@@ -196,7 +196,7 @@ I18N.en = {
   "Миллионер": "Millionaire", "Заработай 1 млн за всё время": "Earn 1M in total",
   "Миллиардер": "Billionaire", "Заработай 1 млрд за всё время": "Earn 1B in total",
   "Исполнитель": "Reliable dealer", "Выполни 10 заказов": "Complete 10 orders",
-  "Ловец номеров": "Plate catcher", "Набери 2000 очков в мини-игре": "Score 2000 in the mini-game",
+  "Ловец номеров": "Plate catcher", "Набери 800 очков в мини-игре": "Score 800 in the mini-game",
   "Опытный": "Experienced", "Достигни 10 уровня": "Reach level 10",
   "Новая жизнь": "A new life", "Переедь в Москву": "Move to Moscow",
   "Таксист": "Cabbie", "Тапни «Таксовать» 500 раз": "Tap «Taxi» 500 times",
@@ -262,7 +262,7 @@ I18N.en = {
   "Настоящие коллекционеры номера не копят — тюнингуют. Слабо рискнуть по-крупному?": "Real collectors don't hoard plates — they tune them. Dare to take a big risk?",
   "Возьми его на слабо. Только с головой: ставь то, что не жалко.": "Take the dare. Just use your head: only stake what you can afford to lose.",
   "…Хм, рука у тебя лёгкая. Но это ещё ничего не значит.": "…Hm, you've got a lucky hand. But that means nothing yet.",
-  "Давай по-честному: чей гараж дороже — тот и король района. Мой стоит 25 000.": "Let's settle it: whoever has the pricier garage is king of the district. Mine is worth 25,000.",
+  "Давай по-честному: чей гараж дороже — тот и король района. Мой стоит 15 000.": "Let's settle it: whoever has the pricier garage is king of the district. Mine is worth 15,000.",
   "Номера в гараже считаются по стоимости. Сливай, тюнингуй — и обгони его!": "Garage plates count by value. Merge, tune — and beat him!",
   "Не может быть… Ладно. Район твой. Но в Москве тебя съедят.": "No way… Fine. The district is yours. But Moscow will eat you alive.",
   "Слышал? Москва зовёт. Готовься к переезду.": "Hear that? Moscow is calling. Get ready to move.",
@@ -323,7 +323,7 @@ I18N.en = {
 
   // ----- карточка «История номера»
   "Обычный номер": "Common plate", "Красивый номер": "Nice plate", "Редкий номер": "Rare plate", "Блатной номер": "VIP plate", "Легендарный номер": "Legendary plate",
-  "Цена {0} 💰 · доход +{1}/сек · шанс из обычного бланка ≈ {2}%": "Value {0} 💰 · income +{1}/sec · basic pack chance ≈ {2}%",
+  "Цена {0} 💰 · доход +{1}/30 сек · шанс из обычного бланка ≈ {2}%": "Value {0} 💰 · income +{1}/30 sec · basic pack chance ≈ {2}%",
   "🧾 О номере": "🧾 About the plate", "📖 Легенда номера": "📖 Plate legend", "📜 История": "📜 History", "(вымышленная)": "(fictional)", "🗣 Слухи": "🗣 Rumors",
   "Продать за {0}": "Sell for {0}", "Сегодня": "Today", "попал к тебе {0}.": "came to you on {0}.", "у тебя в гараже.": "in your garage.",
   "регион {0}": "region {0}", "выдан в регионе: {0}.": "issued in: {0}.", "первый владелец: {0}. Ездил на {1}.": "first owner: {0}. Drove a {1}.",
@@ -528,7 +528,7 @@ Object.assign(I18N.en, {
   "💎 Почти каждый третий — <b>суперлегенда</b>: Bugatti, Koenigsegg, Pagani, Aurus, Rolls-Royce": "💎 Almost every third one is a <b>super legend</b>: Bugatti, Koenigsegg, Pagani, Aurus, Rolls-Royce",
   "⭐ Лучший шанс на суперлегенду — 30%": "⭐ Best super legend chance — 30%",
   "Вскрываем…": "Opening…", "Пропустить ⏩": "Skip ⏩", "Крутим…": "Spinning…", "НОВАЯ!": "NEW!",
-  "Стоимость": "Value", "С номером": "With a plate", "от +{0}/сек": "from +{0}/sec",
+  "Стоимость": "Value", "С номером": "With a plate", "от +{0}/30 сек": "from +{0}/30 sec",
   "🔢 Повесить номер": "🔢 Hang a plate", "＋ Повесить номер": "＋ Hang a plate", "💎 пара": "💎 pair", "Ещё ↻": "Again ↻",
   "Закрыть — тачка останется в гараже": "Close — the car stays in your garage",
   "Все · {0}": "All · {0}", "🚫 без номера — не зарабатывает": "🚫 no plate — not earning", "Сменить": "Change", "Номер": "Plate",
@@ -538,7 +538,7 @@ Object.assign(I18N.en, {
   "сейчас на {0}": "now on {0}", "висит сейчас": "hanging now", "Снять номер": "Remove plate",
   "В гараже нет номеров — купи бланки на вкладке «Номера»": "No plates in your garage — buy blanks on the «Plates» tab",
   "💎 Идеальная пара! {0} номер на {1} тачке — ×1.5": "💎 Perfect pair! {0} plate on a {1} car — ×1.5",
-  "{0} поехала: +{1}/сек": "{0} hits the road: +{1}/sec",
+  "{0} поехала: +{1}/30 сек": "{0} hits the road: +{1}/30 sec",
   "Собрано {0} из {1}": "Collected {0} of {1}", "весь набор: +{0}% к доходу тачек": "full set: +{0}% to car income", "самые редкие тачки": "the rarest cars",
   "Продано: +{0} 💰": "Sold: +{0} 💰",
   "👤 Тачка теперь в профиле — её видят друзья и рейтинг": "👤 The car is now in your profile — friends and the leaderboard see it",
@@ -559,6 +559,12 @@ Object.assign(I18N.en, {
   "Британский лорд": "British Lord", "Кубик": "The Cube", "Спорт-классика": "Sport Classic", "Бык-кроссовер": "Bull SUV",
   "Британская ракета": "British Rocket", "Бык V12": "V12 Bull", "Красный гибрид": "Red Hybrid", "Алмаз": "The Diamond",
   "Дворец на колёсах": "Palace on Wheels", "Кортеж": "Motorcade", "Ветер Анд": "Andes Wind", "Шведский призрак": "Swedish Ghost", "Король скорости": "Speed King",
+  // обновление экономики v5
+  "🔧 Обновление экономики": "🔧 Economy update", "Мы пересобрали экономику, чтобы играть было интереснее и дольше:": "We rebuilt the economy to make the game deeper and longer:",
+  "Гараж теперь платит раз в 30 секунд — следи за зелёной полоской в шапке": "Your garage now pays out every 30 seconds — watch the green bar at the top",
+  "Номера стали дешевле, а легенды и суперлегенды — по-настоящему редкими": "Plates are cheaper, and legends and super legends are truly rare now",
+  "Твои номера и деньги пересчитаны по новым ценам. Апгрейды, тачки, покупки и сюжет — на месте": "Your plates and cash were converted to the new prices. Upgrades, cars, purchases and story progress are kept",
+  "Понятно": "Got it",
   // магазин ВК и Яндекса, новые награды за рекламу
   "Магазин": "Shop", "Магазин — деньги, номера, ×2 навсегда": "Shop — cash, plates, permanent ×2",
   "Покупки за голоса ВКонтакте. Спасибо, что поддерживаешь игру!": "Purchases with VK votes. Thanks for supporting the game!",
