@@ -16,6 +16,10 @@
 //   save(obj, now) — Promise: записать сохранение в облако; now — сразу, без задержек площадки
 //   primary        — true: облако площадки — главное хранилище, оно всегда важнее локального сохранения
 //   happytime()    — площадка празднует большое достижение игрока (необязательно)
+// Покупки (необязательно): canPay — магазин есть; price(k, stars) — подпись цены товара k (HTML) или null, если он тут не продаётся
+//                    (stars — цена в звёздах Telegram, от неё считаются голоса ВК); buy(k) → "paid" | "cancelled" | "failed" | "noserver";
+//                    claim() → оплаченные, но ещё не выданные [{ id, item }]; direct — покупку выдаёт сама игра сразу после оплаты
+//                    (ВК, Яндекс), consume(x) — выдано, больше не возвращать в claim()
 // Адаптеры проверяются по порядку, выбирается первый, чей detect() вернул true.
 // =====================================================================
 
@@ -85,12 +89,25 @@ const CG_ADAPTER = (() => {
 
 // ----- VK: внутри VK в адресе есть vk_app_id/vk_user_id (или ?platform=vk для проверки)
 // VK Storage хранит до 4096 байт на ключ, поэтому сохранение режется на куски bn_0..bn_N, а bn_n хранит их число.
+// Покупки за голоса: окно VKWebAppShowOrderBox, товар и цену ВК спрашивает у нашего сервера (server/src/worker.js, /vk/pay).
+// Включаются флагом window.VK_PAY (build.ps1, $vkPay) — только когда в настройках приложения указан адрес сервера для платежей.
+// На iPhone/iPad платежи ВК в мини-приложениях недоступны — там магазина нет.
+const VK_VOTES = st => Math.max(2, Math.round(st * 0.26));   // звёзды Telegram → голоса ВК (1 голос = 7 ₽); та же формула на сервере
 const VK_ADAPTER = (() => {
-  let q = Promise.resolve(), ctx = null;
+  let q = Promise.resolve(), ctx = null, paid = [];
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const show = format => { ctx.pause(true); return vkBridge.send("VKWebAppShowNativeAds", { ad_format: format }).finally(() => ctx.pause(false)); };
+  const ios = /^mobile_ip/.test(new URLSearchParams(location.search).get("vk_platform") || "");
+  const word = n => { const w = n % 10 === 1 && n % 100 !== 11 ? "голос" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "голоса" : "голосов"; return typeof L === "function" ? L(w) : w; };
   return {
     name: "vk",
+    direct: true,
+    get canPay() { return window.VK_PAY === 1 && !ios && !!window.vkBridge; },
+    price: (k, st) => k === "cos_vip" || !st ? null : `${VK_VOTES(st)} ${word(VK_VOTES(st))}`,   // «Хозяин района» — это рейтинг и друзья, их в ВК нет
+    buy: k => vkBridge.send("VKWebAppShowOrderBox", { type: "item", item: k })
+      .then(r => { if (!r || r.success === false) return "cancelled"; paid.push({ id: "vk_" + (r.order_id || Date.now()), item: k }); return "paid"; }, () => "cancelled"),
+    claim: () => Promise.resolve(paid.slice()),
+    consume(x) { paid = paid.filter(y => y.id !== x.id); },
     detect: () => /[?&](vk_app_id|vk_user_id)=/.test(location.search) || /[?&]platform=vk\b/.test(location.search),
     script: "vk-bridge.min.js",                          // лежит в сборке: сторонний CDN может не ответить, и ВК зависнет на загрузке
     noInterstitial: true,                                // межстраничная — только во время явной загрузки (правила VK, п. 5.1.5.1), у нас таких экранов нет
@@ -132,8 +149,11 @@ const VK_ADAPTER = (() => {
 })();
 
 // ----- Яндекс Игры: SDK отдаётся самой площадкой по адресу /sdk.js; вне Яндекса его нет — тогда играем локально
+// Покупки за яны: товары заводятся в консоли Яндекс Игр (вкладка «Покупки»), id товара = код в игре (starter, cash_s, blat…).
+// В магазине показывается только то, что есть в каталоге, с ценой и иконкой валюты из каталога. Оплаченное, но не выданное
+// (игру закрыли во время оплаты) приходит из getPurchases при следующем запуске; после выдачи — consumePurchase.
 const YA_ADAPTER = (() => {
-  let ysdk = null, player = null, ctx = null;
+  let ysdk = null, player = null, ctx = null, pay = null, cat = {};
   const show = (method, extra) => new Promise(res => {
     let done = false; const end = v => { if (!done) { done = true; ctx.pause(false); res(v); } };
     const cb = Object.assign({ onOpen: () => ctx.pause(true), onClose: () => end(false), onError: () => end(false) }, extra && extra(end));
@@ -151,8 +171,23 @@ const YA_ADAPTER = (() => {
         try { ctx.lang(ysdk.environment.i18n.lang || "ru"); } catch (e) {}   // автоопределение языка (п. 2.14)
         try { ysdk.on("game_api_pause", () => ctx.pause(true)); ysdk.on("game_api_resume", () => ctx.pause(false)); } catch (e) {}
         try { ysdk.features.LoadingAPI && ysdk.features.LoadingAPI.ready(); } catch (e) {}
+        // каталог — не задерживая старт: покупки не подключены или каталог пуст — магазина просто нет
+        try {
+          Promise.resolve(ysdk.payments || ysdk.getPayments({ signed: false })).then(p => { pay = p; return p.getCatalog(); })
+            .then(list => { (list || []).forEach(x => { cat[x.id] = x; }); if ((list || []).length && ctx.shop) ctx.shop(); }).catch(() => {});
+        } catch (e) {}
       });
     },
+    direct: true,
+    get canPay() { return !!pay && Object.keys(cat).length > 0; },
+    price(k) {
+      const x = cat[k]; if (!x) return null;
+      let ico = ""; try { ico = x.getPriceCurrencyImage("small"); } catch (e) {}
+      return ico ? `${x.priceValue} <img class="cur" src="${ico}" alt="">` : x.price;
+    },
+    buy: k => !cat[k] ? Promise.resolve("noserver") : pay.purchase({ id: k }).then(() => "paid", () => "cancelled"),
+    claim: () => !pay ? Promise.resolve(null) : pay.getPurchases().then(l => [...(l || [])].map(p => ({ id: "ya_" + p.purchaseToken, item: p.productID, tok: p.purchaseToken })), () => null),
+    consume(x) { try { pay.consumePurchase(x.tok).catch(() => {}); } catch (e) {} },
     rewarded: () => show("showRewardedVideo", end => { let ok = false; return { onRewarded: () => { ok = true; }, onClose: () => end(ok) }; }),
     interstitial: () => show("showFullscreenAdv"),
     load: () => ysdk.getPlayer().then(p => { player = p; return p.getData(["save"]); }).then(d => d && d.save),
@@ -275,7 +310,7 @@ const ADAPTERS = [CG_ADAPTER, TG_ADAPTER, VK_ADAPTER, YA_ADAPTER];
 const Platform = (() => {
   const INTERSTITIAL_GAP = 120000;   // межстраничная реклама не чаще раза в 2 минуты после любой рекламы
   let a = LOCAL_ADAPTER, lastAd = 0;
-  const ctx = { pause() {}, mute() {}, lang() {}, ads() {}, busy() {} };
+  const ctx = { pause() {}, mute() {}, lang() {}, ads() {}, busy() {}, shop() {} };   // shop — каталог покупок загрузился (показать магазин)
   const loadScript = src => new Promise((ok, fail) => {
     const s = document.createElement("script");
     s.src = src; s.onload = ok; s.onerror = fail;
@@ -313,9 +348,12 @@ const Platform = (() => {
     checkSub: () => a.checkSub ? a.checkSub() : Promise.resolve(null),
     state(obj) { if (a.state) a.state(obj); },
     askNotify: () => a.askNotify ? a.askNotify() : Promise.resolve(false),
-    get canPay() { return !!a.canPay; },                  // покупки за звёзды — только в Telegram
+    get canPay() { return !!a.canPay; },                  // магазин: звёзды Telegram, голоса ВК, яны Яндекса
+    get direct() { return !!a.direct; },                  // покупку выдаёт игра сама (ВК, Яндекс), а не сервер через claim
+    price: (k, st) => !a.canPay ? null : a.price ? a.price(k, st) : "⭐ " + st,   // Telegram — цена в звёздах как есть
     buy: item => a.buy ? a.buy(item) : Promise.resolve("noserver"),
     claim: () => a.claim ? a.claim() : Promise.resolve(null),
+    consume(x) { if (a.consume) a.consume(x); },
     get canShare() { return !!a.refLink; },               // приглашения и «похвастаться» — только в Telegram
     get refLink() { return a.refLink || ""; },
     share: text => a.share ? a.share(text) : Promise.resolve(false),

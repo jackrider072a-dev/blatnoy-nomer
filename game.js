@@ -873,7 +873,8 @@ function renderPacks() {
 // кнопки рекламы прячем, если площадка её не даёт (блокировщик, пробный запуск) — пустых кнопок быть не должно
 function syncAdButtons() {
   $("btnAd").style.display = Platform.adsOK ? "" : "none";
-  $("btnShop").style.display = Platform.canPay && S.tut === -1 ? "" : "none";   // магазин за звёзды — Telegram, после обучения
+  $("btnShop").style.display = Platform.canPay && S.tut === -1 ? "" : "none";   // магазин (Telegram, ВК, Яндекс) — после обучения
+  $("btnShop").textContent = shopIco() + " " + L("Магазин");
   $("btnBuff").style.display = Platform.adsOK && S.lvl >= 3 && S.plates.length ? "" : "none";   // доход ×2 имеет смысл, когда гараж уже приносит деньги
 }
 // вкладки открываются по мере роста, чтобы новичок не тонул в кнопках
@@ -1013,6 +1014,7 @@ function renderOrders() {
   });
   const wait = S.ordAt - Date.now();
   h += `<button class="btn alt" data-act="orderReroll" ${wait > 0 ? "disabled" : ""}>${L("🔄 Обновить заказы")} ${wait > 0 ? '<span class="timer" data-until="' + S.ordAt + '"></span>' : L("(бесплатно)")}</button>`;
+  if (wait > 0 && Platform.adsOK) h += `<button class="btn" data-act="orderRerollAd">${L("📺 Обновить сейчас (реклама)")}</button>`;
   $("tab-orders").innerHTML = h;
 }
 function orderDo(id) {
@@ -1081,7 +1083,7 @@ function renderMore() {
   <div class="profbox" data-act="profile">${myCard(true)}</div>
   <div class="row"><button class="btn alt" data-act="profile">${L("✏️ Мой профиль")}</button>${Platform.canShare ? `<button class="btn ${reqsN ? "green ready" : "alt"}" data-act="friends">${L("👥 Друзья")}${reqsN ? ` <b class="badge">${reqsN}</b>` : ""}</button>` : ""}</div>
   ${isAdmin ? `<button class="btn red" data-act="admin">🛠 Админка</button>` : ""}
-  ${Platform.canPay ? `<button class="btn star" data-act="shop">${L("⭐ Магазин — деньги, номера, ×2 навсегда")}</button>` : ""}
+  ${Platform.canPay ? `<button class="btn star" data-act="shop">${shopIco()} ${L("Магазин — деньги, номера, ×2 навсегда")}</button>` : ""}
   ${questsHTML()}
   ${Platform.canShare ? `<div class="card"><h3>${L("🤝 Пригласи друга")}</h3><p>${L("Друг сразу получит блатной номер, а ты — блатной, когда друг дойдёт до 3 уровня. Друзей — без ограничений!")}</p>
     ${refs.n ? `<p style="font-size:13px;color:#8d99b3">${L("Пришли по твоей ссылке: {0} · втянулись: {1}", refs.n, refs.done)}</p>` : ""}
@@ -1222,14 +1224,16 @@ function checkDaily() {
   const d = S.daily.streak;
   const days = DAILY.map((r, i) => `<div class="day ${i + 1 === d ? "cur" : i + 1 < d ? "got" : ""}">${L("День {0}", i + 1)}<b>${r === "prem" ? "💼" : fmt(r)}</b></div>`).join("");
   openModal(`<h2>${L("🎁 Ежедневный бонус")}</h2><p style="font-size:13px;color:#8d99b3">${L("Заходи каждый день — на 7-й день ждёт номер из премиум-бланка!")}</p><div class="days">${days}</div>
+    ${DAILY[d - 1] !== "prem" && Platform.adsOK ? `<button class="btn star" data-act="claimDaily2">${L("📺 Забрать ×2 (+{0})", fmt(dailyCash(d) * 2))}</button>` : ""}
     <button class="btn green" data-act="claimDaily">${L("Забрать")}</button>`, true);
 }
-function claimDaily() {
+const dailyCash = d => Math.round(DAILY[d - 1] * (1 + 0.05 * S.lvl));
+function claimDaily(mult = 1) {
   const r = DAILY[S.daily.streak - 1]; S.daily.last = todayStr(); closeModal(); Snd.win(2);
   if (r === "prem") {
     const p = drawPlate("prem"); markFound(p); S.tc[p.tier]++; keepPlate(p); if (p.tier >= 3) jackpot(p); else { fx.confetti(100); bigText(TIERS[p.tier].name + "!", TIERS[p.tier].color); }
     toast(L("💼 Номер в гараже: {0}", p.l1 + p.d + p.l23 + " " + p.reg)); Snd.win(p.tier);
-  } else { const v = Math.round(r * (1 + 0.05 * S.lvl)); gain(v); fx.fly(innerWidth / 2, innerHeight / 2, 14); toast("+" + fmt(v) + " 💰"); }
+  } else { const v = dailyCash(S.daily.streak) * mult; gain(v); if (mult > 1) fx.confetti(60); fx.fly(innerWidth / 2, innerHeight / 2, 14); toast("+" + fmt(v) + " 💰"); }
   renderAll(); save();
 }
 
@@ -1897,22 +1901,22 @@ function applyCos() {
 function openCos(t) {
   if (t) cosTab = t;
   const ex = { l1: "А", d: "777", l23: "АА", reg: "77", tier: 3 };
-  const list = COS[cosTab].filter(x => S.cos.own.includes(cosTab + ":" + x.id) || x.p || (Platform.canPay && x.st)).map(x => {   // без Telegram-оплаты звёздное не показываем
+  const list = COS[cosTab].filter(x => S.cos.own.includes(cosTab + ":" + x.id) || x.p || (x.st && sells("cos_" + cosTab + "_" + x.id, x.st))).map(x => {   // платное — только там, где его продают
     const own = S.cos.own.includes(cosTab + ":" + x.id), on = S.cos[cosTab] === x.id;
     const prev = cosTab === "hold" ? `<div class="oh-${x.id}">${plateHTML(ex, "small other")}</div>` : cosTab === "fx" ? `<div class="ppins pfx-${x.id}">${plateHTML(ex, "small")}</div>` : `<div class="garswatch gar-${x.id}">🚘</div>`;
     const btn = on ? `<button class="btn sm alt" data-act="cosSet" data-k="${cosTab}" data-v="">${L("✓ Снять")}</button>`
       : own ? `<button class="btn sm green" data-act="cosSet" data-k="${cosTab}" data-v="${x.id}">${L("Надеть")}</button>`
-      : x.vip ? `<button class="btn sm star" data-act="shopBuy" data-k="cos_vip">👑 ⭐ ${VIP_ST}</button>`
-      : x.st ? `<button class="btn sm star" data-act="shopBuy" data-k="cos_${cosTab}_${x.id}">⭐ ${x.st}</button>`
+      : x.vip ? (sells("cos_vip", VIP_ST) ? `<button class="btn sm star" data-act="shopBuy" data-k="cos_vip">👑 ${priceOf("cos_vip", VIP_ST)}</button>` : "")
+      : x.st ? `<button class="btn sm star" data-act="shopBuy" data-k="cos_${cosTab}_${x.id}">${priceOf("cos_" + cosTab + "_" + x.id, x.st)}</button>`
       : `<button class="btn sm ${S.coins >= x.p ? "green" : "alt"}" data-act="cosBuy" data-k="${cosTab}" data-v="${x.id}" ${S.coins >= x.p ? "" : "disabled"}>${fmt(x.p)} 💰</button>`;
     const tag = x.vip ? `<small class="cvip">${L("👑 из пакета «Хозяин района»")}</small>` : x.st ? `<small class="cst">${L("✨ с анимацией")}</small>` : "";
     return `<div class="cosrow ${on ? "on" : ""} ${x.vip ? "vip" : x.st ? "st" : ""}"><div class="cosprev">${prev}</div><div class="cosn"><b>${x.n}</b>${own ? `<small>${L("куплено")}</small>` : tag}</div>${btn}</div>`;
   }).join("");
   const vipBox = isVip() ? `<div class="vipbox own"><b>👑 ${L("Ты — Хозяин района")}</b><small>${L("Золотое имя с короной видят все: в рейтинге, у друзей и в профиле")}</small></div>`
-    : Platform.canPay ? `<div class="vipbox"><div class="vipb-h">👑 ${L("Хозяин района")}</div>
+    : sells("cos_vip", VIP_ST) ? `<div class="vipbox"><div class="vipb-h">👑 ${L("Хозяин района")}</div>
       <div class="vipb-prev oh-royal pfx-crown">${plateHTML({ l1: "А", d: "001", l23: "МР", reg: "97", tier: 5 }, "mid other")}</div>
       <ul><li>${L("Королевская рамка на всех номерах")}</li><li>${L("Эффект «Корона» у закреплённых номеров")}</li><li>${L("Интерьер «Дворец» в гараже")}</li><li><b>${L("Золотое имя с 👑 в рейтинге, у друзей и в профиле — видят все")}</b></li></ul>
-      <button class="btn star" data-act="shopBuy" data-k="cos_vip">${L("Стать Хозяином района")} · ⭐ ${VIP_ST}</button></div>` : "";
+      <button class="btn star" data-act="shopBuy" data-k="cos_vip">${L("Стать Хозяином района")} · ${priceOf("cos_vip", VIP_ST)}</button></div>` : "";
   openModal(`<h2>${L("🎨 Оформление")}</h2><div class="atabs">${COS_TABS.map(([k, n]) => `<button class="btn sm ${k === cosTab ? "green" : "alt"}" data-act="cos" data-t="${k}">${L(n)}</button>`).join("")}</div>
     <p class="hint">${cosTab === "hold" ? L("Рамка на всех твоих номерах — в гараже, профиле и рейтинге.") : cosTab === "fx" ? L("Эффект у номеров, закреплённых в профиле.") : L("Интерьер твоего гаража — его видят все, кто к тебе заходит.")} ${L("Покупается навсегда.")}</p>
     ${vipBox}<div class="card coslist">${list}</div><button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
@@ -2262,9 +2266,12 @@ Platform.init({
   mute: setMuted,
   busy: b => $("adwait").classList.toggle("hidden", !b),
   ads: () => { renderPacks(); renderHeader(); if (tab === "more") renderMore(); if (tab === "forge") renderForge(); },   // реклама стала недоступна — прячем её кнопки
+  shop: () => { renderPacks(); if (tab === "more" || tab === "cars") renderTab(); },   // Яндекс: каталог покупок загрузился позже старта
   lang: l => { if (I18N.set(l)) { applyLang(); if (!$("menu").classList.contains("hidden")) showMenu(); } }
 }).then(() => {
-  renderSubs(); if (Platform.hasCloud) cloudLoad();
+  renderSubs();
+  // ВК, Яндекс: оплаченное, но не выданное прошлый раз — выдаём уже поверх сохранения из облака
+  (Platform.hasCloud ? cloudLoad() : Promise.resolve()).then(() => { if (Platform.direct) setTimeout(() => claimPaid(1), 1500); });
   // Telegram: игрок регистрируется на сервере; уже подписан на канал (например, подписался и закрыл игру) — бонус сразу
   if (Platform.name === "tg") Platform.hello().then(j => {
     Platform.track(j ? "srv_ok" : "srv_fail"); if (!j) return;
@@ -2301,7 +2308,7 @@ setInterval(() => {                                   // один раз пос�
 if (/[?&](vk_app_id|vk_user_id)=|[?&]platform=vk\b/.test(location.search)) showMenu();
 // ----- облачное сохранение (если площадка его даёт). localStorage остаётся запасным вариантом.
 function cloudLoad() {
-  Platform.load().then(c => {
+  return Platform.load().then(c => {
     cloudOK = true;
     const has = !RESET && c && c.v;
     // главное хранилище площадки (CrazyGames) — всегда источник истины;
@@ -2404,26 +2411,32 @@ const SHOP = [
   { k: "legend", st: 149, ico: "👑", n: "Легенда", d: () => L("Случайный легендарный номер — сразу в гараж") },
   { k: "x2", st: 199, ico: "🔥", n: "Доход ×2 навсегда", d: () => L("Гараж приносит вдвое больше — навсегда, даже после переезда") }
 ];
+// цена: st — в звёздах Telegram; площадка показывает свою валюту (голоса ВК, яны из каталога Яндекса). null — товар здесь не продаётся
+const priceOf = (k, st) => Platform.price(k, st);
+const sells = (k, st) => Platform.canPay && !!priceOf(k, st || 1);
+const shopIco = () => Platform.name === "tg" ? "⭐" : "🛒";
+const SHOP_NOTE = () => Platform.name === "vk" ? L("Покупки за голоса ВКонтакте. Спасибо, что поддерживаешь игру!")
+  : Platform.name === "ya" ? L("Покупки за яны Яндекс Игр. Спасибо, что поддерживаешь игру!") : L("Покупки за звёзды Telegram. Спасибо, что поддерживаешь игру!");
 const shopCash = k => k === "cash_l" ? Math.max(20000, Math.round(income() * 10800 / 10) * 10) : k === "starter" ? Math.max(5000, Math.round(income() * 3600 / 10) * 10) : Math.max(3000, Math.round(income() * 1800 / 10) * 10);
 // набор новичка: одна покупка, предложение действует сутки с первого открытия магазина или всплывашки
-const starterOn = () => Platform.canPay && !S.paid.starter && (!S.paid.starterUntil || Date.now() < S.paid.starterUntil);
+const starterOn = () => sells("starter", 15) && !S.paid.starter && (!S.paid.starterUntil || Date.now() < S.paid.starterUntil);
 function starterStart() { if (!S.paid.starterUntil) { S.paid.starterUntil = Date.now() + 864e5; save(); } }
 function openShop() {
   Platform.track("shop_open"); if (starterOn()) starterStart();
-  const items = SHOP.filter(s => !(s.k === "x2" && S.paid.x2) && (s.k !== "starter" || starterOn()));
-  openModal(`<h2>${L("⭐ Магазин")}</h2><p>${L("Покупки за звёзды Telegram. Спасибо, что поддерживаешь игру!")}</p>
-    ${items.map(s => `<button class="btn ${s.k === "x2" || s.k === "starter" ? "star" : "alt"} shopbtn" data-act="shopBuy" data-k="${s.k}"><span>${s.ico} ${L(s.n)}${s.k === "starter" ? ` <i class="sale">−70%</i>` : ""}<small>${s.d()}${s.k === "starter" ? " · " + L("осталось") + ` <span class="timer" data-until="${S.paid.starterUntil}"></span>` : ""}</small></span><b>⭐ ${s.st}</b></button>`).join("")}
+  const items = SHOP.filter(s => sells(s.k, s.st) && !(s.k === "x2" && S.paid.x2) && (s.k !== "starter" || starterOn()));
+  openModal(`<h2>${shopIco()} ${L("Магазин")}</h2><p>${SHOP_NOTE()}</p>
+    ${items.map(s => `<button class="btn ${s.k === "x2" || s.k === "starter" ? "star" : "alt"} shopbtn" data-act="shopBuy" data-k="${s.k}"><span>${s.ico} ${L(s.n)}${s.k === "starter" ? ` <i class="sale">−70%</i>` : ""}<small>${s.d()}${s.k === "starter" ? " · " + L("осталось") + ` <span class="timer" data-until="${S.paid.starterUntil}"></span>` : ""}</small></span><b>${priceOf(s.k, s.st)}</b></button>`).join("")}
     ${S.paid.x2 ? `<div class="hint">${L("🔥 Доход ×2 навсегда уже куплен")}</div>` : ""}
-    <div class="hint">${L("Условия покупок — /terms, помощь с оплатой — /paysupport в боте.")}</div>
+    ${Platform.name === "tg" ? `<div class="hint">${L("Условия покупок — /terms, помощь с оплатой — /paysupport в боте.")}</div>` : ""}
     <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
 }
 setInterval(() => {                                   // один раз: предложить набор новичка, когда игрок освоился (6+ минут игры после обучения)
-  if (!starterOn() || S.paid.starterUntil || S.tut !== -1 || S.playSec < 360 || !srvOK) return;
+  if (!starterOn() || S.paid.starterUntil || S.tut !== -1 || S.playSec < 360 || !(srvOK || Platform.direct)) return;
   if (!$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden") || jpState || Talk.cur || rolling || pending || cinemaQueue.length) return;
   starterStart(); Platform.track("starter_show");
   openModal(`<h2>${L("🎁 Набор новичка")}</h2><p>${L("Только для новичков и только 24 часа — в 3 раза дешевле обычного:")}</p>
     <div class="card" style="text-align:left"><p>💰 <b>+${fmt(shopCash("starter"))}</b> ${L("— час дохода гаража")}</p><p>🚘 <b>${L("Блатной номер")}</b> ${L("— сразу в гараж")}</p><p>🔥 <b>${L("Доход ×2")}</b> ${L("— на целый час")}</p></div>
-    <button class="btn star shopbtn" data-act="shopBuy" data-k="starter"><span>${L("Забрать набор")} <i class="sale">−70%</i></span><b>⭐ 15</b></button>
+    <button class="btn star shopbtn" data-act="shopBuy" data-k="starter"><span>${L("Забрать набор")} <i class="sale">−70%</i></span><b>${priceOf("starter", 15)}</b></button>
     <button class="btn alt" data-act="closeModal">${L("Не сейчас")}</button>`);
 }, 10000);
 // выдача: покупки и подарки (why — откуда подарок: друг, рейтинг)
@@ -2458,19 +2471,22 @@ const GIFT_WHY = id => /^refnew_/.test(id) ? L("🎁 Подарок за то, �
 // Во время обучения не забираем — подарок дождётся на сервере.
 let claimBusy = false;
 function claimPaid(tries, afterPay) {
-  if (claimBusy || !Platform.canShare || (S.tut !== -1 && !afterPay)) return; claimBusy = true;
+  if (claimBusy || !(Platform.canShare || Platform.direct) || (S.tut !== -1 && !afterPay)) return; claimBusy = true;
   Platform.claim().then(items => {
     claimBusy = false;
-    if (items) setEvent(items.ev);
+    if (items && !Platform.direct) setEvent(items.ev);    // события из админки — только с сервера Telegram
     const got = (items || []).filter(x => !S.paid.got.includes(x.id));
     if (got.length) {
       got.forEach(x => { S.paid.got.push(x.id); shopGrant(x.item, GIFT_WHY(x.id)); });
       S.paid.got = S.paid.got.slice(-50); save(); cloudFlush(true); renderAll();
-    } else if (tries > 1) setTimeout(() => claimPaid(tries - 1, afterPay), 2000);
+    }
+    if (Platform.direct) (items || []).forEach(x => Platform.consume(x));   // ВК, Яндекс: выдано (или уже было выдано раньше) — закрываем покупку
+    if (got.length) return;
+    if (tries > 1) setTimeout(() => claimPaid(tries - 1, afterPay), 2000);
     else if (afterPay) toast(L("Оплата получена — покупка зачислится при следующем запуске игры"));
   });
 }
-setInterval(() => { if (srvOK && !document.hidden) claimPaid(1); }, 90000);
+setInterval(() => { if ((srvOK || Platform.direct) && !document.hidden) claimPaid(1); }, 90000);
 let shopBusy = false;
 function shopBuy(k) {
   if (shopBusy) return; shopBusy = true; Platform.track("shop_try_" + k);
@@ -3101,6 +3117,8 @@ const ACTS = {
   forgeBoost: () => rewardedAd(() => { S.forge.boost = true; toast(L("🔨 Мастер позван: шанс ×1.25")); if (tab === "forge") renderForge(); save(); }),
   plateInfo: d => showInfo(+d.id), sellFromInfo: d => { sellPlate(+d.id); closeModal(); },
   orderDo: d => orderDo(+d.id), orderReroll: () => orderReroll(),
+  orderRerollAd: () => rewardedAd(() => { S.ordAt = 0; orderReroll(); toast(L("📋 Новые заказы!")); }),
+  claimDaily2: () => rewardedAd(() => claimDaily(2)),   // ежедневные деньги ×2 за рекламу
   buyUp: d => buyUp(d.id),
   miniStart: () => { closeModal(); startMini(); },
   miniAd: () => rewardedAd(() => { S.mini.next = 0; renderMore(); save(); }),

@@ -664,3 +664,6 @@ body.hold-royal .plate:not(.other),.oh-royal .plate.other{outline:.16em solid #f
 #subgate .sgnote{font-size:13px;color:#8a93ab;margin-top:4px}
 #subgate .sgnote b{color:#ffd45c}
 @keyframes sgfly{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-8px) rotate(6deg)}}
+
+/* иконка валюты из каталога Яндекс Игр (ян) рядом с ценой в магазине */
+img.cur { height: 1.05em; width: auto; vertical-align: -0.18em; margin-left: 3px; }

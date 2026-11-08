@@ -79,7 +79,10 @@ const BOXES = [
 ];
 RC.forEach(r => Lprops(r, "n", "tag")); BOXES.forEach(b => Lprops(b, "n", "sn", "note"));   // переводятся при чтении (английский — в i18n.js)
 // звёздный (он первый в списке) — только там, где есть оплата звёздами. Проверяем каждый раз: SDK Telegram грузится уже после старта игры
-const minBi = () => Platform.canPay ? 0 : 1;
+const minBi = () => sells("box_star", 49) ? 0 : 1;   // Telegram — звёзды, ВК — голоса, Яндекс — если товар box_star есть в каталоге
+const starPrice = () => priceOf("box_star", 49);
+// обычный контейнер бесплатно за рекламу — раз в AD_BOX_GAP
+const AD_BOX = "common", AD_BOX_GAP = 15 * 60000;
 const boxCol = b => b.elite ? "#ffd23f" : b.star ? "#5ef2ff" : RC[b.r].c;
 
 // ---------- состояние (хранится в сохранении игры) ----------
@@ -276,7 +279,7 @@ addEventListener("resize", () => fitPlates());
 // ===================== ВКЛАДКА =====================
 function renderCars() {
   cleanup(); preload();
-  if (Platform.canPay && !D().starShown) { D().starShown = 1; D().bi = 0; }   // в Telegram при первом заходе сразу показываем звёздный
+  if (minBi() === 0 && !D().starShown) { D().starShown = 1; D().bi = 0; }   // в Telegram при первом заходе сразу показываем звёздный
   if (D().bi >= BOXES.length || D().bi < minBi()) D().bi = minBi();
   const d = D(), el = $("tab-cars"), inc = carsInc(), idle = d.cars.filter(x => !carInc(x)).length;
   el.innerHTML = `<div class="card dc-head">
@@ -296,8 +299,10 @@ function boxInfo(b, i) {
   const inside = CARS.filter(x => b.odds[x.r] > 0).sort((a, z) => z.r - a.r || z.p - a.p).slice(0, 10);
   const btn = isFull() ? `<button class="btn alt dc-open" data-act="dcFull">${L("🅿️ Гараж полон ({0}) — освободи место", D().cars.length + "/" + cap())}</button>`
     : free ? `<button class="btn green dc-open" data-act="dcOpen">${L("🎁 Открыть бесплатно")}</button>`
-    : b.star ? `<button class="btn star dc-open" data-act="dcOpen">${L("Открыть за {0} ⭐", b.stars)}</button>`
-    : `<button class="btn dc-open" data-act="dcOpen">${L("Открыть за {0} 💰", fmt(b.price))}</button>`;
+    : b.star ? `<button class="btn star dc-open" data-act="dcOpen">${L("Открыть за {0}", starPrice())}</button>`
+    : `<button class="btn dc-open" data-act="dcOpen">${L("Открыть за {0} 💰", fmt(b.price))}</button>`
+      + (b.id === AD_BOX && Platform.adsOK ? (() => { const w = (D().adBox || 0) - Date.now();
+        return `<button class="btn ${w > 0 ? "alt" : "green"} dc-open" data-act="dcAdBox">${w > 0 ? L("📺 Бесплатно через") + ` <span class="timer" data-until="${D().adBox}"></span>` : L("📺 Открыть бесплатно за рекламу")}</button>`; })() : "");
   return `<div class="dc-name" style="--rc:${c}">${[...b.n].map((ch, k) => `<span style="animation-delay:${k * 22}ms">${ch === " " ? "&nbsp;" : ch}</span>`).join("")}</div>
     <div class="dc-note">${b.note}</div>${free ? `<span class="dc-free">${L("первый раз бесплатно!")}</span>` : ""}
     ${b.star ? `<div class="dc-promo">${(NOBRAND ? L("💎 Почти каждый третий — <b>суперлегенда</b>") : L("💎 Почти каждый третий — <b>суперлегенда</b>: Bugatti, Koenigsegg, Pagani, Aurus, Rolls-Royce"))}</div>` : ""}
@@ -311,7 +316,7 @@ function orbs(b) { return b.r >= 3 || b.star ? Array.from({ length: b.star ? 7 :
 function boxList() {
   const d = D();
   return `<div class="dc-list" id="dcList">${BOXES.map((b, i) => { if (i < minBi()) return "";
-    const free = b.free && d.free[b.id], price = b.star ? `${b.stars} ⭐` : free ? L("бесплатно") : fmt(b.price) + " 💰";
+    const free = b.free && d.free[b.id], price = b.star ? starPrice() : free ? L("бесплатно") : fmt(b.price) + " 💰";
     return `<div class="dc-li${b.star ? " hit" : ""}${i === d.bi ? " on" : ""}${free ? " fr" : ""}" style="--rc:${boxCol(b)}" data-act="dcPickBox" data-i="${i}">
       ${b.star ? `<span class="dc-badge">${L("🔥 ХИТ")}</span>` : free ? `<span class="dc-badge g">🎁</span>` : ""}
       ${crate(b)}<b>${b.sn}</b><small>${price}</small>${b.star ? `<em>${L("30% суперлегенда")}</em>` : ""}</div>`;
@@ -380,12 +385,13 @@ function pay(i) {
   S.coins -= b.price; Platform.track("box_" + b.id); return true;
 }
 function ov() { let o = $("dcOv"); if (!o) { o = document.createElement("div"); o.id = "dcOv"; document.body.appendChild(o); } return o; }
-async function openBox(paidStar) {
+async function openBox(paidStar, viaAd) {
   if (paidStar && (opening || switching)) return setTimeout(() => openBox(true), 1500);   // оплата пришла, пока открывался другой — откроем следом
-  const d = D(), si = BOXES.findIndex(x => x.star), i = paidStar ? si : d.bi, b = BOXES[i];
+  const d = D(), si = BOXES.findIndex(x => x.star), i = paidStar ? si : viaAd ? BOXES.findIndex(x => x.id === AD_BOX) : d.bi, b = BOXES[i];
   if (!b || opening || switching) return;
-  if (!paidStar && isFull()) return fullModal();   // оплаченный звёздный открываем всегда — за него уже заплачено
-  if (!paidStar && !pay(i)) return;
+  if (!paidStar && !viaAd && isFull()) return fullModal();   // оплаченный звёздный и «за рекламу» открываем всегда — за них уже «заплачено»
+  if (!paidStar && !viaAd && !pay(i)) return;
+  if (viaAd) Platform.track("box_ad");
   const win = carOfR(pick6(b.odds)), c = boxCol(b), o = ov();
   opening = { i, b, win, skip: false }; renderHeader(); save();
   $("fx").style.zIndex = 75;
@@ -510,6 +516,13 @@ Object.assign(ACTS, {
   dcSub: d => { D().sub = d.v; renderCars(); },
   dcPrev: () => boxGo(-1), dcNext: () => boxGo(1), dcPickBox: d => boxGo(0, +d.i),
   dcOpen: () => openBox(),
+  dcAdBox: () => {                                         // обычный контейнер за рекламу: место в гараже проверяем до рекламы
+    const w = (D().adBox || 0) - Date.now();
+    if (w > 0) return toast(L("Следующий бесплатный контейнер — через {0}", mmss(w)));
+    if (isFull()) return fullModal();
+    if (opening || switching) return;
+    rewardedAd(() => { D().adBox = Date.now() + AD_BOX_GAP; save(); openBox(false, true); });
+  },
   dcFull: () => fullModal(),
   dcSlot: () => buySlot(),
   dcGoMy: () => { closeModal(); if (opening) closeOv(); D().sub = "my"; renderCars(); },

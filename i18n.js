@@ -558,5 +558,13 @@ Object.assign(I18N.en, {
   "Министерский": "Minister's Car", "Перчик": "Little Pepper", "Крузак": "Cruiser", "Люкс-внедорожник": "Luxury SUV", "Бешеная пятёрка": "Wild Five",
   "Британский лорд": "British Lord", "Кубик": "The Cube", "Спорт-классика": "Sport Classic", "Бык-кроссовер": "Bull SUV",
   "Британская ракета": "British Rocket", "Бык V12": "V12 Bull", "Красный гибрид": "Red Hybrid", "Алмаз": "The Diamond",
-  "Дворец на колёсах": "Palace on Wheels", "Кортеж": "Motorcade", "Ветер Анд": "Andes Wind", "Шведский призрак": "Swedish Ghost", "Король скорости": "Speed King"
+  "Дворец на колёсах": "Palace on Wheels", "Кортеж": "Motorcade", "Ветер Анд": "Andes Wind", "Шведский призрак": "Swedish Ghost", "Король скорости": "Speed King",
+  // магазин ВК и Яндекса, новые награды за рекламу
+  "Магазин": "Shop", "Магазин — деньги, номера, ×2 навсегда": "Shop — cash, plates, permanent ×2",
+  "Покупки за голоса ВКонтакте. Спасибо, что поддерживаешь игру!": "Purchases with VK votes. Thanks for supporting the game!",
+  "Покупки за яны Яндекс Игр. Спасибо, что поддерживаешь игру!": "Purchases with Yandex Games yans. Thanks for supporting the game!",
+  "голос": "vote", "голоса": "votes", "голосов": "votes",
+  "Открыть за {0}": "Open for {0}", "📺 Бесплатно через": "📺 Free in", "📺 Открыть бесплатно за рекламу": "📺 Open free (watch an ad)",
+  "Следующий бесплатный контейнер — через {0}": "Next free container in {0}",
+  "📋 Новые заказы!": "📋 New orders!", "📺 Обновить сейчас (реклама)": "📺 Refresh now (ad)", "📺 Забрать ×2 (+{0})": "📺 Claim ×2 (+{0})"
 });
