@@ -142,6 +142,8 @@ doPrestige = function () {                                 // тачки (в т.
 };
 const _shopGrant = shopGrant;
 shopGrant = function (item, why) {                         // оплатили звёздный контейнер — открываем его
+  if (/^uncar_/.test(item)) { if (takeCar(item.slice(6))) save(); return; }          // админ забрал тачку
+  if (/^car_/.test(item)) { if (giveCar(item.slice(4))) { Platform.track("gift_car"); save(); } return; }   // тачка из админки
   if (item !== "box_star") return _shopGrant(item, why);
   if (!why) S.paid.buys = (S.paid.buys || 0) + 1;
   Platform.track("paid_box"); Platform.happytime();
@@ -150,6 +152,29 @@ shopGrant = function (item, why) {                         // оплатили �
   setTimeout(() => openBox(true), 300);
 };
 
+// ---------- выдача тачки из админки (подарок car_КЛЮЧ или читы): гараж полон — место добавляется само ----------
+function giveCar(k, quiet) {
+  const c = CK[k]; if (!c) return false;
+  const d = D(); if (isFull()) d.slots = Math.max(d.slots || 0, d.cars.length + 1 - SLOT0);
+  d.cars.push({ id: d.nid++, k, pl: null }); if (!d.seen.includes(k)) d.seen.push(k);
+  if (quiet) return true;
+  toast(L("🎁 Тачка {0} ({1}) — в гараже!", c.n, RC[c.r].n)); fx.confetti(c.r >= 3 ? 120 : 60); if (c.r >= 3) vignette(RC[c.r].c);
+  if (tab === "cars") renderCars();
+  return true;
+}
+// забрать тачку (одну штуку по ключу) или все ("all"); номер с неё возвращается в гараж сам — pl просто обнуляется
+function takeCar(k) {
+  const d = D(), free = x => { const p = x.pl != null && plateById(x.pl); if (p && p.dcLock) { p.lock = false; delete p.dcLock; } };
+  if (k === "all") { const had = d.cars.length; d.cars.forEach(free); d.cars = []; d.show = null; if (tab === "cars") renderCars(); return had > 0; }
+  let i = -1; d.cars.forEach((x, j) => { if (x.k === k && (i < 0 || (d.cars[i].id === d.show))) i = j; });   // показанную в профиле — в последнюю очередь
+  if (i < 0) return false;
+  const [x] = d.cars.splice(i, 1); free(x); if (d.show === x.id) d.show = null;
+  if (tab === "cars") renderCars();
+  return true;
+}
+window.DC_ADMIN = { list: () => CARS.map(c => [c.k, c.n, c.r, RC[c.r].n]), give: giveCar, take: takeCar, mine: () => D().cars.map(x => x.k),
+  clear: () => takeCar("all") };
+
 // ---------- тачка в профиле ----------
 // В снимок гаража (его видят друзья и рейтинг) добавляется car: [ключ тачки, номер на ней или null]
 const shownCar = () => { const d = D(), x = d.show != null && d.cars.find(v => v.id === d.show); if (!x) { d.show = null; return null; } return x; };
@@ -157,6 +182,7 @@ const _garageSnap = garageSnap;
 garageSnap = function () {
   const g = _garageSnap(), x = shownCar();
   if (x) { const p = x.pl != null && plateById(x.pl); g.car = [x.k, p ? [p.l1 + p.d + p.l23, p.reg, p.tier] : null]; }
+  g.cs = D().cars.slice(0, 40).map(v => v.k);              // все тачки игрока — для админки (список «Тачки игрока»)
   return g;
 };
 const _cleanSnap = cleanSnap;
