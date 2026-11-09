@@ -142,6 +142,7 @@ doPrestige = function () {                                 // тачки (в т.
 };
 const _shopGrant = shopGrant;
 shopGrant = function (item, why) {                         // оплатили звёздный контейнер — открываем его
+  if (/^uncar_/.test(item)) { if (takeCar(item.slice(6))) save(); return; }          // админ забрал тачку
   if (/^car_/.test(item)) { if (giveCar(item.slice(4))) { Platform.track("gift_car"); save(); } return; }   // тачка из админки
   if (item !== "box_star") return _shopGrant(item, why);
   if (!why) S.paid.buys = (S.paid.buys || 0) + 1;
@@ -161,8 +162,18 @@ function giveCar(k, quiet) {
   if (tab === "cars") renderCars();
   return true;
 }
-window.DC_ADMIN = { list: () => CARS.map(c => [c.k, c.n, c.r, RC[c.r].n]), give: giveCar, mine: () => D().cars.map(x => x.k),
-  clear: () => { D().cars = []; D().show = null; } };
+// забрать тачку (одну штуку по ключу) или все ("all"); номер с неё возвращается в гараж сам — pl просто обнуляется
+function takeCar(k) {
+  const d = D(), free = x => { const p = x.pl != null && plateById(x.pl); if (p && p.dcLock) { p.lock = false; delete p.dcLock; } };
+  if (k === "all") { const had = d.cars.length; d.cars.forEach(free); d.cars = []; d.show = null; if (tab === "cars") renderCars(); return had > 0; }
+  let i = -1; d.cars.forEach((x, j) => { if (x.k === k && (i < 0 || (d.cars[i].id === d.show))) i = j; });   // показанную в профиле — в последнюю очередь
+  if (i < 0) return false;
+  const [x] = d.cars.splice(i, 1); free(x); if (d.show === x.id) d.show = null;
+  if (tab === "cars") renderCars();
+  return true;
+}
+window.DC_ADMIN = { list: () => CARS.map(c => [c.k, c.n, c.r, RC[c.r].n]), give: giveCar, take: takeCar, mine: () => D().cars.map(x => x.k),
+  clear: () => takeCar("all") };
 
 // ---------- тачка в профиле ----------
 // В снимок гаража (его видят друзья и рейтинг) добавляется car: [ключ тачки, номер на ней или null]

@@ -2897,7 +2897,7 @@ function admPlayerPanel(r) {
       <div class="admline"><input id="gp-${id}" placeholder="🚘 Номер, напр. А777АА 77">${btn("admGiftIn", "Выдать", 'data-kind="plate"')}</div>
       <div class="admline"><input id="gs-${id}" type="number" min="1" placeholder="⭐ Связи (+10% дохода каждая)">${btn("admGiftIn", "Выдать", 'data-kind="pts"')}</div>
       <div class="admline"><input id="gb-${id}" type="number" min="1" placeholder="🔥 Доход ×2 — на сколько часов">${btn("admGiftIn", "Выдать", 'data-kind="buff"')}</div>`)}
-    ${grp("🚗", "Тачки", admCarsOf(r.cars) + `<div class="admline">${admCarSelect("gcar-" + id)}${btn("admGiftCar", "Выдать")}</div>`, "по одной; «Штук» ниже тоже работает")}
+    ${grp("🚗", "Тачки", admCarsOf(r.cars, id) + `<div class="admline">${admCarSelect("gcar-" + id)}${btn("admGiftCar", "Выдать")}${btn("admTakeCar", "Забрать")}</div><div class="admgift">${btn("admTakeCar", "🗑 Забрать все тачки", 'data-k="all"')}</div>`, "«Штук» ниже тоже работает; забрать — когда игрок зайдёт")}
     ${grp("👑", "Привилегии", `<div class="admgift priv">${ADM_PRIV().map(([k, n]) => btn("admGift", n, `data-item="${k}"`)).join("")}</div>`, "навсегда, как будто купил за звёзды")}
     ${grp("⚙️", "Как дарить", `<div class="admline"><span>Штук:</span><input id="gn-${id}" type="number" min="1" max="20" value="1" style="max-width:70px"><label class="chk"><input type="checkbox" id="gm-${id}" checked> сообщить в боте</label></div>
       <input id="gt-${id}" placeholder="Подпись к подарку (необязательно)">`, "для всех кнопок выше")}
@@ -2907,13 +2907,15 @@ function admPlayerPanel(r) {
 }
 // тачки в админке: список из cars.js (window.DC_ADMIN), выбор тачки и что есть у игрока (из снимка гаража)
 const admCarList = () => (window.DC_ADMIN ? DC_ADMIN.list() : []);
-const admCarSelect = id => `<select id="${id}">${admCarList().map(([k, n, , rn]) => `<option value="${k}">${escapeHTML(n)} · ${rn}</option>`).join("")}</select>`;
-function admCarsOf(keys) {
+const admCarSelect = id => `<select id="${id}" style="flex:1;min-width:0;width:0">${admCarList().map(([k, n, , rn]) => `<option value="${k}">${escapeHTML(n)} · ${rn}</option>`).join("")}</select>`;
+// uid — игрок (забрать через сервер), без uid — свои тачки (читы); ✖ у тачки забирает одну штуку
+function admCarsOf(keys, uid) {
   if (!keys) return `<p class="asec-hint">Список тачек появится, когда игрок зайдёт в обновлённую игру</p>`;
   if (!keys.length) return `<p class="asec-hint">Тачек пока нет</p>`;
   const nm = Object.fromEntries(admCarList().map(([k, n, , rn]) => [k, n + " · " + rn])), cnt = {};
   keys.forEach(k => cnt[k] = (cnt[k] || 0) + 1);
-  return `<p class="asec-hint">Есть ${keys.length}:</p><div class="chips">${Object.entries(cnt).map(([k, c]) => `<em class="chip">${escapeHTML(nm[k] || k)}${c > 1 ? " ×" + c : ""}</em>`).join("")}</div>`;
+  const who = uid ? `data-uid="${uid}"` : "";
+  return `<p class="asec-hint">Есть ${keys.length}${uid ? " (по последнему снимку гаража)" : ""}. ✖ — забрать одну:</p><div class="chips">${Object.entries(cnt).map(([k, c]) => `<em class="chip">${escapeHTML(nm[k] || k)}${c > 1 ? " ×" + c : ""} <button class="btn sm red" style="padding:0 6px;min-height:0" data-act="admTakeCar" data-k="${k}" ${who}>✖</button></em>`).join("")}</div>`;
 }
 // номер из текста админа: латиница → кириллица (A→А…), «А777АА 77», «а777аа77 rus» → { l1, d, l23, reg }
 const LAT2CYR = { A: "А", B: "В", E: "Е", K: "К", M: "М", H: "Н", O: "О", P: "Р", C: "С", T: "Т", Y: "У", X: "Х" };
@@ -2989,7 +2991,7 @@ function admCheatsHTML() {
   const extra = {
     "Деньги": `<div class="admline"><input id="chC" type="number" min="1" placeholder="Сколько монет"><button class="btn sm green" data-act="admCheatIn" data-k="coins">💰 Добавить</button></div>`,
     "Номера": `<div class="admline"><input id="chP" placeholder="Номер, напр. А777АА 77"><select id="chT"><option value="-1">редкость сама</option>${TIERS.map((t, i) => `<option value="${i}">${t.name}</option>`).join("")}</select><button class="btn sm green" data-act="admCheatIn" data-k="plate">🚘</button></div>`,
-    "Тачки": (window.DC_ADMIN ? admCarsOf(DC_ADMIN.mine()) : "") + `<div class="admline">${admCarSelect("chCar")}<button class="btn sm green" data-act="admCarMe">🚗 Себе</button></div>`,
+    "Тачки": (window.DC_ADMIN ? admCarsOf(DC_ADMIN.mine()) : "") + `<div class="admline">${admCarSelect("chCar")}<button class="btn sm green" data-act="admCarMe">🚗 Себе</button><button class="btn sm red" data-act="admTakeCar">Забрать</button></div>`,
     "Прогресс": `<div class="admline"><input id="chL" type="number" min="1" placeholder="Уровень"><button class="btn sm alt" data-act="admCheatIn" data-k="lvl">Поставить</button><input id="chS" type="number" min="0" placeholder="⭐ связей"><button class="btn sm alt" data-act="admCheatIn" data-k="pts">Поставить</button></div>`
   };
   return `<div class="abanner">🧪 Читы меняют только твой прогресс на этом устройстве. Деньги из читов не попадают в рейтинг недели. Подарить себе «по-настоящему», через сервер, можно во вкладке «👥 Игроки».</div>`
@@ -3042,7 +3044,15 @@ const ACTS = {
   admPlayer: d => { const g = $("gifts-" + d.uid); if (g) { g.classList.toggle("hidden"); g.parentElement.classList.toggle("open", !g.classList.contains("hidden")); } },
   admGift: (d, e, el) => admGiftSend(+d.uid, d.item, el),
   admGiftCar: (d, e, el) => { const k = ($("gcar-" + d.uid) || {}).value; if (k) admGiftSend(+d.uid, "car_" + k, el); },
-  admCarMe: () => { const k = ($("chCar") || {}).value; if (k && window.DC_ADMIN && DC_ADMIN.give(k)) { save(); renderAll(); } },
+  admTakeCar: (d, e, el) => {                            // data-k — какую (или all); без k — из выпадающего списка
+    if (e && e.stopPropagation) e.stopPropagation();
+    const k = d.k || ($(d.uid ? "gcar-" + d.uid : "chCar") || {}).value; if (!k || !window.DC_ADMIN) return;
+    if (k === "all" && !el.dataset.sure) { el.dataset.sure = 1; el.textContent = "Точно? Нажми ещё раз"; return; }
+    if (d.uid) return admGiftSend(+d.uid, "uncar_" + k, el);
+    if (!DC_ADMIN.take(k)) return toast("Такой тачки у тебя нет");
+    toast(k === "all" ? "🗑 Все тачки забраны" : "🗑 Тачка забрана"); save(); renderAll(); admBody(admCheatsHTML());
+  },
+  admCarMe: () => { const k = ($("chCar") || {}).value; if (k && window.DC_ADMIN && DC_ADMIN.give(k)) { save(); renderAll(); admBody(admCheatsHTML()); } },
   admGiftIn: (d, e, el) => {                           // подарок с полем ввода: монеты, номер, связи, часы ×2
     const uid = +d.uid, v = (($({ coins: "gc-", plate: "gp-", pts: "gs-", buff: "gb-" }[d.kind] + uid) || {}).value || "").trim();
     if (d.kind === "plate") { const p = parsePlate(v); if (!p) return toast("Номер не понял. Пример: А777АА 77"); return admGiftSend(uid, `plate_${p.l1}${p.d}${p.l23}_${p.reg}`, el); }
