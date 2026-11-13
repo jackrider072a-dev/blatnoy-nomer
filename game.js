@@ -2280,7 +2280,7 @@ Platform.init({
   pause: setPaused,
   mute: setMuted,
   busy: b => $("adwait").classList.toggle("hidden", !b),
-  ads: () => { renderPacks(); renderHeader(); if (tab === "more") renderMore(); if (tab === "forge") renderForge(); },   // реклама стала недоступна — прячем её кнопки
+  ads: () => { renderPacks(); renderHeader(); if (tab === "more") renderMore(); if (tab === "forge") renderForge(); if (tab === "cars") renderTab(); },
   shop: () => { renderPacks(); if (tab === "more" || tab === "cars") renderTab(); },   // Яндекс: каталог покупок загрузился позже старта
   lang: l => { if (I18N.set(l)) { applyLang(); if (!$("menu").classList.contains("hidden")) showMenu(); } }
 }).then(() => {

@@ -94,13 +94,21 @@ const CG_ADAPTER = (() => {
 // На iPhone/iPad платежи ВК в мини-приложениях недоступны — там магазина нет.
 const VK_VOTES = st => Math.max(2, Math.round(st * 0.26));   // звёзды Telegram → голоса ВК (1 голос = 7 ₽); та же формула на сервере
 const VK_ADAPTER = (() => {
-  let q = Promise.resolve(), ctx = null, paid = [];
+  let q = Promise.resolve(), ctx = null, paid = [], adReady = false, adCheck = null;
   const wait = ms => new Promise(r => setTimeout(r, ms));
+  const checkAds = () => {
+    if (adCheck) return adCheck;
+    adCheck = vkBridge.send("VKWebAppCheckNativeAds", { ad_format: "reward" })
+      .then(r => { adReady = !!(r && r.result === true); }, e => { adReady = false; window.__vkAdLast = e; })
+      .finally(() => { adCheck = null; ctx.ads(); });
+    return adCheck;
+  };
   const show = format => { ctx.pause(true); return vkBridge.send("VKWebAppShowNativeAds", { ad_format: format }).finally(() => ctx.pause(false)); };
   const ios = /^mobile_ip/.test(new URLSearchParams(location.search).get("vk_platform") || "");
   const word = n => { const w = n % 10 === 1 && n % 100 !== 11 ? "голос" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "голоса" : "голосов"; return typeof L === "function" ? L(w) : w; };
   return {
     name: "vk",
+    get adsOK() { return adReady; },
     direct: true,
     get canPay() { return window.VK_PAY === 1 && !ios && !!window.vkBridge; },
     price: (k, st) => k === "cos_vip" || !st ? null : `${VK_VOTES(st)} ${word(VK_VOTES(st))}`,   // «Хозяин района» — это рейтинг и друзья, их в ВК нет
@@ -119,11 +127,16 @@ const VK_ADAPTER = (() => {
       if (!window.vkBridge) return Promise.reject();
       return vkBridge.send("VKWebAppInit").then(() => {
         try { vkBridge.subscribe(e => { const t = e && e.detail && e.detail.type; if (t === "VKWebAppViewHide") ctx.pause(true); if (t === "VKWebAppViewRestore") ctx.pause(false); }); } catch (e) {}
+        setTimeout(checkAds, 0);
+        setInterval(() => { if (!adReady) checkAds(); }, 30000);
       });
     },
-    // реклама досмотрена = ответ без ошибки: клиенты ВК отвечают по-разному ({ result: true }, true, {}), явный отказ — только result: false;
-    // если досмотреть не дали — bridge возвращает ошибку (reject)
-    rewarded: () => show("reward").then(r => { window.__vkAdLast = r; return r !== false && !(r && r.result === false); }, e => { window.__vkAdLast = e; return false; }),
+    rewarded: () => {
+      if (!adReady) return Promise.resolve(false);
+      adReady = false;
+      return show("reward").then(r => { window.__vkAdLast = r; return !!(r && r.result === true); }, e => { window.__vkAdLast = e; return false; })
+        .finally(() => { ctx.ads(); setTimeout(checkAds, 1000); });
+    },
     interstitial: () => show("interstitial").catch(() => {}),
     load() {
       return vkBridge.send("VKWebAppStorageGet", { keys: ["bn_n"] }).then(r => {
@@ -330,9 +343,13 @@ const Platform = (() => {
     init(hooks) {
       Object.assign(ctx, hooks);
       const cand = ADAPTERS.find(x => x.detect()) || LOCAL_ADAPTER;
+      if (cand === VK_ADAPTER) a = { name: "vk", adsOK: false, rewarded: () => Promise.resolve(false) };
       return (cand.script ? loadScript(cand.script) : Promise.resolve())
         .then(() => cand.init(ctx))
-        .then(() => { a = cand; }, () => {});             // SDK не загрузился или не инициализировался — локальный режим
+        .then(() => { a = cand; }, () => {
+          // При ошибке VK нельзя выдавать награду через локальный тестовый режим.
+          if (cand === VK_ADAPTER) a = { name: "vk", adsOK: false, rewarded: () => Promise.resolve(false) };
+        });
     },
     rewarded() {
       if (!a.name) return a.rewarded();                   // локально награда сразу, без паузы и блокировки
