@@ -93,7 +93,7 @@ const yesterdayStr = () => { const d = new Date(Date.now() - 864e5); return d.ge
 
 // ===================== СОСТОЯНИЕ =====================
 const fresh = () => ({
-  v: 5, sets: {}, merges: 0, mergeBest: 0, story: { ch: 0, intro: false, ev: {} }, tut: 0, title: "", achClaim: {}, coins: START_COINS, drawn: 0, goal: 0, forge: { sel: [], coins: 0, target: null, lots: [], lotsAt: 0, boost: false, tries: 0, wins: 0, legend: 0 }, forgePend: null, earned: 0, earnedRun: 0, plates: [], found: {}, up: {}, bought: 0, sold: 0,
+  v: 5, sets: {}, merges: 0, mergeBest: 0, story: { ch: 0, intro: false, ev: {} }, tut: 0, carTutorial: 1, title: "", achClaim: {}, coins: START_COINS, drawn: 0, goal: 0, forge: { sel: [], coins: 0, target: null, lots: [], lotsAt: 0, boost: false, tries: 0, wins: 0, legend: 0 }, forgePend: null, earned: 0, earnedRun: 0, plates: [], found: {}, up: {}, bought: 0, sold: 0,
   tc: [0, 0, 0, 0, 0, 0], pity: 0, xp: 0, lvl: 1, pts: 0, prest: 0, orders: [], ordAt: 0, ach: {},
   daily: { last: "", streak: 0 }, mini: { best: 0, next: 0, plays: 0 },
   set: { music: true, sfx: true, vib: true, auto: -1, city: true }, market: null, t: Date.now(), nid: 1,
@@ -121,6 +121,8 @@ function normalize(r) {                              // сохранение (л
   s.prof = Object.assign(fresh().prof, r.prof); if (!Array.isArray(s.prof.pins)) s.prof.pins = [];
   s.story = Object.assign(fresh().story, r.story); s.story.ev = Object.assign({}, s.story.ev);
   if (!r.story) s.tut = r.drawn > 0 ? -1 : 0;                              // сейв до сюжета: опытным игрокам обучение не показываем
+  if (!r.carTutorial && s.tut >= 3) s.tut += 2;                            // в обучение добавились два шага после первого номера
+  s.carTutorial = 1;
   if (!Array.isArray(s.forge.sel)) s.forge.sel = [];
   if (!Array.isArray(s.forge.lots)) s.forge.lots = [];
   if (s.forgePend && !s.forgePend.v2) s.forgePend = null;
@@ -2062,7 +2064,9 @@ const TUT = [
   { say: "Здорово, племяш! Я — дядя Валера. Отдаю тебе свой старый гараж: будешь собирать красивые номера. Я подскажу, что к чему.", next: true },
   { say: "Вот бланк номера. Жми — посмотрим, что выпадет!", el: '[data-act="buy"][data-pack="basic"]', done: () => S.drawn >= 1 },
   { say: "Есть! Ставь его в гараж — номера в гараже приносят деньги каждую секунду.", el: '[data-act="keepPending"]', done: () => S.plates.length >= 1 && !pending },
-  { say: () => L("Обычные номера — тоже не мусор. Купи ещё бланков, пока не наберётся три одинаковых ({0}/3).", Math.min(tierCount(0), 3)), el: '[data-act="buy"][data-pack="basic"]', done: () => !!document.querySelector(".mergebtn") },
+  { say: "А ещё я оставил тебе машину. Загляни во вкладку «Тачки».", el: 'nav button[data-tab="cars"]', done: () => tab === "cars" },
+  { say: "Поставь на машину свой номер, и она начнёт приносить доход.", el: '#tab-cars.on [data-act="dcPick"]', free: true, done: () => !!S.dc?.cars.some(car => car.pl != null) },
+  { say: () => tab !== "buy" ? L("Вернись к бланкам, чтобы собрать ещё номера.") : L("Обычные номера — тоже не мусор. Купи ещё бланков, пока не наберётся три одинаковых ({0}/3).", Math.min(tierCount(0), 3)), el: () => tab !== "buy" ? 'nav button[data-tab="buy"]' : '[data-act="buy"][data-pack="basic"]', done: () => tab === "buy" && !!document.querySelector(".mergebtn") },
   { say: "А теперь фокус: три одинаковых номера сливаем в один получше. Жми!", el: ".mergebtn", done: () => S.merges >= 1 },
   { say: "Загляни в гараж — там твоя коллекция.", el: 'nav button[data-tab="garage"]', done: () => tab === "garage" },
   { say: "Собираешь наборы — получаешь награду и вечный бонус к доходу. Первый набор ты уже собрал!", el: "#tab-garage .sets .set", next: true, free: true },
@@ -2280,7 +2284,7 @@ Platform.init({
   pause: setPaused,
   mute: setMuted,
   busy: b => $("adwait").classList.toggle("hidden", !b),
-  ads: () => { renderPacks(); renderHeader(); if (tab === "more") renderMore(); if (tab === "forge") renderForge(); },   // реклама стала недоступна — прячем её кнопки
+  ads: () => { renderPacks(); renderHeader(); if (tab === "more") renderMore(); if (tab === "forge") renderForge(); if (tab === "cars") renderTab(); },
   shop: () => { renderPacks(); if (tab === "more" || tab === "cars") renderTab(); },   // Яндекс: каталог покупок загрузился позже старта
   lang: l => { if (I18N.set(l)) { applyLang(); if (!$("menu").classList.contains("hidden")) showMenu(); } }
 }).then(() => {
@@ -2897,7 +2901,7 @@ function admPlayerPanel(r) {
       <div class="admline"><input id="gp-${id}" placeholder="🚘 Номер, напр. А777АА 77">${btn("admGiftIn", "Выдать", 'data-kind="plate"')}</div>
       <div class="admline"><input id="gs-${id}" type="number" min="1" placeholder="⭐ Связи (+10% дохода каждая)">${btn("admGiftIn", "Выдать", 'data-kind="pts"')}</div>
       <div class="admline"><input id="gb-${id}" type="number" min="1" placeholder="🔥 Доход ×2 — на сколько часов">${btn("admGiftIn", "Выдать", 'data-kind="buff"')}</div>`)}
-    ${grp("🚗", "Тачки", admCarsOf(r.cars) + `<div class="admline">${admCarSelect("gcar-" + id)}${btn("admGiftCar", "Выдать")}</div>`, "по одной; «Штук» ниже тоже работает")}
+    ${grp("🚗", "Тачки", admCarsOf(r.cars, id) + `<div class="admline">${admCarSelect("gcar-" + id)}${btn("admGiftCar", "Выдать")}${btn("admTakeCar", "Забрать")}</div><div class="admgift">${btn("admTakeCar", "🗑 Забрать все тачки", 'data-k="all"')}</div>`, "«Штук» ниже тоже работает; забрать — когда игрок зайдёт")}
     ${grp("👑", "Привилегии", `<div class="admgift priv">${ADM_PRIV().map(([k, n]) => btn("admGift", n, `data-item="${k}"`)).join("")}</div>`, "навсегда, как будто купил за звёзды")}
     ${grp("⚙️", "Как дарить", `<div class="admline"><span>Штук:</span><input id="gn-${id}" type="number" min="1" max="20" value="1" style="max-width:70px"><label class="chk"><input type="checkbox" id="gm-${id}" checked> сообщить в боте</label></div>
       <input id="gt-${id}" placeholder="Подпись к подарку (необязательно)">`, "для всех кнопок выше")}
@@ -2907,13 +2911,15 @@ function admPlayerPanel(r) {
 }
 // тачки в админке: список из cars.js (window.DC_ADMIN), выбор тачки и что есть у игрока (из снимка гаража)
 const admCarList = () => (window.DC_ADMIN ? DC_ADMIN.list() : []);
-const admCarSelect = id => `<select id="${id}">${admCarList().map(([k, n, , rn]) => `<option value="${k}">${escapeHTML(n)} · ${rn}</option>`).join("")}</select>`;
-function admCarsOf(keys) {
+const admCarSelect = id => `<select id="${id}" style="flex:1;min-width:0;width:0">${admCarList().map(([k, n, , rn]) => `<option value="${k}">${escapeHTML(n)} · ${rn}</option>`).join("")}</select>`;
+// uid — игрок (забрать через сервер), без uid — свои тачки (читы); ✖ у тачки забирает одну штуку
+function admCarsOf(keys, uid) {
   if (!keys) return `<p class="asec-hint">Список тачек появится, когда игрок зайдёт в обновлённую игру</p>`;
   if (!keys.length) return `<p class="asec-hint">Тачек пока нет</p>`;
   const nm = Object.fromEntries(admCarList().map(([k, n, , rn]) => [k, n + " · " + rn])), cnt = {};
   keys.forEach(k => cnt[k] = (cnt[k] || 0) + 1);
-  return `<p class="asec-hint">Есть ${keys.length}:</p><div class="chips">${Object.entries(cnt).map(([k, c]) => `<em class="chip">${escapeHTML(nm[k] || k)}${c > 1 ? " ×" + c : ""}</em>`).join("")}</div>`;
+  const who = uid ? `data-uid="${uid}"` : "";
+  return `<p class="asec-hint">Есть ${keys.length}${uid ? " (по последнему снимку гаража)" : ""}. ✖ — забрать одну:</p><div class="chips">${Object.entries(cnt).map(([k, c]) => `<em class="chip">${escapeHTML(nm[k] || k)}${c > 1 ? " ×" + c : ""} <button class="btn sm red" style="padding:0 6px;min-height:0" data-act="admTakeCar" data-k="${k}" ${who}>✖</button></em>`).join("")}</div>`;
 }
 // номер из текста админа: латиница → кириллица (A→А…), «А777АА 77», «а777аа77 rus» → { l1, d, l23, reg }
 const LAT2CYR = { A: "А", B: "В", E: "Е", K: "К", M: "М", H: "Н", O: "О", P: "Р", C: "С", T: "Т", Y: "У", X: "Х" };
@@ -2989,7 +2995,7 @@ function admCheatsHTML() {
   const extra = {
     "Деньги": `<div class="admline"><input id="chC" type="number" min="1" placeholder="Сколько монет"><button class="btn sm green" data-act="admCheatIn" data-k="coins">💰 Добавить</button></div>`,
     "Номера": `<div class="admline"><input id="chP" placeholder="Номер, напр. А777АА 77"><select id="chT"><option value="-1">редкость сама</option>${TIERS.map((t, i) => `<option value="${i}">${t.name}</option>`).join("")}</select><button class="btn sm green" data-act="admCheatIn" data-k="plate">🚘</button></div>`,
-    "Тачки": (window.DC_ADMIN ? admCarsOf(DC_ADMIN.mine()) : "") + `<div class="admline">${admCarSelect("chCar")}<button class="btn sm green" data-act="admCarMe">🚗 Себе</button></div>`,
+    "Тачки": (window.DC_ADMIN ? admCarsOf(DC_ADMIN.mine()) : "") + `<div class="admline">${admCarSelect("chCar")}<button class="btn sm green" data-act="admCarMe">🚗 Себе</button><button class="btn sm red" data-act="admTakeCar">Забрать</button></div>`,
     "Прогресс": `<div class="admline"><input id="chL" type="number" min="1" placeholder="Уровень"><button class="btn sm alt" data-act="admCheatIn" data-k="lvl">Поставить</button><input id="chS" type="number" min="0" placeholder="⭐ связей"><button class="btn sm alt" data-act="admCheatIn" data-k="pts">Поставить</button></div>`
   };
   return `<div class="abanner">🧪 Читы меняют только твой прогресс на этом устройстве. Деньги из читов не попадают в рейтинг недели. Подарить себе «по-настоящему», через сервер, можно во вкладке «👥 Игроки».</div>`
@@ -3042,7 +3048,15 @@ const ACTS = {
   admPlayer: d => { const g = $("gifts-" + d.uid); if (g) { g.classList.toggle("hidden"); g.parentElement.classList.toggle("open", !g.classList.contains("hidden")); } },
   admGift: (d, e, el) => admGiftSend(+d.uid, d.item, el),
   admGiftCar: (d, e, el) => { const k = ($("gcar-" + d.uid) || {}).value; if (k) admGiftSend(+d.uid, "car_" + k, el); },
-  admCarMe: () => { const k = ($("chCar") || {}).value; if (k && window.DC_ADMIN && DC_ADMIN.give(k)) { save(); renderAll(); } },
+  admTakeCar: (d, e, el) => {                            // data-k — какую (или all); без k — из выпадающего списка
+    if (e && e.stopPropagation) e.stopPropagation();
+    const k = d.k || ($(d.uid ? "gcar-" + d.uid : "chCar") || {}).value; if (!k || !window.DC_ADMIN) return;
+    if (k === "all" && !el.dataset.sure) { el.dataset.sure = 1; el.textContent = "Точно? Нажми ещё раз"; return; }
+    if (d.uid) return admGiftSend(+d.uid, "uncar_" + k, el);
+    if (!DC_ADMIN.take(k)) return toast("Такой тачки у тебя нет");
+    toast(k === "all" ? "🗑 Все тачки забраны" : "🗑 Тачка забрана"); save(); renderAll(); admBody(admCheatsHTML());
+  },
+  admCarMe: () => { const k = ($("chCar") || {}).value; if (k && window.DC_ADMIN && DC_ADMIN.give(k)) { save(); renderAll(); admBody(admCheatsHTML()); } },
   admGiftIn: (d, e, el) => {                           // подарок с полем ввода: монеты, номер, связи, часы ×2
     const uid = +d.uid, v = (($({ coins: "gc-", plate: "gp-", pts: "gs-", buff: "gb-" }[d.kind] + uid) || {}).value || "").trim();
     if (d.kind === "plate") { const p = parsePlate(v); if (!p) return toast("Номер не понял. Пример: А777АА 77"); return admGiftSend(uid, `plate_${p.l1}${p.d}${p.l23}_${p.reg}`, el); }
@@ -3201,6 +3215,7 @@ function renderAll() { syncNav(); updateMoreDot(); renderHeader(); renderPills()
 
 // ===================== ГЛАВНЫЙ ЦИКЛ =====================
 let lastTick = Date.now(), botT = 0, saveT = 0;
+let onGaragePayout = () => {};
 setInterval(() => {                                   // плавный счётчик монет
   const diff = S.coins - dispCoins;
   dispCoins = Math.abs(diff) < 1 ? S.coins : dispCoins + diff * 0.25;
@@ -3214,6 +3229,7 @@ function payTick(dt) {
     if (v >= 1) {
       gain(v); const r = $("inc").getBoundingClientRect();
       floatText(r.left, r.bottom + 4, "+" + fmt(v), "#7dff8a"); fx.fly(r.left + r.width / 2, r.bottom, Math.min(10, 3 + Math.floor(Math.log10(v + 1)))); Snd.coin();
+      onGaragePayout();
     }
   }
   const b = $("payBar"); if (b) b.style.width = Math.min(100, S.payT / PAY_SEC * 100) + "%";

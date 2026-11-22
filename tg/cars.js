@@ -46,7 +46,14 @@ const CARS = [
   ["jesko", "Koenigsegg Agera RS", 5, 10000000, [3, 64, 13, 67, 13, 73, 3, 70]],   // ключ jesko остаётся ради сохранений; на фото — Agera RS
   ["chiron", "Bugatti Chiron", 5, 13000000, [81, 79.5, 91, 80, 91, 85.5, 81, 85]],
 ].map(([k, n, r, p, q]) => ({ k, n, r, p, q, base: p / INC_SEC }));
-const CK = Object.fromEntries(CARS.map(c => [c.k, c]));
+// новогодние тачки (ny.js): выдуманные, без марок — одинаковые на всех площадках. В обычных контейнерах их нет:
+// только «Подарочный контейнер» (за 🍊), «Праздничный контейнер» (донат) и «Сани» (донат). Всегда в зимней ливрее (+25% к доходу).
+// Фото: cars/<ключ>.webp и cars-clean/<ключ>.webp; пока фото нет — рисунок-заглушка (NY_PHOTO — ключи, у которых фото уже есть)
+const NY_CARS = [["mandarin", "Мандаринка", 1, 25000, "🍊"], ["elka", "Ёлочка", 2, 90000, "🎄"], ["morozko", "Морозко", 3, 350000, "❄️"],
+  ["sneg", "Снегурочка", 4, 1500000, "👸"], ["kuranty", "Куранты", 4, 1800000, "🕛"], ["sani", "Сани Деда Мороза", 5, 12000000, "🛷"]];
+const NY_PHOTO = new Set(["mandarin", "elka", "morozko", "sneg", "kuranty", "sani"]);
+NY_CARS.forEach(([k, n, r, p, ico]) => CARS.push(Lprops({ k, n, r, p, q: null, base: p / INC_SEC, ny: 1, ico }, "n")));
+const CK =Object.fromEntries(CARS.map(c => [c.k, c]));
 // build.ps1: window.CARS_CLEAN (ВК и Яндекс) — фото из cars-clean с затёртыми логотипами; window.CARS_NOBRAND (только ВК) — прозвища вместо марок
 const NOBRAND = !!window.CARS_NOBRAND, CLEAN = !!window.CARS_CLEAN;
 if (NOBRAND) {
@@ -56,10 +63,11 @@ if (NOBRAND) {
     m5: "Бешеная пятёрка", rr: "Британский лорд", gclass: "Кубик", p911: "Спорт-классика", urus: "Бык-кроссовер",
     mcl720: "Британская ракета", aventador: "Бык V12", sf90: "Красный гибрид", cullinan: "Алмаз",
     phantom: "Дворец на колёсах", aurus: "Кортеж", huayra: "Ветер Анд", jesko: "Шведский призрак", chiron: "Король скорости" };
-  CARS.forEach(c => { c.n = NN[c.k]; Lprops(c, "n"); });
+  CARS.forEach(c => { if (!c.ny) { c.n = NN[c.k]; Lprops(c, "n"); } });
 }
 const IMGV = 3;                                            // поменяли фото — увеличь, чтобы Telegram не показывал старые из кэша
-const img = k => `cars/${k}.webp?v=${IMGV}${CLEAN ? "c" : ""}`;   // у фото без логотипов своя метка — кэш не подсунет старые с логотипами
+const nyArt = c => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300"><defs><radialGradient id="g" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="${RC[c.r].c}" stop-opacity=".55"/><stop offset="1" stop-color="${RC[c.r].c}" stop-opacity="0"/></radialGradient></defs><ellipse cx="320" cy="160" rx="300" ry="140" fill="url(#g)"/><text x="320" y="210" font-size="170" text-anchor="middle">${c.ico}</text><text x="190" y="90" font-size="44" text-anchor="middle" fill="#fff" opacity=".8">❄</text><text x="470" y="120" font-size="32" text-anchor="middle" fill="#fff" opacity=".6">❄</text></svg>`);
+const img = k => CK[k] && CK[k].ny && !NY_PHOTO.has(k) ? nyArt(CK[k]) : `cars/${k}.webp?v=${IMGV}${CLEAN ? "c" : ""}`;   // у фото без логотипов своя метка — кэш не подсунет старые с логотипами
 // авторы фото (Wikimedia Commons): ключ — [автор, лицензия]
 const CREDITS = { granta: ["Ilya Plekhanov", "CC BY-SA 4.0"], logan: ["Mihnea Lazăr", "CC BY-SA 4.0"], solaris: ["Kevauto", "CC BY-SA 4.0"], rio: ["Vauxford", "CC BY-SA 4.0"],
   polo: ["M 93", "CC BY-SA 3.0 DE"], vesta: ["Throwawayacc222", "CC0"], octavia: ["Mike-fiesta", "CC BY-SA 4.0"], passat: ["M 93", "CC BY-SA 3.0 DE"], mazda6: ["Vauxford", "CC BY-SA 4.0"],
@@ -72,25 +80,43 @@ const CREDITS = { granta: ["Ilya Plekhanov", "CC BY-SA 4.0"], logan: ["Mihnea La
 // звёздный — первым: его видно сразу при входе и в ленте контейнеров
 const BOXES = [
   { id: "star", n: "Звёздный контейнер", sn: "Звёздный", r: 5, stars: 49, odds: [0, 0, 0, 0, 70, 30], star: 1, note: "Мифическая или суперлегенда — всегда" },
-  { id: "common", n: "Обычный контейнер", sn: "Обычный", r: 0, price: 50000, odds: [75, 20, 4.5, .5, 0, 0], note: "С него все начинают" },
+  { id: "common", n: "Обычный контейнер", sn: "Обычный", r: 0, price: 50000, odds: [75, 20, 4.5, .5, 0, 0], note: "Доступный способ увеличить доход гаража" },
   { id: "rare", n: "Редкий контейнер", sn: "Редкий", r: 1, price: 170000, odds: [20, 55, 20, 5, 0, 0], free: 1, note: "В основном редкие тачки" },
   { id: "epic", n: "Эпический контейнер", sn: "Эпический", r: 2, price: 500000, odds: [0, 30, 55, 14, 1, 0], free: 1, note: "Обычных тачек внутри нет" },
   { id: "leg", n: "Легендарный контейнер", sn: "Легендарный", r: 3, price: 1700000, odds: [0, 0, 50, 44, 5.9, .1], note: "Почти половина — легендарные" },
-  { id: "elite", n: "Элитный контейнер", sn: "Элитный", r: 3, price: 4000000, odds: [0, 0, 0, 75, 24, 1], elite: 1, note: "Только легендарные и выше" },
+  { id: "elite", n: "Элитный контейнер", sn: "Элитный", r: 3, price: 4000000, odds: [0, 0, 0, 75, 24, 1], elite: 1, note: "Гарантированно легендарная машина или выше" },
 ];
 RC.forEach(r => Lprops(r, "n", "tag")); BOXES.forEach(b => Lprops(b, "n", "sn", "note"));   // переводятся при чтении (английский — в i18n.js)
 // звёздный (он первый в списке) — только там, где есть оплата звёздами. Проверяем каждый раз: SDK Telegram грузится уже после старта игры
-const minBi = () => sells("box_star", 49) ? 0 : 1;   // Telegram — звёзды, ВК — голоса, Яндекс — если товар box_star есть в каталоге
+// звёздный виден только там, где есть в каталоге. Лента может начинаться с праздничных (в праздники они первые), поэтому — не по номеру, а по признаку
+const hidBox = b => !!(b && b.star && !sells("box_star", 49));
+const minBi = () => Math.max(0, BOXES.findIndex(b => !hidBox(b)));
+const maxBi = () => { for (let i = BOXES.length - 1; i >= 0; i--) if (!hidBox(BOXES[i])) return i; return 0; };
+const stepBi = (from, dir) => { let i = from + dir; while (i >= 0 && i < BOXES.length && hidBox(BOXES[i])) i += dir; return i; };
 const starPrice = () => priceOf("box_star", 49);
+const STAR_LOCK = "Открой элитный контейнер за монеты, чтобы открыть доступ к звёздному.";
+const FREE_AFTER = { rare: 1, epic: 2 };
+const FREE_GOAL = {
+  rare: "Получи первую выплату с машины, чтобы открыть редкий контейнер бесплатно.",
+  epic: "Получи выплату сразу с двух машин, чтобы открыть эпический контейнер бесплатно."
+};
+const freeReady = (d, b) => !!(b.free && d.free[b.id] && (d.legacyRewards || d.payoutCars >= FREE_AFTER[b.id]));
+const starterProtected = (d, x) => x.id === d.starter && !d.payoutCars;
 // обычный контейнер бесплатно за рекламу — раз в AD_BOX_GAP
 const AD_BOX = "common", AD_BOX_GAP = 15 * 60000;
-const boxCol = b => b.elite ? "#ffd23f" : b.star ? "#5ef2ff" : RC[b.r].c;
+const boxCol = b => b.nyb ? "#ffd23f" : b.elite ? "#ffd23f" : b.star ? "#5ef2ff" : RC[b.r].c;
 
 // ---------- состояние (хранится в сохранении игры) ----------
 function D() {
   if (!S.dc) S.dc = { cars: [], nid: 1, seen: [], sub: "boxes", filt: -1 };
-  if (!S.dc.v2) { S.dc.v2 = 1; S.dc.bi = 0; S.dc.free = { rare: 1, epic: 1 }; }   // бесплатные — по id контейнера; при входе показываем звёздный
+  if (!S.dc.v2) { S.dc.v2 = 1; S.dc.bi = 1; S.dc.free = { rare: 1, epic: 1 }; }
   if (!S.dc.v3) { S.dc.v3 = 1; S.dc.slots = Math.min(SLOT_COST.length, Math.max(0, S.dc.cars.length - SLOT0)); }   // у кого тачек уже больше 3 — места под них даём сразу
+  if (!S.dc.v4) {
+    const d = S.dc;
+    d.v4 = 1; d.payoutCars = 0;
+    d.legacyRewards = !!(d.cars.length || d.seen.length || !d.free.rare || !d.free.epic);
+    if (!d.bi) d.bi = 1;
+  }
   return S.dc;
 }
 // ---------- места в гараже: сначала 3, расширение за монеты по одному месту до 15 ----------
@@ -119,12 +145,28 @@ function buySlot() {
   renderHeader(); renderCars(); save();
 }
 const plateById = id => S.plates.find(p => p.id === id);
+const WINTER = 1.25, NY_PAIR = 2;                         // зимняя ливрея: +25% к доходу; новогодний номер на зимней тачке — пара ×2
+const isWinter = (c, x) => !!(c.ny || (x && x.w));
+const pairK = (c, x, p) => p && p.ny && isWinter(c, x) ? NY_PAIR : p && p.tier === c.r ? PAIR : 1;
+const carMult = (c, x, p) => PM[p.tier] * pairK(c, x, p) * (isWinter(c, x) ? WINTER : 1);
 function carInc(x) {
   const c = CK[x.k], p = x.pl != null && plateById(x.pl);
   if (!p) return 0;
-  return c.base * PM[p.tier] * (p.tier === c.r ? PAIR : 1);
+  return c.base * carMult(c, x, p);
 }
 const carsInc = () => D().cars.reduce((a, x) => a + carInc(x), 0);
+onGaragePayout = function () {
+  const d = D();
+  if (d.legacyRewards || d.payoutCars >= 2) return;
+  const count = d.cars.filter(x => carInc(x) > 0).length;
+  if (count <= d.payoutCars) return;
+  d.payoutCars = Math.min(2, count);
+  if (count === 1 && d.free.rare) toast(L("🎁 Редкий контейнер открыт для бесплатного получения!"));
+  if (count >= 2 && d.free.epic) toast(L("🎁 Эпический контейнер открыт для бесплатного получения!"));
+  Platform.track(count === 1 ? "dc_income_one" : "dc_income_two");
+  save();
+  if (tab === "cars" && !opening && !switching && $("modal").classList.contains("hidden")) renderCars();
+};
 function cleanup() {   // номер продали/слили в игре — снимаем его с тачки
   for (const x of D().cars) if (x.pl != null && !plateById(x.pl)) x.pl = null;
 }
@@ -142,27 +184,87 @@ doPrestige = function () {                                 // тачки (в т.
 };
 const _shopGrant = shopGrant;
 shopGrant = function (item, why) {                         // оплатили звёздный контейнер — открываем его
+  if (/^uncar_/.test(item)) { if (takeCar(item.slice(6))) save(); return; }          // админ забрал тачку
   if (/^car_/.test(item)) { if (giveCar(item.slice(4))) { Platform.track("gift_car"); save(); } return; }   // тачка из админки
   if (item !== "box_star") return _shopGrant(item, why);
+  const b = BOXES[0], car = awardCar(carOfR(pick6(b.odds)));
   if (!why) S.paid.buys = (S.paid.buys || 0) + 1;
   Platform.track("paid_box"); Platform.happytime();
-  if (tab !== "cars") openTab("cars");
-  D().sub = "boxes"; D().bi = 0; renderCars();
-  setTimeout(() => openBox(true), 300);
+  save();
+  setTimeout(() => showPaidBox(b, car), 300);
 };
 
 // ---------- выдача тачки из админки (подарок car_КЛЮЧ или читы): гараж полон — место добавляется само ----------
 function giveCar(k, quiet) {
   const c = CK[k]; if (!c) return false;
   const d = D(); if (isFull()) d.slots = Math.max(d.slots || 0, d.cars.length + 1 - SLOT0);
-  d.cars.push({ id: d.nid++, k, pl: null }); if (!d.seen.includes(k)) d.seen.push(k);
+  awardCar(c);
   if (quiet) return true;
   toast(L("🎁 Тачка {0} ({1}) — в гараже!", c.n, RC[c.r].n)); fx.confetti(c.r >= 3 ? 120 : 60); if (c.r >= 3) vignette(RC[c.r].c);
   if (tab === "cars") renderCars();
   return true;
 }
-window.DC_ADMIN = { list: () => CARS.map(c => [c.k, c.n, c.r, RC[c.r].n]), give: giveCar, mine: () => D().cars.map(x => x.k),
-  clear: () => { D().cars = []; D().show = null; } };
+function awardCar(c, w) {
+  const d = D(), x = { id: d.nid++, k: c.k, pl: null }, isNew = !d.seen.includes(c.k);
+  if (w && !c.ny) x.w = 1;                                 // зимняя ливрея
+  d.cars.push(x);
+  if (isNew) d.seen.push(c.k);
+  return { x, isNew };
+}
+// забрать тачку (одну штуку по ключу) или все ("all"); номер с неё возвращается в гараж сам — pl просто обнуляется
+function takeCar(k) {
+  const d = D(), free = x => { const p = x.pl != null && plateById(x.pl); if (p && p.dcLock) { p.lock = false; delete p.dcLock; } };
+  if (k === "all") { const had = d.cars.length; d.cars.forEach(free); d.cars = []; d.show = null; if (tab === "cars") renderCars(); return had > 0; }
+  let i = -1; d.cars.forEach((x, j) => { if (x.k === k && (i < 0 || (d.cars[i].id === d.show))) i = j; });   // показанную в профиле — в последнюю очередь
+  if (i < 0) return false;
+  const [x] = d.cars.splice(i, 1); free(x); if (d.show === x.id) d.show = null;
+  if (tab === "cars") renderCars();
+  return true;
+}
+// ---------- новогодние контейнеры (вызывает ny.js) ----------
+// Главное правило: новогодние тачки — за донат. Бесплатно (за 🍊) они почти не выпадают.
+// gift — «Подарочный контейнер» за 🍊: обычные тачки в зимней ливрее; новогодняя — лишь 1 из 100 (ny: 0.01)
+// paid — «Праздничный контейнер» (донат box_ny, 79 ⭐ — дороже звёздного за 49): все новогодние тачки + обычные мифические,
+//   шансы по тачкам (pool, сумма 100); "*4" — любая обычная мифическая. Всё в зимней ливрее. sani — «Сани Деда Мороза» (донат ny_sani)
+const NY_BOX = {
+  gift: { id: "nygift", n: "Подарочный контейнер", sn: "Подарочный", r: 3, odds: [0, 0, 64, 35, 1, 0], ny: 0.01, nyb: 1, once: 1, note: "Тачки в зимней ливрее (+25% к доходу). Новогодние здесь — большая редкость" },
+  paid: { id: "nypaid", n: "Праздничный контейнер", sn: "Праздничный", r: 4, odds: [0, 3, 10, 12, 72, 3], nyb: 1, once: 1, note: "Все новогодние тачки: Куранты и Снегурочка — 30%, есть шанс на Сани Деда Мороза",
+    pool: [["kuranty", 15], ["sneg", 15], ["morozko", 12], ["elka", 10], ["mandarin", 3], ["sani", 3], ["*4", 42]] },
+  sani: { id: "nysani", n: "Подарок Деда Мороза", sn: "Сани", r: 5, odds: [0, 0, 0, 0, 0, 100], nyb: 1, once: 1, note: "" }
+};
+Object.values(NY_BOX).forEach(b => Lprops(b, "n", "sn", "note"));
+function poolCar(b) {                                       // донатный: розыгрыш по конкретным тачкам
+  let x = Math.random() * 100;
+  for (const [k, w] of b.pool) if ((x -= w) < 0) return k === "*4" ? carOfR(4) : CK[k];
+  return carOfR(4);
+}
+const nyCarFor = b => { if (b.pool) return poolCar(b); const r = pick6(b.odds); return (Math.random() < (b.ny || 0) && nyCarOfR(r)) || carOfR(r); };
+const nyPick = b => awardCar(nyCarFor(b), true);
+// в праздники «Подарочный» (за 🍊) и «Праздничный» (донат, где он продаётся) — в общей ленте контейнеров, в конце; при первом заходе лента открывается на них
+function syncBoxes() {
+  const on = !!(window.NY && NY.on()), d = D();
+  for (const b of [NY_BOX.paid, NY_BOX.gift]) {            // вставляем по одному в начало: итог — [подарочный, праздничный, звёздный, обычный…]
+    const i = BOXES.indexOf(b), want = on && (b === NY_BOX.gift || sells("box_ny", 79));
+    if (want && i < 0) BOXES.unshift(b); else if (!want && i >= 0) BOXES.splice(i, 1);
+  }
+  if (d.bid) { const j = BOXES.findIndex(x => x.id === d.bid); if (j >= 0) d.bi = j; }   // выбранный контейнер помним по id: лента в праздники сдвигается
+  if (on && BOXES[0] !== NY_BOX.gift && BOXES.includes(NY_BOX.gift)) { BOXES.splice(BOXES.indexOf(NY_BOX.gift), 1); BOXES.unshift(NY_BOX.gift); }
+  if (on && d.nyShow !== NY.season()) { d.nyShow = NY.season(); d.bi = BOXES.indexOf(NY_BOX.gift); }
+  if (d.bi >= BOXES.length || d.bi < 0 || hidBox(BOXES[d.bi])) d.bi = minBi();
+}
+function nyOpen(kind) {
+  const b = NY_BOX[kind]; if (!b) return false;
+  const d = D(); if (isFull()) d.slots = Math.max(d.slots || 0, d.cars.length + 1 - SLOT0);   // купленное за мандарины или донат — место найдётся всегда
+  let c = null;
+  if (kind === "sani") c = CK.sani;
+  const car = c ? awardCar(c, true) : nyPick(b);
+  Platform.track("ny_box_" + kind + "_" + car.x.k); save();
+  setTimeout(() => showPaidBox(b, car), 300);
+  return true;
+}
+window.DC_NY = { open: nyOpen, full: isFull, busy: () => !!(opening || switching) };
+window.DC_ADMIN = { list: () => CARS.map(c => [c.k, c.n, c.r, RC[c.r].n]), give: giveCar, take: takeCar, mine: () => D().cars.map(x => x.k),
+  clear: () => takeCar("all") };
 
 // ---------- тачка в профиле ----------
 // В снимок гаража (его видят друзья и рейтинг) добавляется car: [ключ тачки, номер на ней или null]
@@ -238,7 +340,7 @@ function flash() { let f = $("dcFlash"); if (!f) { f = document.createElement("d
 // ---------- контейнер (SVG) ----------
 function crate(b) {
   const c = RC[b.r].c, id = "k" + Math.random().toString(36).slice(2, 7), gold = b.elite, st = b.star;
-  const metal = gold ? ["#5a4a2a", "#3b301c", "#2a2214"] : st ? ["#2a3c52", "#1b2a3c", "#121d2a"] : ["#4a5263", "#2d333f", "#20252f"];
+  const metal = b.nyb ? ["#8a1a2a", "#5a0f1c", "#3a0a12"] : gold ? ["#5a4a2a", "#3b301c", "#2a2214"] : st ? ["#2a3c52", "#1b2a3c", "#121d2a"] : ["#4a5263", "#2d333f", "#20252f"];
   const acc = boxCol(b);
   return `<svg viewBox="0 0 120 120" class="cr"><defs>
     <linearGradient id="${id}t" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${metal[0]}"/><stop offset="1" stop-color="${metal[1]}"/></linearGradient>
@@ -283,26 +385,42 @@ const blank = () => `<div class="plate p0 dc-blank"><div class="m"><span class="
 // Номер не клеим на фото: чужие номера со снимков стёрты (заливка фоном бампера), а свой показываем в рамке под машиной
 function carView(c, x, fly) {
   const p = x && x.pl != null ? plateById(x.pl) : null;
-  const pair = p && p.tier === c.r;
+  const pair = pairK(c, x, p) > 1;
   const frame = `<div class="dc-frame${p ? "" : " empty"}${pair ? " pair" : ""}" style="--pc:${p ? TIERS[p.tier].color : "#8d99b3"}" ${x && x.id ? `data-act="dcPick" data-id="${x.id}"` : ""}>
     <span class="dc-fr">${p ? `<span class="dc-fly${fly ? " go" : ""}">${plateHTML(p)}</span>` : `<span class="dc-add">${L("＋ Повесить номер")}</span>`}</span>
-    ${p ? `<span class="dc-fl" style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}${pair ? " · " + L("💎 пара") : ""}</span>` : ""}</div>`;
-  return `<div class="dc-car" data-k="${c.k}"><img src="${img(c.k)}" alt=""></div>${frame}`;
+    ${p ? `<span class="dc-fl" style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}${pair ? " · " + (pairK(c, x, p) === NY_PAIR ? L("🎄 праздничная пара ×2") : L("💎 пара")) : ""}</span>` : ""}</div>`;
+  return `<div class="dc-car${isWinter(c, x) ? " dc-winter" : ""}" data-k="${c.k}"><img src="${img(c.k)}" alt=""></div>${frame}`;
 }
 function fitPlates() {}
 addEventListener("resize", () => fitPlates());
 
 // ===================== ВКЛАДКА =====================
+function carGoal(d) {
+  if (d.legacyRewards) return "";
+  const reward = BOXES.findIndex(b => freeReady(d, b));
+  if (reward >= 0) return `<div class="card"><button class="btn green" data-act="dcReward" data-i="${reward}">${L("🎁 Забрать: {0}", BOXES[reward].n)}</button></div>`;
+  const next = Object.keys(FREE_AFTER).find(id => d.free[id] && d.payoutCars < FREE_AFTER[id]);
+  if (!next) return "";
+  const starter = d.cars.find(x => x.id === d.starter);
+  const hint = starter && starter.pl == null && !d.payoutCars ? L("Дядя Валера оставил тебе {0}. Поставь свой номер во вкладке «Мои тачки».", CK[starter.k].n) : L(FREE_GOAL[next]);
+  return `<div class="card"><b>${hint}</b></div>`;
+}
 function renderCars() {
   cleanup(); preload();
-  if (minBi() === 0 && !D().starShown) { D().starShown = 1; D().bi = 0; }   // в Telegram при первом заходе сразу показываем звёздный
-  if (D().bi >= BOXES.length || D().bi < minBi()) D().bi = minBi();
-  const d = D(), el = $("tab-cars"), inc = carsInc(), idle = d.cars.filter(x => !carInc(x)).length;
+  const d = D();
+  if (!d.starter && !d.legacyRewards && !d.seen.length) {
+    d.starter = awardCar(CK.granta).x.id; d.sub = "my";
+    Platform.track("dc_starter"); save();
+  }
+  if (S.tut === 3 && d.cars.length) d.sub = "my";
+  syncBoxes();
+  if (d.bi >= BOXES.length || d.bi < 0 || hidBox(BOXES[d.bi])) d.bi = minBi();
+  const el = $("tab-cars"), inc = carsInc(), idle = d.cars.filter(x => !carInc(x)).length;
   el.innerHTML = `<div class="card dc-head">
       <div class="dc-inc">${L("🏎️ Тачки приносят")} <b>${L("+{0}/30 сек", fmt(inc * PAY_SEC))}</b></div>
       <p style="margin:0">${L("Тачка без номера стоит на приколе. Повесь на неё свой номер из гаража — и она начнёт зарабатывать. Чем круче номер, тем больше доход, а")} <b style="color:var(--gold)">${L("номер той же редкости, что и тачка")}</b> ${L("— ещё ×1.5.")}</p>
       ${idle ? `<p style="margin:0;color:#ff8a98">${L("🚫 Без номера стоят: {0}", idle)}</p>` : ""}
-    </div>
+    </div>${carGoal(d)}
     <div class="dc-seg">${[["boxes", L("📦 Контейнеры")], ["my", L("🚘 Мои тачки · {0}", d.cars.length + "/" + cap())], ["coll", L("🏆 Коллекция")]].map(([k, t]) => `<button class="${d.sub === k ? "on" : ""}" data-act="dcSub" data-v="${k}">${t}</button>`).join("")}</div>
     <div id="dcBody"></div>`;
   if (d.sub === "boxes") renderBoxes(); else if (d.sub === "my") renderMy(); else renderColl();
@@ -310,10 +428,15 @@ function renderCars() {
 
 // ---------- контейнеры ----------
 function boxInfo(b, i) {
-  const c = boxCol(b), free = b.free && D().free[b.id];
+  const d = D(), c = boxCol(b), free = freeReady(d, b), starLocked = b.star && !d.eliteOpened;
   const segs = b.odds.map((v, r) => v > 0 ? `<i style="flex:${Math.max(v, 3)};background:${RC[r].c};animation-delay:${r * 60}ms"></i>` : "").join("");
-  const inside = CARS.filter(x => b.odds[x.r] > 0).sort((a, z) => z.r - a.r || z.p - a.p).slice(0, 10);
-  const btn = isFull() ? `<button class="btn alt dc-open" data-act="dcFull">${L("🅿️ Гараж полон ({0}) — освободи место", D().cars.length + "/" + cap())}</button>`
+  const inside = (b.pool ? CARS.filter(x => x.ny || (x.r === 4 && b.pool.some(([k]) => k === "*4")))   // донатный: все новогодние и обычные мифические
+    : CARS.filter(x => b.odds[x.r] > 0 && !x.ny)).sort((a, z) => (z.ny ? 1 : 0) - (a.ny ? 1 : 0) || z.r - a.r || z.p - a.p).slice(0, 10);
+  const btn = starLocked ? `<p class="dc-note">🔒 ${L(STAR_LOCK)}</p>`
+    : isFull() && b !== NY_BOX.paid ? `<button class="btn alt dc-open" data-act="dcFull">${L("🅿️ Гараж полон ({0}) — освободи место", D().cars.length + "/" + cap())}</button>`
+    : b.nyb ? (b === NY_BOX.paid ? `<button class="btn star dc-open" data-act="dcOpen">${L("Открыть за {0}", priceOf("box_ny", 79))}</button>`
+      : NY.boxLeft() > 0 ? `<button class="btn ${NY.m() >= NY.boxCost ? "green" : "alt"} dc-open" data-act="dcOpen">${L("Открыть за {0} 🍊", NY.boxCost)}</button><p class="dc-note">${L("У тебя {0} 🍊 · осталось {1} из 5", fmt(NY.m()), NY.boxLeft())}</p>`
+      : `<p class="dc-note">${L("Все 5 подарочных контейнеров уже открыты")}</p>`)
     : free ? `<button class="btn green dc-open" data-act="dcOpen">${L("🎁 Открыть бесплатно")}</button>`
     : b.star ? `<button class="btn star dc-open" data-act="dcOpen">${L("Открыть за {0}", starPrice())}</button>`
     : `<button class="btn dc-open" data-act="dcOpen">${L("Открыть за {0} 💰", fmt(b.price))}</button>`
@@ -321,9 +444,11 @@ function boxInfo(b, i) {
         return `<button class="btn ${w > 0 ? "alt" : "green"} dc-open" data-act="dcAdBox">${w > 0 ? L("📺 Бесплатно через") + ` <span class="timer" data-until="${D().adBox}"></span>` : L("📺 Открыть бесплатно за рекламу")}</button>`; })() : "");
   return `<div class="dc-name" style="--rc:${c}">${[...b.n].map((ch, k) => `<span style="animation-delay:${k * 22}ms">${ch === " " ? "&nbsp;" : ch}</span>`).join("")}</div>
     <div class="dc-note">${b.note}</div>${free ? `<span class="dc-free">${L("первый раз бесплатно!")}</span>` : ""}
+    ${b.free && d.free[b.id] && !free ? `<p class="dc-note">${L(FREE_GOAL[b.id])}</p>` : ""}
     ${b.star ? `<div class="dc-promo">${(NOBRAND ? L("💎 Почти каждый третий — <b>суперлегенда</b>") : L("💎 Почти каждый третий — <b>суперлегенда</b>: Bugatti, Koenigsegg, Pagani, Aurus, Rolls-Royce"))}</div>` : ""}
     <div class="dc-bar">${segs}</div>
     <div class="dc-leg">${b.odds.map((v, r) => v > 0 ? `<span style="--c:${RC[r].c}">${RC[r].n} ${v}%</span>` : "").join("")}</div>
+    ${b.pool ? `<div class="dc-leg dc-pool">${b.pool.map(([k, w]) => `<span style="--c:${k === "*4" ? RC[4].c : RC[CK[k].r].c}">${k === "*4" ? L("Обычные мифические") : CK[k].n} ${w}%</span>`).join("")}</div>` : ""}
     <div class="dc-thumbs">${inside.map((x, k) => `<div style="--c:${RC[x.r].c};animation-delay:${120 + k * 45}ms"><img src="${img(x.k)}">${x.n}</div>`).join("")}</div>
     ${btn}`;
 }
@@ -331,23 +456,24 @@ function orbs(b) { return b.r >= 3 || b.star ? Array.from({ length: b.star ? 7 :
 // лента всех контейнеров: звёздный первым, крупнее и с переливающейся рамкой
 function boxList() {
   const d = D();
-  return `<div class="dc-list" id="dcList">${BOXES.map((b, i) => { if (i < minBi()) return "";
-    const free = b.free && d.free[b.id], price = b.star ? starPrice() : free ? L("бесплатно") : fmt(b.price) + " 💰";
-    return `<div class="dc-li${b.star ? " hit" : ""}${i === d.bi ? " on" : ""}${free ? " fr" : ""}" style="--rc:${boxCol(b)}" data-act="dcPickBox" data-i="${i}">
-      ${b.star ? `<span class="dc-badge">${L("🔥 ХИТ")}</span>` : free ? `<span class="dc-badge g">🎁</span>` : ""}
-      ${crate(b)}<b>${b.sn}</b><small>${price}</small>${b.star ? `<em>${L("30% суперлегенда")}</em>` : ""}</div>`;
+  return `<div class="dc-list" id="dcList">${BOXES.map((b, i) => { if (hidBox(b)) return "";
+    const free = freeReady(d, b), starUnlocked = b.star && d.eliteOpened;
+    const price = b.nyb ? (b === NY_BOX.paid ? priceOf("box_ny", 79) : NY.boxCost + " 🍊") : b.star ? starUnlocked ? starPrice() : "🔒" : free ? L("бесплатно") : fmt(b.price) + " 💰";
+    return `<div class="dc-li${starUnlocked ? " hit" : ""}${i === d.bi ? " on" : ""}${free ? " fr" : ""}" style="--rc:${boxCol(b)}" data-act="dcPickBox" data-i="${i}">
+      ${b.nyb ? `<span class="dc-badge">🎄</span>` : starUnlocked ? `<span class="dc-badge">${L("🔥 ХИТ")}</span>` : free ? `<span class="dc-badge g">🎁</span>` : ""}
+      ${crate(b)}<b>${b.sn}</b><small>${price}</small>${starUnlocked ? `<em>${L("30% суперлегенда")}</em>` : ""}</div>`;
   }).join("")}</div>`;
 }
 const starStage = b => b.star ? `<div class="dc-twinkle"></div><div class="dc-ribbon">${L("⭐ Лучший шанс на суперлегенду — 30%")}</div>` : "";
 function renderBoxes() {
-  const d = D(), b = BOXES[d.bi], c = boxCol(b);
+  const d = D(), b = BOXES[d.bi], c = boxCol(b); d.bid = b.id;
   $("dcBody").innerHTML = boxList() + `<div class="dc-show${b.r >= 3 || b.star ? " hot" : ""}${b.star ? " star" : ""}" id="dcShow" style="--rc:${c}">
       <div id="dcStar">${starStage(b)}</div>
       <div class="dc-beam"></div><div class="dc-floor"></div><div class="dc-ring" id="dcRing"></div><div class="dc-streak" id="dcStreak"></div>
       <div id="dcOrbs">${orbs(b)}</div>
       <div class="dc-crate" id="dcCrate">${crate(b)}</div>
-      <button class="dc-arr l" data-act="dcPrev" ${d.bi > minBi() ? "" : "disabled"}>‹</button><button class="dc-arr r" data-act="dcNext" ${d.bi < BOXES.length - 1 ? "" : "disabled"}>›</button>
-      <div class="dc-dots">${BOXES.map((x, i) => i < minBi() ? "" : `<i data-i="${i}" class="${i === d.bi ? "on" : ""}"></i>`).join("")}</div>
+      <button class="dc-arr l" data-act="dcPrev" ${d.bi > minBi() ? "" : "disabled"}>‹</button><button class="dc-arr r" data-act="dcNext" ${d.bi < maxBi() ? "" : "disabled"}>›</button>
+      <div class="dc-dots">${BOXES.map((x, i) => hidBox(x) ? "" : `<i data-i="${i}" class="${i === d.bi ? "on" : ""}"></i>`).join("")}</div>
     </div><div class="dc-info" id="dcInfo">${boxInfo(b, d.bi)}</div>`;
   const sh = $("dcShow"); let x0 = null;
   sh.addEventListener("pointerdown", e => { x0 = e.clientX; });
@@ -355,9 +481,9 @@ function renderBoxes() {
 }
 let switching = false;
 async function boxGo(dir, to) {   // смена контейнера: старый улетает с разворотом, новый влетает и «приземляется» с волной и искрами
-  const d = D(), n = to != null ? to : d.bi + dir; if (switching || n < minBi() || n >= BOXES.length || n === d.bi) return;
+  const d = D(), n = to != null ? to : stepBi(d.bi, dir); if (switching || n < minBi() || n > maxBi() || hidBox(BOXES[n]) || n === d.bi) return;
   dir = Math.sign(n - d.bi);
-  switching = true; d.bi = n;
+  switching = true; d.bi = n; d.bid = BOXES[n].id;
   document.querySelectorAll("#dcList .dc-li").forEach(x => x.classList.toggle("on", +x.dataset.i === n));   // по номеру контейнера, а не по позиции: без звёздного лента сдвинута на один
   const li = document.querySelector(`#dcList .dc-li[data-i="${n}"]`); if (li) li.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   const b = BOXES[n], c = boxCol(b), show = $("dcShow"), cr = $("dcCrate"), info = $("dcInfo");
@@ -366,7 +492,7 @@ async function boxGo(dir, to) {   // смена контейнера: стары
   const out = cr.animate([{ transform: "none", opacity: 1, filter: "blur(0)" }, { transform: `translateX(${-dir * 150}%) rotateY(${-dir * 80}deg) rotateZ(${-dir * 8}deg) scale(.5)`, opacity: 0, filter: "blur(6px)" }], { duration: 300, easing: "cubic-bezier(.5,0,.9,.5)", fill: "forwards" });
   info.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: `translateX(${-dir * 30}px)` }], { duration: 200, fill: "forwards" });
   show.querySelectorAll(".dc-dots i").forEach(x => x.classList.toggle("on", +x.dataset.i === n));
-  show.querySelector(".dc-arr.l").disabled = n <= minBi(); show.querySelector(".dc-arr.r").disabled = n >= BOXES.length - 1;
+  show.querySelector(".dc-arr.l").disabled = n <= minBi(); show.querySelector(".dc-arr.r").disabled = n >= maxBi();
   await wait(260);
   show.style.setProperty("--rc", c); show.classList.toggle("hot", b.r >= 3 || !!b.star); show.classList.toggle("star", !!b.star);
   $("dcStar").innerHTML = starStage(b);
@@ -392,24 +518,53 @@ async function boxGo(dir, to) {   // смена контейнера: стары
 // ---------- открытие ----------
 let opening = null;
 const pick6 = odds => { let x = Math.random() * 100; for (let r = 0; r < odds.length; r++) if ((x -= odds[r]) < 0) return r; return odds.findLastIndex(v => v > 0); };
-const carOfR = r => { const l = CARS.filter(c => c.r === r); return l[rnd(l.length)]; };
+const carOfR = r => { const l = CARS.filter(c => c.r === r && !c.ny); return l[rnd(l.length)]; };
+const nyCarOfR = r => { const l = CARS.filter(c => c.r === r && c.ny && c.k !== "sani"); return l.length ? l[rnd(l.length)] : null; };
+const nyWinter = () => !!(window.NY && NY.on() && Math.random() < 0.1);   // в праздники 10% тачек из контейнеров — в зимней ливрее
 function pay(i) {
   const d = D(), b = BOXES[i];
-  if (b.free && d.free[b.id]) { d.free[b.id] = 0; return true; }
-  if (b.star) { shopBuy("box_star"); return false; }   // оплата звёздами через бота; после оплаты shopGrant("box_star") откроет контейнер
+  if (freeReady(d, b)) { d.free[b.id] = 0; Platform.track("box_free_" + b.id); return true; }
+  if (b.nyb) {                                             // праздничные: донатный — через магазин, подарочный — за мандарины
+    if (b === NY_BOX.paid) { if (sells("box_ny", 79)) shopBuy("box_ny"); return false; }
+    if (!(window.NY && NY.spendBox())) { toast(L("Нужно {0} 🍊", NY.boxCost)); return false; }
+    Platform.track("box_nygift"); return true;
+  }
+  if (b.star) {
+    if (!d.eliteOpened) toast(L(STAR_LOCK));
+    else if (sells("box_star", 49)) shopBuy("box_star");
+    return false;
+  }
   if (S.coins < b.price) { toast(L("Не хватает монет: нужно {0} 💰", fmt(b.price))); shake($("coinsBox")); return false; }
-  S.coins -= b.price; Platform.track("box_" + b.id); return true;
+  S.coins -= b.price; Platform.track("box_" + b.id);
+  return true;
 }
 function ov() { let o = $("dcOv"); if (!o) { o = document.createElement("div"); o.id = "dcOv"; document.body.appendChild(o); } return o; }
-async function openBox(paidStar, viaAd) {
-  if (paidStar && (opening || switching)) return setTimeout(() => openBox(true), 1500);   // оплата пришла, пока открывался другой — откроем следом
-  const d = D(), si = BOXES.findIndex(x => x.star), i = paidStar ? si : viaAd ? BOXES.findIndex(x => x.id === AD_BOX) : d.bi, b = BOXES[i];
+function openBox(viaAd = false, index = D().bi) {
+  const d = D(), i = viaAd ? BOXES.findIndex(x => x.id === AD_BOX) : index, b = BOXES[i];
   if (!b || opening || switching) return;
-  if (!paidStar && !viaAd && isFull()) return fullModal();   // оплаченный звёздный и «за рекламу» открываем всегда — за них уже «заплачено»
-  if (!paidStar && !viaAd && !pay(i)) return;
+  if (!viaAd && isFull() && b !== NY_BOX.paid) return fullModal();   // донатный: место в гараже добавится само при выдаче
+  if (!viaAd && !pay(i)) return;
   if (viaAd) Platform.track("box_ad");
-  const win = carOfR(pick6(b.odds)), c = boxCol(b), o = ov();
-  opening = { i, b, win, skip: false }; renderHeader(); save();
+  const car = b.nyb ? nyPick(b) : awardCar(carOfR(pick6(b.odds)), nyWinter());
+  if (b.elite && !d.eliteOpened) {
+    d.eliteOpened = true;
+    if (sells("box_star", 49)) toast(L("⭐ Звёздный контейнер теперь доступен!"));
+    Platform.track("dc_star_unlock");
+  }
+  save();
+  animateBox(b, car);
+}
+function showPaidBox(b, car) {
+  if (opening || switching) return setTimeout(() => showPaidBox(b, car), 1500);
+  if (tab !== "cars") openTab("cars");
+  if (tab === "cars" && D().eliteOpened && sells("box_star", 49)) {
+    D().sub = "boxes"; D().bi = BOXES.findIndex(x => x.star); renderCars();
+  }
+  animateBox(b, car);
+}
+async function animateBox(b, { x, isNew }) {
+  const win = CK[x.k], c = boxCol(b), o = ov();
+  opening = { id: x.id, b, skip: false }; renderHeader();
   $("fx").style.zIndex = 75;
   o.style.setProperty("--rc", c); o.classList.add("on");
   o.innerHTML = `<div class="dco"><div class="dco-t">${b.n}</div>${crate(b)}<div class="dco-m">${L("Вскрываем…")}</div></div>`;
@@ -419,12 +574,13 @@ async function openBox(paidStar, viaAd) {
   const r = cr.getBoundingClientRect(); fx.burst(r.left + r.width / 2, r.top + r.height / 2, 60, [c, "#fff"], { speed: 420, g: 120 });
   await wait(380);
   await roulette(b, win);
-  if (opening) reveal(win);
+  if (opening) reveal(win, x, isNew);
 }
 async function roulette(b, win) {
   const o = ov(), N = 56, W = 4, step = 128;
   const items = Array.from({ length: N }, (_, i) => {
     if (i === N - W) return win;
+    if (b.nyb) return nyCarFor(b);
     let r = pick6(b.odds);
     if ((i === N - W - 1 || i === N - W + 1) && Math.random() < .55) r = Math.max(r, b.odds.findLastIndex(v => v > 0) - (Math.random() < .5 ? 0 : 1));   // «почти!»
     return carOfR(r);
@@ -442,10 +598,8 @@ async function roulette(b, win) {
   Sx.stop(); const w = $("dcWin"); if (w) w.classList.add("win"); buzz(40);
   await wait(opening && opening.skip ? 50 : 750);
 }
-async function reveal(c) {
-  const d = D(), R = RC[c.r], o = ov(), sup = c.r === 5, x = { id: d.nid++, k: c.k, pl: null };
-  d.cars.push(x); const isNew = !d.seen.includes(c.k); if (isNew) d.seen.push(c.k);
-  opening.id = x.id; save();
+async function reveal(c, x, isNew) {
+  const R = RC[c.r], o = ov(), sup = c.r === 5;
   if (sup) {   // суперлегенда: тишина и гул, потом триколор
     o.style.setProperty("--rc", "#000"); o.innerHTML = `<div class="dco"><div class="dco-t" style="color:#fff">…</div></div>`;
     tone(55, 1.4, "sine", .35, 0, 110); buzz(300); await wait(1300);
@@ -453,12 +607,12 @@ async function reveal(c) {
   }
   o.style.setProperty("--rc", R.c);
   o.innerHTML = `<div class="dco" style="--rc:${R.c}"><div class="dco-rays${sup ? " tri" : ""}"></div>
-    <div class="dco-tag${sup ? " tri" : ""}">${R.tag}${isNew ? " • " + L("НОВАЯ!") : ""}</div>
+    <div class="dco-tag${sup ? " tri" : ""}">${R.tag}${isWinter(c, x) ? " • " + L("❄️ ЗИМНЯЯ") : ""}${isNew ? " • " + L("НОВАЯ!") : ""}</div>
     ${carView(c, x)}
     <div class="dco-n">${c.n}</div>
-    <div class="dco-i"><div>${L("Стоимость")}<b>${fmt(c.p)} 💰</b></div><div>${L("С номером")}<b style="color:var(--ok)">${L("от +{0}/30 сек", fmt(c.base * PAY_SEC))}</b></div></div>
+    <div class="dco-i"><div>${L("Стоимость")}<b>${fmt(c.p)} 💰</b></div><div>${L("С номером")}<b style="color:var(--ok)">${L("от +{0}/30 сек", fmt(c.base * (isWinter(c, x) ? WINTER : 1) * PAY_SEC))}</b></div></div>
     <div class="dco-b"><button class="btn green" data-act="dcPick" data-id="${x.id}">${L("🔢 Повесить номер")}</button>
-      <div class="row2"><button class="btn alt" data-act="dcSellWon">${L("Продать {0}", fmt(c.p * SELL))}</button>${isFull() ? `<button class="btn alt" data-act="dcFull">${L("🅿️ Гараж полон")}</button>` : `<button class="btn" data-act="dcAgain">${L("Ещё ↻")}</button>`}</div>
+      <div class="row2"><button class="btn alt" data-act="dcSellWon">${L("Продать {0}", fmt(c.p * SELL))}</button>${isFull() ? `<button class="btn alt" data-act="dcFull">${L("🅿️ Гараж полон")}</button>` : opening.b.once ? "" : !opening.b.star || (D().eliteOpened && sells("box_star", 49)) ? `<button class="btn" data-act="dcAgain">${L("Ещё ↻")}</button>` : ""}</div>
       <button class="btn alt dco-close" data-act="dcClose">${L("Закрыть — тачка останется в гараже")}</button></div></div>
     <button class="dco-x" data-act="dcClose" aria-label="${L("Закрыть")}">✕</button>`;
   fitPlates(o);
@@ -476,11 +630,11 @@ function renderMy(flyId) {
   const list = own.filter(o => d.filt < 0 || o.c.r === d.filt).sort((a, b) => b.inc - a.inc || b.c.p - a.c.p);
   $("dcBody").innerHTML = garageBar() + (own.length ? `<div class="dc-filters"><button class="${d.filt < 0 ? "on" : ""}" data-act="dcFilt" data-r="-1">${L("Все · {0}", own.length)}</button>${RC.map((r, i) => { const n = own.filter(o => o.c.r === i).length; return n ? `<button class="${d.filt === i ? "on" : ""}" style="--c:${r.c}" data-act="dcFilt" data-r="${i}"><i></i>${r.n} · ${n}</button>` : ""; }).join("")}</div>` +
     list.map(({ x, c, inc }) => {
-      const p = x.pl != null ? plateById(x.pl) : null, pair = p && p.tier === c.r;
+      const p = x.pl != null ? plateById(x.pl) : null, pk = pairK(c, x, p), pair = pk > 1;
       return `<div class="dc-card${inc ? "" : " idle"}" style="--rc:${RC[c.r].c}" id="dcc${x.id}"><span class="dc-tag">${RC[c.r].tag}</span>${carView(c, x, flyId === x.id)}
-        <div class="dc-crow"><div class="t"><b>${c.n}</b>${p ? `<small>${L("+{0}/30 сек", fmt(inc * PAY_SEC))}${pair ? " · ×1.5" : ""}</small>` : `<small class="no">${L("🚫 без номера — не зарабатывает")}</small>`}</div>
+        <div class="dc-crow"><div class="t"><b>${c.n}</b>${p ? `<small>${L("+{0}/30 сек", fmt(inc * PAY_SEC))}${pair ? " · ×" + pk : ""}${isWinter(c, x) ? " · " + L("❄️ +25%") : ""}</small>` : `<small class="no">${L("🚫 без номера — не зарабатывает")}</small>`}</div>
         <button class="btn sm${p ? " alt" : " green"}" data-act="dcPick" data-id="${x.id}">🔢 ${p ? L("Сменить") : L("Номер")}</button></div>
-        <div class="dc-acts"><button class="dc-act${d.show === x.id ? " on" : ""}" data-act="dcShow" data-id="${x.id}">${d.show === x.id ? L("✓ Стоит в профиле") : L("👤 В профиль")}</button><button class="dc-act sell" data-act="dcSell" data-id="${x.id}">${L("Продать за {0} 💰", fmt(c.p * SELL))}</button></div></div>`;
+        <div class="dc-acts"><button class="dc-act${d.show === x.id ? " on" : ""}" data-act="dcShow" data-id="${x.id}">${d.show === x.id ? L("✓ Стоит в профиле") : L("👤 В профиль")}</button>${starterProtected(d, x) ? `<small>${L("Продажа после первой выплаты")}</small>` : `<button class="dc-act sell" data-act="dcSell" data-id="${x.id}">${L("Продать за {0} 💰", fmt(c.p * SELL))}</button>`}</div></div>`;
     }).join("") : `<div class="dc-empty">${L("Тачек пока нет — открой контейнер 📦")}</div>`);
   fitPlates($("dcBody")); refreshDisabled();
 }
@@ -489,9 +643,9 @@ function pickPlate(id) {
   const on = new Map(D().cars.filter(v => v.pl != null).map(v => [v.pl, v]));
   const list = S.plates.slice().sort((a, b) => b.tier - a.tier || b.val - a.val).slice(0, 60);
   openModal(`<h2>${L("🔢 Номер на {0}", c.n)}</h2><p style="font-size:12px;color:var(--dim);margin:0">${L("Идеально подходит {0} номер — доход ×1.5", `<b style="color:${RC[c.r].c}">${TIERS[c.r].name}</b>`)}</p>
-    <div class="dc-pick">${list.length ? list.map(p => { const m = PM[p.tier] * (p.tier === c.r ? PAIR : 1), other = on.get(p.id);
+    <div class="dc-pick">${list.length ? list.map(p => { const m = carMult(c, x, p), pk = pairK(c, x, p), other = on.get(p.id);
       return `<div class="item${x.pl === p.id ? " cur" : ""}" data-act="dcHang" data-id="${id}" data-p="${p.id}">${plateHTML(p)}<div class="info"><b style="color:${TIERS[p.tier].color}">${TIERS[p.tier].name}</b><br>${other && other.id !== id ? L("сейчас на {0}", CK[other.k].n) : x.pl === p.id ? L("висит сейчас") : ""}</div>
-        <div class="dc-mult">${L("+{0}/30 сек", fmt(c.base * m * PAY_SEC))}${p.tier === c.r ? `<small>${L("💎 пара")}</small>` : ""}</div></div>`; }).join("") : `<div class="dc-empty">${L("В гараже нет номеров — купи бланки на вкладке «Номера»")}</div>`}</div>
+        <div class="dc-mult">${L("+{0}/30 сек", fmt(c.base * m * PAY_SEC))}${pk > 1 ? `<small>${pk === NY_PAIR ? L("🎄 ×2") : L("💎 пара")}</small>` : ""}</div></div>`; }).join("") : `<div class="dc-empty">${L("В гараже нет номеров — купи бланки на вкладке «Номера»")}</div>`}</div>
     ${x.pl != null ? `<button class="btn alt" data-act="dcUnhang" data-id="${id}">${L("Снять номер")}</button>` : ""}<button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
 }
 async function hang(id, pid) {
@@ -500,6 +654,8 @@ async function hang(id, pid) {
   const old = x.pl != null && plateById(x.pl); if (old && old.dcLock) { old.lock = false; delete old.dcLock; }
   if (!p.lock) { p.lock = true; p.dcLock = true; }       // номер на тачке защищён от продажи и слияния
   x.pl = pid; closeModal(); if (opening) closeOv();
+  if (!d.firstPlate) { d.firstPlate = true; Platform.track("dc_first_plate"); }
+  save();
   d.sub = "my"; d.filt = -1; renderCars(); renderMy(id);
   const card = $("dcc" + id); if (card) card.scrollIntoView({ block: "center" });
   Sx.whoosh(1); await wait(560);
@@ -514,9 +670,11 @@ async function hang(id, pid) {
 
 // ---------- коллекция ----------
 function renderColl() {
-  const seen = D().seen, got = CARS.filter(c => seen.includes(c.k)).length;
-  $("dcBody").innerHTML = `<div class="card" style="margin-bottom:4px"><b>${L("Собрано {0} из {1}", got, CARS.length)}</b><div class="dc-prog"><i style="width:${got / CARS.length * 100}%"></i></div></div>` +
-    RC.map((r, ri) => { const l = CARS.filter(c => c.r === ri), g = l.filter(c => seen.includes(c.k)).length;
+  const seen = D().seen, base = CARS.filter(c => !c.ny), got = base.filter(c => seen.includes(c.k)).length, nyl = CARS.filter(c => c.ny);
+  const nyShelf = nyl.some(c => seen.includes(c.k)) || (window.NY && NY.on()) ? `<div class="dc-rh ny" style="--rc:#9be7ff">${L("🎄 Новогодние")} <small>${nyl.filter(c => seen.includes(c.k)).length}/${nyl.length} · ${L("бывают только в праздники")}</small></div>
+    <div class="dc-grid">${nyl.map(c => { const lk = !seen.includes(c.k); return `<div class="dc-cc ny${lk ? " lk" : ""}" style="--rc:${RC[c.r].c}"><img src="${img(c.k)}" loading="lazy"><b>${lk ? "???" : c.n}</b><small>${RC[c.r].n}</small></div>`; }).join("")}</div>` : "";
+  $("dcBody").innerHTML = `<div class="card" style="margin-bottom:4px"><b>${L("Собрано {0} из {1}", got, base.length)}</b><div class="dc-prog"><i style="width:${got / base.length * 100}%"></i></div></div>` + nyShelf +
+    RC.map((r, ri) => { const l = base.filter(c => c.r === ri), g = l.filter(c => seen.includes(c.k)).length;
       return `<div class="dc-rh" style="--rc:${r.c}">${r.n} <small>${g}/${l.length}${ri < 5 ? " · " + L("весь набор: +{0}% к доходу тачек", (ri + 1) * 5) : " · " + L("самые редкие тачки")}</small></div>
         <div class="dc-grid">${l.map(c => { const lk = !seen.includes(c.k); return `<div class="dc-cc${lk ? " lk" : ""}${ri === 5 && !lk ? " sl" : ""}" style="--rc:${r.c}"><img src="${img(c.k)}" loading="lazy"><b>${lk ? "???" : c.n}</b><small>${lk ? r.n : fmt(c.p) + " 💰"}</small></div>`; }).join("")}</div>`; }).join("");
 }
@@ -524,12 +682,18 @@ function renderColl() {
 // ---------- кнопки ----------
 function sellCar(id) {
   const d = D(), x = d.cars.find(v => v.id === id); if (!x) return; const c = CK[x.k], p = x.pl != null && plateById(x.pl);
+  if (starterProtected(d, x)) return;
   if (p && p.dcLock) { p.lock = false; delete p.dcLock; }
   if (d.show === id) d.show = null;
   d.cars = d.cars.filter(v => v.id !== id); gain(c.p * SELL); Snd.sell(); fx.fly(innerWidth / 2, innerHeight / 2, 10); toast(L("Продано: +{0} 💰", fmt(c.p * SELL))); save();
 }
 Object.assign(ACTS, {
   dcSub: d => { D().sub = d.v; renderCars(); },
+  dcReward: ({ i }) => {
+    const d = D(), b = BOXES[+i];
+    if (!b || !freeReady(d, b) || opening || switching) return;
+    d.sub = "boxes"; d.bi = +i; renderCars(); openBox();
+  },
   dcPrev: () => boxGo(-1), dcNext: () => boxGo(1), dcPickBox: d => boxGo(0, +d.i),
   dcOpen: () => openBox(),
   dcAdBox: () => {                                         // обычный контейнер за рекламу: место в гараже проверяем до рекламы
@@ -537,13 +701,13 @@ Object.assign(ACTS, {
     if (w > 0) return toast(L("Следующий бесплатный контейнер — через {0}", mmss(w)));
     if (isFull()) return fullModal();
     if (opening || switching) return;
-    rewardedAd(() => { D().adBox = Date.now() + AD_BOX_GAP; save(); openBox(false, true); });
+    rewardedAd(() => { D().adBox = Date.now() + AD_BOX_GAP; openBox(true); });
   },
   dcFull: () => fullModal(),
   dcSlot: () => buySlot(),
   dcGoMy: () => { closeModal(); if (opening) closeOv(); D().sub = "my"; renderCars(); },
   dcSkip: () => { if (opening && opening.an) { opening.skip = true; opening.an.finish(); } },
-  dcAgain: () => { closeOv(); openBox(); },
+  dcAgain: () => { const i = BOXES.indexOf(opening.b); closeOv(); openBox(false, i); },
   dcClose: () => { if (opening && opening.an && opening.an.playState !== "finished") return; closeOv(); },
   dcShow: d => {                                       // одна тачка в профиле — её видят друзья и рейтинг
     const id = +d.id, dd = D(); dd.show = dd.show === id ? null : id; save(); try { sendState(); } catch (e) {}

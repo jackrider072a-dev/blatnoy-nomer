@@ -93,7 +93,7 @@ const yesterdayStr = () => { const d = new Date(Date.now() - 864e5); return d.ge
 
 // ===================== СОСТОЯНИЕ =====================
 const fresh = () => ({
-  v: 5, sets: {}, merges: 0, mergeBest: 0, story: { ch: 0, intro: false, ev: {} }, tut: 0, title: "", achClaim: {}, coins: START_COINS, drawn: 0, goal: 0, forge: { sel: [], coins: 0, target: null, lots: [], lotsAt: 0, boost: false, tries: 0, wins: 0, legend: 0 }, forgePend: null, earned: 0, earnedRun: 0, plates: [], found: {}, up: {}, bought: 0, sold: 0,
+  v: 5, sets: {}, merges: 0, mergeBest: 0, story: { ch: 0, intro: false, ev: {} }, tut: 0, carTutorial: 1, title: "", achClaim: {}, coins: START_COINS, drawn: 0, goal: 0, forge: { sel: [], coins: 0, target: null, lots: [], lotsAt: 0, boost: false, tries: 0, wins: 0, legend: 0 }, forgePend: null, earned: 0, earnedRun: 0, plates: [], found: {}, up: {}, bought: 0, sold: 0,
   tc: [0, 0, 0, 0, 0, 0], pity: 0, xp: 0, lvl: 1, pts: 0, prest: 0, orders: [], ordAt: 0, ach: {},
   daily: { last: "", streak: 0 }, mini: { best: 0, next: 0, plays: 0 },
   set: { music: true, sfx: true, vib: true, auto: -1, city: true }, market: null, t: Date.now(), nid: 1,
@@ -121,6 +121,8 @@ function normalize(r) {                              // сохранение (л
   s.prof = Object.assign(fresh().prof, r.prof); if (!Array.isArray(s.prof.pins)) s.prof.pins = [];
   s.story = Object.assign(fresh().story, r.story); s.story.ev = Object.assign({}, s.story.ev);
   if (!r.story) s.tut = r.drawn > 0 ? -1 : 0;                              // сейв до сюжета: опытным игрокам обучение не показываем
+  if (!r.carTutorial && s.tut >= 3) s.tut += 2;                            // в обучение добавились два шага после первого номера
+  s.carTutorial = 1;
   if (!Array.isArray(s.forge.sel)) s.forge.sel = [];
   if (!Array.isArray(s.forge.lots)) s.forge.lots = [];
   if (s.forgePend && !s.forgePend.v2) s.forgePend = null;
@@ -2062,7 +2064,9 @@ const TUT = [
   { say: "Здорово, племяш! Я — дядя Валера. Отдаю тебе свой старый гараж: будешь собирать красивые номера. Я подскажу, что к чему.", next: true },
   { say: "Вот бланк номера. Жми — посмотрим, что выпадет!", el: '[data-act="buy"][data-pack="basic"]', done: () => S.drawn >= 1 },
   { say: "Есть! Ставь его в гараж — номера в гараже приносят деньги каждую секунду.", el: '[data-act="keepPending"]', done: () => S.plates.length >= 1 && !pending },
-  { say: () => L("Обычные номера — тоже не мусор. Купи ещё бланков, пока не наберётся три одинаковых ({0}/3).", Math.min(tierCount(0), 3)), el: '[data-act="buy"][data-pack="basic"]', done: () => !!document.querySelector(".mergebtn") },
+  { say: "А ещё я оставил тебе машину. Загляни во вкладку «Тачки».", el: 'nav button[data-tab="cars"]', done: () => tab === "cars" },
+  { say: "Поставь на машину свой номер, и она начнёт приносить доход.", el: '#tab-cars.on [data-act="dcPick"]', free: true, done: () => !!S.dc?.cars.some(car => car.pl != null) },
+  { say: () => tab !== "buy" ? L("Вернись к бланкам, чтобы собрать ещё номера.") : L("Обычные номера — тоже не мусор. Купи ещё бланков, пока не наберётся три одинаковых ({0}/3).", Math.min(tierCount(0), 3)), el: () => tab !== "buy" ? 'nav button[data-tab="buy"]' : '[data-act="buy"][data-pack="basic"]', done: () => tab === "buy" && !!document.querySelector(".mergebtn") },
   { say: "А теперь фокус: три одинаковых номера сливаем в один получше. Жми!", el: ".mergebtn", done: () => S.merges >= 1 },
   { say: "Загляни в гараж — там твоя коллекция.", el: 'nav button[data-tab="garage"]', done: () => tab === "garage" },
   { say: "Собираешь наборы — получаешь награду и вечный бонус к доходу. Первый набор ты уже собрал!", el: "#tab-garage .sets .set", next: true, free: true },
@@ -3211,6 +3215,7 @@ function renderAll() { syncNav(); updateMoreDot(); renderHeader(); renderPills()
 
 // ===================== ГЛАВНЫЙ ЦИКЛ =====================
 let lastTick = Date.now(), botT = 0, saveT = 0;
+let onGaragePayout = () => {};
 setInterval(() => {                                   // плавный счётчик монет
   const diff = S.coins - dispCoins;
   dispCoins = Math.abs(diff) < 1 ? S.coins : dispCoins + diff * 0.25;
@@ -3224,6 +3229,7 @@ function payTick(dt) {
     if (v >= 1) {
       gain(v); const r = $("inc").getBoundingClientRect();
       floatText(r.left, r.bottom + 4, "+" + fmt(v), "#7dff8a"); fx.fly(r.left + r.width / 2, r.bottom, Math.min(10, 3 + Math.floor(Math.log10(v + 1)))); Snd.coin();
+      onGaragePayout();
     }
   }
   const b = $("payBar"); if (b) b.style.width = Math.min(100, S.payT / PAY_SEC * 100) + "%";

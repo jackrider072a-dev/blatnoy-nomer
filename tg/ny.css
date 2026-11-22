@@ -1,0 +1,98 @@
+/* ===================== НОВОГОДНЕЕ ОБНОВЛЕНИЕ (ny.js) ===================== */
+#nysnow{position:fixed;inset:0;width:100%;height:100%;z-index:5;pointer-events:none}
+
+/* гирлянда под шапкой */
+body.ny header{position:relative}
+body.ny header::after{content:"";position:absolute;left:0;right:0;bottom:-7px;height:10px;pointer-events:none;
+  background:radial-gradient(circle,#ff3d71 0 3px,transparent 4px) 0 0/48px 10px,radial-gradient(circle,#ffd23f 0 3px,transparent 4px) 12px 0/48px 10px,
+  radial-gradient(circle,#7dff8a 0 3px,transparent 4px) 24px 0/48px 10px,radial-gradient(circle,#4fc3f7 0 3px,transparent 4px) 36px 0/48px 10px;
+  animation:nyblink 1.6s steps(2) infinite}
+@keyframes nyblink{50%{filter:brightness(.45)}}
+
+/* плашка «Новый год» */
+.pill.nypill{background:linear-gradient(90deg,#0f5a2e,#7a1424);color:#fff;cursor:pointer}
+.nybar{display:flex;align-items:center;gap:8px;width:100%;margin:0 0 10px;padding:10px 12px;border-radius:14px;border:1px solid #ffffff22;cursor:pointer;color:#fff;font:inherit;
+  background:linear-gradient(100deg,#0d4a28,#123a5c 55%,#6a1020);box-shadow:0 0 14px #4fc3f733;text-align:left}
+.nybar .nyb-t{font-weight:bold;font-size:14px}.nybar .nyb-m{font-weight:bold;color:#ffb36b}.nybar .nyb-g{margin-left:auto;font-size:12px;color:#cfe8ff}
+.nybar.ready{animation:nypulse 1.4s infinite}.nybar.ready .nyb-g{color:#ffd23f;font-weight:bold}
+@keyframes nypulse{50%{box-shadow:0 0 22px #ffd23f99}}
+.nymore .nybar{margin-top:4px}
+
+/* окно события */
+.nymodal h2{margin-bottom:4px}
+.nytop{display:flex;justify-content:space-between;align-items:center;margin:0 0 8px;padding:8px 12px;border-radius:12px;background:#ff9a3c18}
+.nytop b{font-size:20px;color:#ffb36b}.nytop small{color:#9fb6d6;font-size:12px}
+.nycal{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 12px}
+.nygift{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px 6px;border-radius:12px;border:1px solid #ffffff18;background:#1a2236;color:#fff;font:inherit;min-height:82px}
+.nygift .nyd{position:absolute;top:3px;left:6px;font-size:10px;color:#8d99b3}
+.nygift .nyi{font-size:26px;line-height:1.2}.nygift small{font-size:10px;line-height:1.15;color:#aab4c8;text-align:center}
+.nygift.done{opacity:.5}.nygift.lock{opacity:.7}
+.nygift.ready{background:linear-gradient(160deg,#7a1424,#0f5a2e);border-color:#ffd23f;cursor:pointer;animation:nypulse 1.4s infinite}
+.nygift.ready small{color:#fff}
+.nygift.last{grid-column:span 4;flex-direction:row;justify-content:center;gap:10px;min-height:56px;background:linear-gradient(90deg,#0b2a46,#3a1060)}
+.nygift.last.lock,.nygift.last.next{opacity:1}
+.nygift.last small{font-size:13px;color:#ffd23f;font-weight:bold}
+.nysi{font-size:30px;text-align:center}
+.cosprev.nyprev{width:110px}
+.nyhow p{margin:6px 0;font-size:14px;text-align:left}
+.nyfest{color:#ffd23f;font-weight:bold}
+
+/* новогодний номер: ледяной, с инеем */
+.plate.nyp{background:linear-gradient(180deg,#ffffff 0%,#e3f5ff 55%,#bfe6ff 100%);box-shadow:0 0 18px #9be7ffaa,inset 0 .12em 0 #fff}
+.plate.nyp .r{background:linear-gradient(180deg,#f4fbff,#cdeeff)}
+.plate.nyp .c{text-shadow:0 0 .25em #9be7ff}
+
+/* оформление за мандарины */
+body.hold-garland .plate:not(.other),.oh-garland .plate.other{outline:.14em dotted #ffd23f;outline-offset:.06em;box-shadow:0 0 0 .2em #0f7a3a,0 0 .7em #ff3d7188}
+.pfx-snow .plate{position:relative}
+.pfx-snow .plate::after{content:"❄ ❅ ❄";position:absolute;left:0;right:0;top:-1.05em;font-size:.6em;color:#dff6ff;text-align:center;letter-spacing:.4em;animation:nysnowfx 2.4s ease-in-out infinite;pointer-events:none}
+@keyframes nysnowfx{50%{transform:translateY(.25em);opacity:.6}}
+.gar-tree,.garswatch.gar-tree{background:radial-gradient(circle at 85% 30%,#ffd23f33 0 8%,transparent 9%),linear-gradient(160deg,#0d3b25,#142238 60%,#3b0f1c)}
+#tab-garage.gar-tree{background:linear-gradient(#0b0e16cc,#0b0e16cc),radial-gradient(circle at 90% 8%,#ffd23f55 0 3%,transparent 4%),linear-gradient(160deg,#0d3b25,#142238 60%,#3b0f1c)}
+.garswatch.gar-tree::after{content:"🎄";margin-left:6px}
+
+/* праздничная сцена */
+#jp.nycine .jp-title{text-shadow:0 0 18px #9be7ff}
+
+/* ===== праздничные тачки (cars.js): зимняя ливрея — снег на крыше и гирлянда ===== */
+.dc-car.dc-winter::before{content:"❄  ❅      ❆   ❄";position:absolute;left:0;right:0;top:4%;z-index:1;pointer-events:none;text-align:center;font-size:15px;line-height:1;white-space:pre;color:#e8f8ff;text-shadow:0 0 6px #9be7ff;animation:nysnowfx 3s ease-in-out infinite}
+.dc-car.dc-winter>img{filter:drop-shadow(0 10px 10px #000b) drop-shadow(0 0 10px #9be7ff88)}
+.dc-car.dc-winter::after{content:"";position:absolute;left:4%;right:4%;bottom:4%;height:8px;z-index:1;pointer-events:none;
+  background:radial-gradient(circle,#ff3d71 0 3px,transparent 4px) 0 0/36px 8px,radial-gradient(circle,#ffd23f 0 3px,transparent 4px) 9px 0/36px 8px,radial-gradient(circle,#7dff8a 0 3px,transparent 4px) 18px 0/36px 8px,radial-gradient(circle,#4fc3f7 0 3px,transparent 4px) 27px 0/36px 8px;animation:nyblink 1.6s steps(2) infinite}
+.dc-cc.ny{background:radial-gradient(100% 80% at 50% 35%,#9be7ff22,transparent 75%),var(--card)}
+.dc-rh.ny{color:#9be7ff}
+.nygift.gold{background:linear-gradient(90deg,#3a2a05,#6a4a0a);border-color:#ffd23f}
+.nygift.last.gold small{color:#fff}
+.nypaid .cosrow.hit{background:#ffd23f14;border-radius:10px}
+.nyshopban{margin-bottom:8px}
+
+/* ===== оформление за донат ===== */
+body.hold-aurora .plate:not(.other),.oh-aurora .plate.other{outline:.15em solid #5ef2ff;outline-offset:.05em;animation:nyaurora 4s linear infinite}
+@keyframes nyaurora{0%{outline-color:#5ef2ff;box-shadow:0 0 .8em #5ef2ff}33%{outline-color:#7dff8a;box-shadow:0 0 .8em #7dff8a}66%{outline-color:#b388ff;box-shadow:0 0 .8em #b388ff}100%{outline-color:#5ef2ff;box-shadow:0 0 .8em #5ef2ff}}
+.pfx-firework .plate{position:relative}
+.pfx-firework .plate::after{content:"";position:absolute;left:50%;top:-.9em;width:2.4em;height:2.4em;margin-left:-1.2em;pointer-events:none;border-radius:50%;
+  background:radial-gradient(circle,#ffd23f 0 6%,transparent 7%) 50% 0/100% 100% no-repeat,conic-gradient(from 0deg,#ff3d71 0 8%,transparent 8% 17%,#ffd23f 17% 25%,transparent 25% 33%,#4fc3f7 33% 42%,transparent 42% 50%,#7dff8a 50% 58%,transparent 58% 67%,#b388ff 67% 75%,transparent 75% 83%,#fff 83% 92%,transparent 92%);
+  -webkit-mask:radial-gradient(circle,transparent 30%,#000 32%,#000 48%,transparent 50%);mask:radial-gradient(circle,transparent 30%,#000 32%,#000 48%,transparent 50%);animation:nyfire 1.8s ease-out infinite}
+@keyframes nyfire{0%{transform:scale(.2);opacity:1}70%{opacity:1}100%{transform:scale(1.4);opacity:0}}
+.gar-winter,.garswatch.gar-winter{background:radial-gradient(circle at 18% 75%,#ff9a3c66 0 10%,transparent 22%),linear-gradient(180deg,#1d3a5c,#0c1a2c 70%,#2a1a12)}
+#tab-garage.gar-winter{background:linear-gradient(#0b0e16bb,#0b0e16bb),radial-gradient(circle at 10% 90%,#ff9a3c55 0 6%,transparent 18%),radial-gradient(circle at 92% 12%,#ffffff22 0 2%,transparent 3%),linear-gradient(180deg,#1d3a5c,#0c1a2c 70%,#2a1a12)}
+.garswatch.gar-winter::after{content:"🔥🎄❄️";margin-left:6px;font-size:14px}
+.gar-goldtree,.garswatch.gar-goldtree{background:radial-gradient(circle at 80% 30%,#ffd23f55 0 10%,transparent 25%),linear-gradient(160deg,#3a2a05,#1a1406 60%,#0b0e16)}
+#tab-garage.gar-goldtree{background:linear-gradient(#0b0e16bb,#0b0e16bb),radial-gradient(circle at 90% 10%,#ffd23f66 0 4%,transparent 14%),linear-gradient(160deg,#3a2a05,#1a1406 60%,#0b0e16)}
+.garswatch.gar-goldtree::after{content:"🌟🎄";margin-left:6px;font-size:14px}
+
+/* ===== «Ёлочный бланк» на вкладке «Номера» ===== */
+.pack.nypack{background:linear-gradient(100deg,#0d4a28,#123a5c 60%,#6a1020);border-color:#ffd23f88;box-shadow:0 0 14px #4fc3f733}
+.pack.nypack .pt small{color:#cfe8ff}
+
+/* демо-панель (только ?nydemo на локальном адресе) */
+.nydemo{position:fixed;right:10px;bottom:calc(80px + env(safe-area-inset-bottom));z-index:60;padding:9px 14px;border-radius:20px;border:2px solid #ffd23f;background:#2a1f05;color:#ffd23f;font:bold 14px Arial;box-shadow:0 0 14px #ffd23f66;cursor:pointer}
+
+/* тизер «Скоро Новый год» (1–14 декабря) */
+.nybar.tease{background:linear-gradient(100deg,#1a2a44,#2a1a3c);box-shadow:none;border-style:dashed}
+.nybar.tease .nyb-m{color:#9be7ff;font-size:13px}
+.pill.nypill.tease{background:linear-gradient(90deg,#1a2a44,#2a1a3c);color:#cfe8ff}
+.nyt-cars{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:4px 0 10px}
+.nyt-car{background:radial-gradient(90% 70% at 50% 45%,#ffd23f22,transparent 75%),#1a2236;border:1px solid #ffffff18;border-radius:12px;padding:6px 4px;text-align:center}
+.nyt-car img{width:100%;aspect-ratio:1.7;object-fit:contain;filter:drop-shadow(0 4px 5px #000b)}
+.nyt-car b{display:block;font-size:11px;color:#ffd23f;line-height:1.2}

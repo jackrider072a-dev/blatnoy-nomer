@@ -194,6 +194,7 @@ const YA_ADAPTER = (() => {
       });
     },
     direct: true,
+    serverTime: () => { try { return ysdk && ysdk.serverTime ? +ysdk.serverTime() : 0; } catch (e) { return 0; } },   // время серверов Яндекса (мс)
     get canPay() { return !!pay && Object.keys(cat).length > 0; },
     price(k) {
       const x = cat[k]; if (!x) return null;
@@ -367,6 +368,7 @@ const Platform = (() => {
     checkSub: () => a.checkSub ? a.checkSub() : Promise.resolve(null),
     state(obj) { if (a.state) a.state(obj); },
     askNotify: () => a.askNotify ? a.askNotify() : Promise.resolve(false),
+    serverTime: () => a.serverTime ? a.serverTime() : 0,  // точное время площадки (Яндекс), 0 — нет; остальные площадки — с нашего сервера /time (ny.js)
     get canPay() { return !!a.canPay; },                  // магазин: звёзды Telegram, голоса ВК, яны Яндекса
     get direct() { return !!a.direct; },                  // покупку выдаёт игра сама (ВК, Яндекс), а не сервер через claim
     price: (k, st) => !a.canPay ? null : a.price ? a.price(k, st) : "⭐ " + st,   // Telegram — цена в звёздах как есть
