@@ -1,16 +1,18 @@
 // ===================== НОВОГОДНЕЕ ОБНОВЛЕНИЕ «БЛАТНОЙ НОВЫЙ ГОД» =====================
 // Подключается после game.js и cars.js и пользуется их функциями (как cars.js): S, L, fmt, toast, fx, openModal, plateHTML…
-// Сезон: 15 декабря — 14 января (по часам игрока). Для проверки вне сезона: ?ny=1 (включить) или ?ny=0 (выключить).
+// Даты (по времени сервера): тизер «Скоро Новый год» 20–30 ноября, событие 1 декабря — 14 января, календарь — 31 подарок на весь декабрь.
+// Проверка на этом компьютере (127.0.0.1): ?ny=1 — событие, ?nyteaser — тизер, ?nydemo — демо с бесплатными покупками.
 // Что внутри: снегопад и гирлянда, 🍊 мандарины (валюта события), «Подарки под ёлкой» (12 подарков, один в день),
 // «Ёлочный базар» (обмен мандаринов), новогодние номера (под замком), оформление за мандарины, Дед Мороз в сюжете,
 // праздничный доход ×1.5 31 декабря и 1 января, сцена «С Новым годом!» после полуночи.
 // Награды деньгами считаются в минутах дохода (priceIncome), как задания дня, — экономику v5 не разгоняют.
 "use strict";
 (() => {
-const Q = new URLSearchParams(location.search), FORCE = Q.get("ny");
+const Q = new URLSearchParams(location.search), LOCAL = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
+const FORCE = LOCAL ? Q.get("ny") : null;                  // ?ny=1 / ?ny=0 / ?nyfest — проверка только на этом компьютере, в игре не сработают
 // демо для проверки (только на локальном адресе, ?nydemo): событие включено, донат бесплатный, мандарины без конца, панель «🧪 Демо»
 const DEMO = Q.has("nydemo") && /^(127.0.0.1|localhost)$/.test(location.hostname);
-const NY_FROM = [12, 15], NY_TO = [1, 14];                 // [месяц, день] включительно
+const NY_FROM = [12, 1], NY_TO = [1, 14];                 // [месяц, день] включительно
 // ----- часы: время берём с сервера, чтобы событие и подарки нельзя было открыть переводом часов на телефоне.
 // Яндекс — время из SDK площадки (внешние запросы там нежелательны), ВК и Telegram — наш сервер (GET /time).
 // Пока сервер не ответил (или недоступен) — часы устройства. Часовой пояс — игрока: полночь у каждого своя.
@@ -150,39 +152,60 @@ function cashGift(m) { const v = cashMin(m); gain(v); fx.fly(innerWidth / 2, inn
 function buffGift(min) { S.buffUntil = Math.max(S.buffUntil, Date.now()) + min * 60000; vignette("#ffd23f"); renderPills(); toast(L("🔥 Доход ×2 на {0} мин!", min)); }
 
 // ----- «Подарки под ёлкой»: 12 подарков по порядку, один в календарный день
+// Адвент-календарь: подарок №N открывается N декабря (по времени сервера), с каждым днём крупнее; 31-й — новогодняя легенда в новогоднюю ночь.
+// Пропущенные дни не сгорают — накопившиеся подарки забираются подряд. «Золотой календарь» (донат): всё вдвое и 32-й подарок 1 января.
+const blankGift = want => { const ok = id => PACKS[id] && S.lvl >= PACKS[id].lvl; const id = [want, "prem", "basic"].find(ok) || "basic"; freeBlank(id); if (N().gold) addM(10); };
+const nyGift = (t, m) => { giveNy(t); if (N().gold) addM(m); };
 const CAL = [
+  { i: "🍊", t: "3 мандарина", go: () => addM(3 * G()) },
+  { i: "💰", t: "Горсть монет (2 мин дохода)", go: () => cashGift(2 * G()) },
+  { i: "🍊", t: "5 мандаринов", go: () => addM(5 * G()) },
+  { i: "🔥", t: "Доход ×2 на 5 минут", go: () => buffGift(5 * G()) },
+  { i: "📄", t: "Обычный бланк", b: 1, go: () => blankGift("basic") },
+  { i: "🍊", t: "8 мандаринов", go: () => addM(8 * G()) },
+  { i: "💰", t: "Пачка монет (5 мин дохода)", go: () => cashGift(5 * G()) },
+  { i: "💼", t: "Премиум-бланк", b: 1, go: () => blankGift("prem") },
   { i: "🍊", t: "10 мандаринов", go: () => addM(10 * G()) },
+  { i: "🔥", t: "Доход ×2 на 10 минут", go: () => buffGift(10 * G()) },
   { i: "💰", t: "Мешок денег (10 мин дохода)", go: () => cashGift(10 * G()) },
-  { i: "💼", t: "Премиум-бланк", b: 1, go: () => { freeBlank(S.lvl >= PACKS.prem.lvl ? "prem" : "basic"); if (N().gold) addM(20); } },
   { i: "🍊", t: "15 мандаринов", go: () => addM(15 * G()) },
-  { i: "💰", t: "Мешок денег (20 мин дохода)", go: () => cashGift(20 * G()) },
+  { i: "💼", t: "Премиум-бланк", b: 1, go: () => blankGift("prem") },
+  { i: "🎄", t: "Новогодний красивый номер", go: () => nyGift(1, 15) },
+  { i: "💰", t: "Мешок денег (15 мин дохода)", go: () => cashGift(15 * G()) },
+  { i: "🍊", t: "20 мандаринов", go: () => addM(20 * G()) },
+  { i: "🎄", t: "Ёлочный бланк", b: 1, go: () => blankGift("ny") },
   { i: "🔥", t: "Доход ×2 на 15 минут", go: () => buffGift(15 * G()) },
-  { i: "👑", t: "Элитный бланк", b: 1, go: () => { freeBlank(S.lvl >= PACKS.elite.lvl ? "elite" : S.lvl >= PACKS.prem.lvl ? "prem" : "basic"); if (N().gold) addM(30); } },
+  { i: "💰", t: "Мешок денег (20 мин дохода)", go: () => cashGift(20 * G()) },
   { i: "🍊", t: "25 мандаринов", go: () => addM(25 * G()) },
+  { i: "🎄", t: "Новогодний редкий номер", go: () => nyGift(2, 25) },
+  { i: "👑", t: "Элитный бланк", b: 1, go: () => blankGift("elite") },
   { i: "💰", t: "Сундук денег (30 мин дохода)", go: () => cashGift(30 * G()) },
-  { i: "🎄", t: "Новогодний блатной номер", go: () => { giveNy(3); if (N().gold) addM(40); } },
+  { i: "🍊", t: "30 мандаринов", go: () => addM(30 * G()) },
+  { i: "🎄", t: "Ёлочный бланк", b: 1, go: () => blankGift("ny") },
+  { i: "🔥", t: "Доход ×2 на 30 минут", go: () => buffGift(30 * G()) },
+  { i: "💰", t: "Сундук денег (45 мин дохода)", go: () => cashGift(45 * G()) },
   { i: "🍊", t: "40 мандаринов", go: () => addM(40 * G()) },
-  { i: "🎅", t: "Новогодняя ЛЕГЕНДА", go: () => { giveNy(4, L("Последний подарок под ёлкой…")); if (N().gold) addM(60); } },
-  { i: "🌟", t: "Праздничный контейнер", gold: 1, car: 1, go: () => { closeModal(); window.DC_NY && DC_NY.open("paid"); } }   // 13-й — только с «Золотым календарём»
+  { i: "🎄", t: "Новогодний блатной номер", go: () => nyGift(3, 40) },
+  { i: "💼", t: "Чемодан денег и 50 мандаринов", go: () => { cashGift(60 * G()); addM(50 * G()); } },
+  { i: "🎅", t: "Новогодняя ЛЕГЕНДА", go: () => { giveNy(4, L("Подарок новогодней ночи")); if (N().gold) addM(60); } },
+  { i: "🌟", t: "Праздничный контейнер", gold: 1, car: 1, go: () => { closeModal(); window.DC_NY && DC_NY.open("paid"); } }   // 32-й — 1 января, только с «Золотым календарём»
 ];
 CAL.forEach(c => Lprops(c, "t"));
+const LAST = 30;                                            // индекс 31-го подарка
 const calLen = () => N().gold ? CAL.length : CAL.length - 1;
-// подарки под ёлкой — с 20 декабря: кто заходит каждый день, 12-й (легенду) берёт 31 декабря, 13-й («Золотой календарь») — 1 января.
-// Событие (снег, мандарины, базар, кейсы, донат) при этом идёт с 15 декабря. Для проверки ?ny=1 и демо — открыт сразу.
-const CAL_FROM = [12, 20];
-const calOpen0 = () => { if (FORCE === "1" || DEMO) return true; const d = nowD(), m = d.getMonth() + 1; return m === 1 || (m === CAL_FROM[0] && d.getDate() >= CAL_FROM[1]); };
-const calStartIn = () => { const d = nowD(); return new Date(d.getFullYear(), CAL_FROM[0] - 1, CAL_FROM[1]) - d; };
-const calReady = () => nyOn() && calOpen0() && S.tut === -1 && N().cal < calLen() && N().calDay !== dayStr();
+const calAvail = () => { if (FORCE === "1" || DEMO) return CAL.length; const d = nowD(); return d.getMonth() === 11 ? d.getDate() : d.getMonth() === 0 ? CAL.length : 0; };   // сколько подарков открыто по дате
+const calDate = i => i < 31 ? L("{0} дек", i + 1) : L("1 янв");
+const calReady = () => nyOn() && S.tut === -1 && N().cal < Math.min(calLen(), calAvail());
 function calOpen(i) {
   const s = N(); if (i !== s.cal || !calReady()) return;
   const c = CAL[i], blank = !!c.b;
   if (blank && rolling) return toast(L("Дождись, пока допечатается номер"));
   if (c.car && window.DC_NY && DC_NY.busy()) return toast(L("Дождись, пока откроется контейнер"));
-  s.cal++; s.calDay = dayStr(); Platform.track("ny_gift_" + s.cal);
+  s.cal++; Platform.track("ny_gift_" + s.cal);
   bells(); fx.confetti(60, ["#ff3d71", "#7dff8a", "#ffd23f", "#fff", "#4fc3f7"]);
   c.go(); save(); renderBar(); updateMoreDot();
-  if (!blank && !c.car && i < 11 && !$("modal").classList.contains("hidden")) openNy("cal");
-  else if (i === 11) closeModal();
+  if (!blank && !c.car && i < LAST && !$("modal").classList.contains("hidden")) openNy("cal");
+  else if (i === LAST) closeModal();
 }
 
 // ----- «Ёлочный базар»: обмен мандаринов
@@ -221,7 +244,7 @@ function nyBuy(key) {
 // в Яндексе каждый товар нужно завести в консоли с тем же ключом. Продаются только в праздники.
 const NY_PAID = [
   { k: "ny_sani", st: 149, i: "🛷", t: "Сани Деда Мороза", hit: 1, d: () => L("эксклюзивная суперлегенда-тачка и именной номер «Х 001 ОХ 77»"), done: () => !!S.paid.ny_sani },
-  { k: "ny_gold", st: 99, i: "🌟", t: "Золотой календарь", hit: 1, d: () => L("все подарки под ёлкой ×2, 13-й подарок — праздничный контейнер, гараж «Золотая ёлка»"), done: () => !!N().gold },
+  { k: "ny_gold", st: 99, i: "🌟", t: "Золотой календарь", hit: 1, d: () => L("все подарки календаря ×2, 32-й подарок 1 января — праздничный контейнер, гараж «Золотая ёлка»"), done: () => !!N().gold },
   { k: "ny_set", st: 79, i: "🎁", t: "Новогодний набор", d: () => L("300 🍊, новогодняя легенда и доход ×2 на 3 часа · один раз"), done: () => !!S.paid.ny_set },
   { k: "case_ny", st: 39, i: "🎅", t: "Кейс Деда Мороза", d: () => L("3 новогодних номера сразу: блатной, легенда (25%) или суперлегенда (2%)") },
   { k: "box_ny", st: 79, i: "📦", t: "Праздничный контейнер", hit: 1, d: () => L("все новогодние тачки: Куранты и Снегурочка — 30%, шанс на Сани Деда Мороза") },
@@ -242,7 +265,7 @@ shopGrant = function (item, why) {
   else if (item === "ny_set") { S.paid.ny_set = 1; addM(300); S.buffUntil = Math.max(S.buffUntil, Date.now()) + 3 * 3600000; renderPills(); giveNy(4, L("Новогодний набор")); }
   else if (item === "ny_gold") {
     s.gold = 1; if (!S.cos.own.includes("gar:goldtree")) S.cos.own.push("gar:goldtree"); S.cos.gar = "goldtree"; applyCos(); sendState();
-    enqueueCinema({ color: "#ffd23f", bg: "#2a1f05", cls: "nycine", icon: "🌟", top: L("Новогодний эксклюзив"), title: L("ЗОЛОТОЙ КАЛЕНДАРЬ"), sub: L("Все подарки под ёлкой теперь вдвое больше, а после 12-го тебя ждёт 13-й — праздничный контейнер. И гараж «Золотая ёлка» уже твой!"), confetti: 160 });
+    enqueueCinema({ color: "#ffd23f", bg: "#2a1f05", cls: "nycine", icon: "🌟", top: L("Новогодний эксклюзив"), title: L("ЗОЛОТОЙ КАЛЕНДАРЬ"), sub: L("Все подарки календаря теперь вдвое больше, а 1 января тебя ждёт 32-й — праздничный контейнер. И гараж «Золотая ёлка» уже твой!"), confetti: 160 });
   }
   else if (item === "box_ny" || item === "ny_sani") {
     if (!window.DC_NY) return _shopGrant(item, why);
@@ -275,12 +298,16 @@ function openNy(t) {
   const tabs = [["cal", "🎁 Подарки"], ["shop", "🍊 Базар"], ...(paidList().length ? [["paid", "⭐ Эксклюзивы"]] : []), ["how", "❓ Как получить 🍊"]].map(([k, n]) => `<button class="btn sm ${k === nyTab ? "green" : "alt"}" data-act="nyOpen" data-t="${k}">${L(n)}</button>`).join("");
   let body = "";
   if (nyTab === "cal") {
-    body = (calOpen0() ? `<p class="hint">${L("Один подарок в день, по порядку. Пропустил день — не страшно: следующий подарок дождётся тебя.")}</p>`
-      : `<p class="nyfest">🎁 ${L("Подарки под ёлкой откроются 20 декабря — через {0}. Последний, двенадцатый, как раз придётся на 31 декабря!", mmss(calStartIn()))}</p>`) + `<div class="nycal">` +
-      CAL.slice(0, calLen()).map((c, i) => { const done = i < s.cal, next = i === s.cal, ready = next && calReady(), big = i >= 11;
-        return `<button class="nygift ${done ? "done" : ready ? "ready" : next ? "next" : "lock"} ${big ? "last" : ""} ${c.gold ? "gold" : ""}" ${ready ? `data-act="nyGift" data-i="${i}"` : "disabled"}>
-          <span class="nyd">${i + 1}</span><span class="nyi">${done ? "✅" : ready || big ? c.i : "🎁"}</span><small>${done || ready || big ? c.t : next ? L("завтра") : "???"}</small></button>`; }).join("") + `</div>` +
-      (s.gold ? `<p class="nyfest">🌟 ${L("Золотой календарь: подарки вдвое больше и 13-й подарок")}</p>` : sells("ny_gold", 99) ? `<button class="btn star" data-act="nyOpen" data-t="paid">🌟 ${L("Золотой календарь — подарки ×2 и 13-й подарок")}</button>` : "");
+    const avail = Math.min(calLen(), calAvail()), nx = s.cal, nc = CAL[nx];
+    const head = nx >= calLen() ? `<div class="nyhead done">✅ ${L("Все подарки календаря открыты!")}</div>`
+      : nx < avail ? `<div class="nyhead ready"><span class="nyhi">${nc.i}</span><div><small>${L("Подарок №{0} · {1}", nx + 1, calDate(nx))}${avail - nx > 1 ? " · " + L("ещё ждут: {0}", avail - nx - 1) : ""}</small><b>${nc.t}</b></div><button class="btn sm green ready" data-act="nyGift" data-i="${nx}">${L("Забрать")}</button></div>`
+      : `<div class="nyhead"><span class="nyhi">🎁</span><div><small>${L("Следующий подарок — {0}", calDate(nx))}</small><b>${nc.t}</b></div></div>`;
+    body = head + `<div class="nycal">` +
+      CAL.slice(0, calLen()).map((c, i) => { const done = i < s.cal, open = i < avail, ready = i === s.cal && open, big = i >= LAST;
+        return `<button class="nygift ${done ? "done" : ready ? "ready" : open ? "wait" : "lock"} ${big ? "last" : ""} ${c.gold ? "gold" : ""}" ${ready ? `data-act="nyGift" data-i="${i}"` : "disabled"} title="${c.t}">
+          <span class="nyd">${big ? calDate(i) : i + 1}</span><span class="nyi">${done ? "✅" : c.i}</span>${big ? `<small>${c.t}</small>` : ""}</button>`; }).join("") + `</div>` +
+      `<p class="hint">${L("Подарок №N открывается N декабря. Пропустил — не страшно, накопившиеся подарки заберёшь подряд.")}</p>` +
+      (s.gold ? `<p class="nyfest">🌟 ${L("Золотой календарь: подарки вдвое больше и 32-й подарок 1 января")}</p>` : sells("ny_gold", 99) ? `<button class="btn star" data-act="nyOpen" data-t="paid">🌟 ${L("Золотой календарь — подарки ×2 и 32-й подарок")}</button>` : "");
   } else if (nyTab === "shop") {
     body = `<p class="hint">${L("Меняй мандарины на подарки. Мандарины сгорят после праздников — не копи их до весны!")}</p><div class="card coslist">` +
       SHOP_NY.map(it => { const own = it.cos && S.cos.own.includes(it.cos[0] + ":" + it.cos[1].id), lock = it.lvl && S.lvl < it.lvl(), gone = it.left && !it.left();
@@ -303,7 +330,7 @@ function openNy(t) {
       <p>🔀 ${L("Слияние номеров: 1–3 мандарина")}</p>
       <p>🚕 ${L("Такси: изредка мандарин выпадает из пассажира")}</p>
       <p>📅 ${L("Задания дня: +5 за каждое и +15 за сундук")}</p>
-      <p>🎁 ${L("Подарки под ёлкой: мандарины в 1, 4, 8 и 11 подарках")}</p>
+      <p>🎁 ${L("Календарь: мандарины почти каждый третий день, к Новому году — всё больше")}</p>
       <p class="hint">${L("Из бланков, слияний и такси — не больше {0} в день. Сегодня: {1}/{0}", DAY_CAP, s.dm)}</p></div>
       ${isHoliday() ? `<p class="nyfest">🥂 ${L("Сегодня праздник: доход гаража ×{0}!", HOLI)}</p>` : `<p class="hint">🥂 ${L("31 декабря и 1 января доход гаража ×{0}", HOLI)}</p>`}
       <div class="setrow"><span>${L("❄️ Снегопад")}</span><button class="tog ${s.snow ? "on" : ""}" data-act="nySnow"></button></div>`;
@@ -315,23 +342,22 @@ function openNy(t) {
 // ----- полоска на главной, плашка сверху, точка на «Ещё», карточка во вкладке «Ещё»
 function barHTML() {
   const s = N(), ready = calReady();
-  return `<button class="nybar ${ready ? "ready" : ""}" data-act="nyOpen"><span class="nyb-t">🎄 ${L("Новый год")}</span><span class="nyb-m">🍊 ${fmt(s.m)}</span><span class="nyb-g">${ready ? L("🎁 Подарок ждёт!") : !calOpen0() ? L("🎁 подарки с 20 декабря") : s.cal >= calLen() ? L("все подарки открыты") : L("🍊 Базар")}</span></button>`;
+  return `<button class="nybar ${ready ? "ready" : ""}" data-act="nyOpen"><span class="nyb-t">🎄 ${L("Новый год")}</span><span class="nyb-m">🍊 ${fmt(s.m)}</span><span class="nyb-g">${ready ? L("🎁 Подарок ждёт!") : s.cal >= calLen() ? L("все подарки открыты") : L("🍊 Базар")}</span></button>`;
 }
 // ----- тизер «Скоро Новый год»: 1–14 декабря (до старта события) — плашка, полоска над бланками и окно «что будет». Проверка: ?nyteaser на 127.0.0.1
-const LOCAL = /^(127.0.0.1|localhost)$/.test(location.hostname);
-const teaserOn = () => { if (nyOn() || S.tut !== -1) return false; if (Q.has("nyteaser") && LOCAL) return true; const d = nowD(); return d.getMonth() === 11 && d.getDate() < 15; };
-const teaseLeft = () => { const d = nowD(); return new Date(d.getFullYear(), 11, 15) - d; };
+const teaserOn = () => { if (nyOn() || S.tut !== -1) return false; if (Q.has("nyteaser") && LOCAL) return true; const d = nowD(); return d.getMonth() === 10 && d.getDate() >= 20; };
+const teaseLeft = () => { const d = nowD(); return new Date(d.getFullYear(), 11, 1) - d; };
 function openTease() {
   Platform.track("ny_tease_open");
   const car = (k, t) => `<div class="nyt-car"><img src="cars/${k}.webp" alt=""><b>${L(t)}</b></div>`;
   openModal(`<div class="nymodal nytease"><h2>${L("🎄 Скоро: Блатной Новый год")}</h2>
-    <div class="nytop"><b>${L("15 декабря")}</b><small>${L("старт через {0}", mmss(teaseLeft()))}</small></div>
+    <div class="nytop"><b>${L("1 декабря")}</b><small>${L("старт через {0}", mmss(teaseLeft()))}</small></div>
     <div class="nyt-cars">${car("sani", "Сани Деда Мороза")}${car("kuranty", "Куранты")}${car("sneg", "Снегурочка")}</div>
     <div class="card nyhow">
       <p>🏎️ ${L("Новогодние тачки — только в праздники, потом их не достать")}</p>
       <p>📦 ${L("Праздничный контейнер и Кейс Деда Мороза")}</p>
       <p>🍊 ${L("Мандарины и «Ёлочный базар»")}</p>
-      <p>🎁 ${L("Подарки под ёлкой каждый день с 20 декабря — двенадцатый в новогоднюю ночь")}</p>
+      <p>🎁 ${L("Календарь на весь декабрь: подарок каждый день, чем ближе Новый год — тем круче. 31-й — новогодняя легенда")}</p>
       <p>❄️ ${L("Снег, гирлянды и Дед Мороз в гараже")}</p></div>
     <button class="btn green" data-act="nyTeaseOk">${L("Жду! 🎄")}</button></div>`);
 }
@@ -413,7 +439,7 @@ function nyTick() {
     introQ = true;                                         // отметка — в конце диалога: закрыл игру посреди него — Дед Мороз придёт снова
     say([["ded", "Хо-хо-хо! Слыхал я, тут самый блатной гараж в городе?"],
       ["ded", "Принёс тебе мешок мандаринов 🍊 — они выпадают из бланков, слияний и даже из такси."],
-      ["ded", "Меняй их на «Ёлочном базаре», а с 20 декабря под ёлкой каждый день тебя ждёт подарок. Двенадцатый — в новогоднюю ночь!"],
+      ["ded", "Меняй их на «Ёлочном базаре», а в календаре каждый день тебя ждёт подарок — чем ближе Новый год, тем круче. Тридцать первый — в новогоднюю ночь!"],
       ["valera", "Дед, а номер с цифрами 001 под ёлку положишь? 😏"],
       ["ded", "Хорошо себя вёл — будет! Жми на 🎄 над бланками."]], () => { N().intro = 1; addM(10); bells(); save(); });
   }
@@ -443,7 +469,7 @@ if (DEMO) {
   shopBuy = function (k) { closeModal(); toast("🧪 Демо: покупка бесплатно"); shopGrant(k); save(); renderAll(); };
   if (S.tut !== -1) { tutHide(); S.tut = -1; } S.drawn = Math.max(S.drawn, 20); S.lvl = Math.max(S.lvl, 15); S.story.ch = Math.max(S.story.ch, 99);
   S.coins = Math.max(S.coins, 5e7); const s = N(); s.intro = 1; s.m = Math.max(s.m, 5000); save();
-  setInterval(() => { const s = N(); if (s.m < 1000) s.m = 5000; s.gb = 0; s.calDay = ""; if (s.cal >= (s.gold ? 13 : 12)) s.cal = 0; S.paid.ny_set = 0; S.paid.ny_sani = 0; }, 1500);
+  setInterval(() => { const s = N(); if (s.m < 1000) s.m = 5000; s.gb = 0; s.calDay = ""; if (s.cal >= (s.gold ? 32 : 31)) s.cal = 0; S.paid.ny_set = 0; S.paid.ny_sani = 0; }, 1500);
   const DEMO_BTN = [["box_ny", "📦 Праздничный контейнер (донат)"], ["nygift", "🎁 Подарочный контейнер (за 🍊)"], ["case_ny", "🎅 Кейс Деда Мороза (3 номера)"], ["ny_sani", "🛷 Сани Деда Мороза"],
     ["nyblank", "🎄 Ёлочный бланк"], ["ny_set", "🎁 Новогодний набор"], ["ny_gold", "🌟 Золотой календарь"], ["nyfest", "🎆 Сцена «С Новым годом!»"], ["box_star", "⭐ Звёздный контейнер (для сравнения)"]];
   ACTS.nyDemo = d => {

@@ -22,14 +22,14 @@ body.ny header::after{content:"";position:absolute;left:0;right:0;bottom:-7px;he
 .nymodal h2{margin-bottom:4px}
 .nytop{display:flex;justify-content:space-between;align-items:center;margin:0 0 8px;padding:8px 12px;border-radius:12px;background:#ff9a3c18}
 .nytop b{font-size:20px;color:#ffb36b}.nytop small{color:#9fb6d6;font-size:12px}
-.nycal{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 12px}
-.nygift{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px 6px;border-radius:12px;border:1px solid #ffffff18;background:#1a2236;color:#fff;font:inherit;min-height:82px}
-.nygift .nyd{position:absolute;top:3px;left:6px;font-size:10px;color:#8d99b3}
-.nygift .nyi{font-size:26px;line-height:1.2}.nygift small{font-size:10px;line-height:1.15;color:#aab4c8;text-align:center}
-.nygift.done{opacity:.5}.nygift.lock{opacity:.7}
+.nycal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:8px 0 8px}
+.nygift{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:12px 0 3px;border-radius:9px;border:1px solid #ffffff18;background:#1a2236;color:#fff;font:inherit;min-height:42px}
+.nygift .nyd{position:absolute;top:2px;left:4px;font-size:9px;color:#8d99b3}
+.nygift .nyi{font-size:18px;line-height:1.2}.nygift small{font-size:10px;line-height:1.15;color:#aab4c8;text-align:center}
+.nygift.done{opacity:.45}.nygift.lock{opacity:.55}.nygift.wait{border-color:#ffd23f66}
 .nygift.ready{background:linear-gradient(160deg,#7a1424,#0f5a2e);border-color:#ffd23f;cursor:pointer;animation:nypulse 1.4s infinite}
 .nygift.ready small{color:#fff}
-.nygift.last{grid-column:span 4;flex-direction:row;justify-content:center;gap:10px;min-height:56px;background:linear-gradient(90deg,#0b2a46,#3a1060)}
+.nygift.last{grid-column:span 7;padding:6px 8px;flex-direction:row;justify-content:center;gap:10px;min-height:56px;background:linear-gradient(90deg,#0b2a46,#3a1060)}
 .nygift.last.lock,.nygift.last.next{opacity:1}
 .nygift.last small{font-size:13px;color:#ffd23f;font-weight:bold}
 .nysi{font-size:30px;text-align:center}
@@ -96,3 +96,9 @@ body.hold-aurora .plate:not(.other),.oh-aurora .plate.other{outline:.15em solid 
 .nyt-car{background:radial-gradient(90% 70% at 50% 45%,#ffd23f22,transparent 75%),#1a2236;border:1px solid #ffffff18;border-radius:12px;padding:6px 4px;text-align:center}
 .nyt-car img{width:100%;aspect-ratio:1.7;object-fit:contain;filter:drop-shadow(0 4px 5px #000b)}
 .nyt-car b{display:block;font-size:11px;color:#ffd23f;line-height:1.2}
+
+/* карточка «подарок дня» над календарём */
+.nyhead{display:flex;align-items:center;gap:10px;margin:6px 0 2px;padding:10px 12px;border-radius:12px;background:#1a2236;border:1px solid #ffffff18;text-align:left}
+.nyhead .nyhi{font-size:30px}.nyhead>div{flex:1;min-width:0}.nyhead small{display:block;font-size:11px;color:#9fb6d6}.nyhead b{font-size:15px}
+.nyhead.ready{background:linear-gradient(120deg,#7a1424,#0f5a2e);border-color:#ffd23f;animation:nypulse 1.4s infinite}
+.nyhead.done{justify-content:center;color:#7dff8a;font-weight:bold}
