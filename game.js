@@ -154,8 +154,9 @@ let hadLocal = false;
     if (r) { S = normalize(r); hadLocal = true; }
   } catch (e) {}
 })();
+const localSaveTime = hadLocal ? Number(S.t) || 0 : 0;
 const up = id => S.up[id] || 0;
-let noSave = false, cloudOK = false, cloudDirty = false;
+let noSave = false, cloudOK = false, cloudDirty = false, cloudWriting = false, cloudUrgent = false;
 const save = () => {
   if (noSave) return; cloudDirty = true; try { S.t = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {}
   if (Platform.primary) cloudFlush(false);           // хранилище площадки — главное (CrazyGames): пишем сразу, SDK сам копит изменения
@@ -2290,9 +2291,10 @@ Platform.init({
 }).then(() => {
   renderSubs();
   // ВК, Яндекс: оплаченное, но не выданное прошлый раз — выдаём уже поверх сохранения из облака
-  (Platform.hasCloud ? cloudLoad() : Promise.resolve()).then(() => { if (Platform.direct) setTimeout(() => claimPaid(1), 1500); });
+  const progressReady = Platform.hasCloud ? cloudLoad() : Promise.resolve();
+  progressReady.then(() => { if (Platform.direct) setTimeout(() => claimPaid(1), 1500); });
   // Telegram: игрок регистрируется на сервере; уже подписан на канал (например, подписался и закрыл игру) — бонус сразу
-  if (Platform.name === "tg") Platform.hello().then(j => {
+  if (Platform.name === "tg") Promise.all([Platform.hello(), progressReady]).then(([j]) => {
     Platform.track(j ? "srv_ok" : "srv_fail"); if (!j) return;
     srvOK = true;
     if (j.sub) setTimeout(() => subGrant("tg", 0), 2500);
@@ -2328,11 +2330,14 @@ if (/[?&](vk_app_id|vk_user_id)=|[?&]platform=vk\b/.test(location.search)) showM
 // ----- облачное сохранение (если площадка его даёт). localStorage остаётся запасным вариантом.
 function cloudLoad() {
   return Platform.load().then(c => {
-    cloudOK = true;
     const has = !RESET && c && c.v;
     // главное хранилище площадки (CrazyGames) — всегда источник истины;
     // иначе облако берём, если на этом устройстве сохранения нет или в облаке более свежее, а локальное заливаем наверх
-    if (has && (Platform.primary || !hadLocal || (c.t || 0) > (S.t || 0))) applyCloud(c, Platform.primary); else cloudDirty = true;
+    if (has && (Platform.primary || !hadLocal || (c.t || 0) > localSaveTime)) {
+      cloudDirty = false;
+      applyCloud(c, Platform.primary);
+    } else cloudDirty = true;
+    cloudOK = true;
   }).catch(() => {});
 }
 function applyCloud(c, silent) {
@@ -2345,12 +2350,21 @@ function applyCloud(c, silent) {
 }
 function cloudFlush(now) {
   if (!cloudOK || !cloudDirty || noSave) return;
+  if (cloudWriting) { cloudUrgent ||= now; return; }
+  cloudWriting = true;
   cloudDirty = false;
-  try { Platform.save(S, now).catch(() => { cloudDirty = true; }); } catch (e) { cloudDirty = true; }
+  const failed = () => { cloudDirty = true; cloudWriting = cloudUrgent = false; };
+  try {
+    Platform.save(S, now).then(() => {
+      cloudWriting = false;
+      const urgent = cloudUrgent; cloudUrgent = false;
+      if (urgent) cloudFlush(true);
+    }, failed);
+  } catch (e) { failed(); }
 }
 setInterval(() => cloudFlush(false), 15000);
 document.addEventListener("visibilitychange", () => { if (document.hidden) cloudFlush(true); });
-addEventListener("pagehide", () => cloudFlush(true));
+addEventListener("pagehide", () => { save(); cloudFlush(true); });
 function rewardedAd(cb) {                             // локально (без площадки) награда выдаётся сразу
   Platform.rewarded().then(ok => {
     if (ok) return cb();
@@ -3255,7 +3269,6 @@ setInterval(() => {
   if (++saveT >= 5) { saveT = 0; checkAch(); questsTick(); save(); }
   if (tab === "buy" && !rolling) renderMergeBar();
 }, 1000);
-addEventListener("pagehide", save);
 addEventListener("beforeunload", save);
 
 // ===================== СТАРТ =====================

@@ -87,15 +87,100 @@ const CG_ADAPTER = (() => {
   };
 })();
 
+// Пишем новые части в свободный набор ключей. Указатель меняется одним запросом
+// после проверки записи. Предыдущая целая копия остаётся доступной при сбое.
+function chunkedCloudStorage(read, write, size) {
+  const header = "bn_commit";
+  let queue = Promise.resolve();
+  const invalid = () => Object.assign(new Error("Incomplete cloud save"), { code: "INVALID_CLOUD_SAVE" });
+  const parse = value => {
+    try { return JSON.parse(value); } catch (e) { return null; }
+  };
+  const valid = ref => ref && [0, 1, 2].includes(ref.slot) && typeof ref.id === "string" &&
+    /^[a-z0-9]{21}$/.test(ref.id) && Number.isInteger(ref.count) && ref.count > 0 && ref.count <= 1024;
+  const manifest = async () => {
+    const raw = (await read([header]))[header] || "";
+    const data = parse(raw);
+    if (raw && (!data || !valid(data.current) || (data.previous && !valid(data.previous)))) throw invalid();
+    return { raw, data };
+  };
+  const readParts = async (prefix, count, tag) => {
+    const keys = Array.from({ length: count }, (_, i) => prefix + i);
+    const values = await read(keys);
+    const parts = keys.map(key => values[key]);
+    if (parts.some(part => typeof part !== "string" || !part || !part.startsWith(tag))) return null;
+    return parts.map(part => part.slice(tag.length)).join("");
+  };
+  const readCopy = ref => readParts("bn_s" + ref.slot + "_", ref.count, ref.id + ":");
+  return {
+    async load() {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { raw, data } = await manifest();
+        if (!data) {
+          const count = Number((await read(["bn_n"])).bn_n || 0);
+          if (count === 0) return null;
+          if (!Number.isInteger(count) || count < 0 || count > 1024) throw invalid();
+          const state = parse(await readParts("bn_", count, ""));
+          if (state && typeof state === "object" && !Array.isArray(state)) return state;
+          throw invalid();
+        }
+        for (const ref of [data.current, data.previous].filter(Boolean)) {
+          const state = parse(await readCopy(ref));
+          if ((await manifest()).raw !== raw) break;
+          if (state && typeof state === "object" && !Array.isArray(state)) return state;
+        }
+      }
+      throw invalid();
+    },
+    save(obj) {
+      const snapshot = JSON.stringify(obj);
+      const job = queue.then(async () => {
+        const { raw, data } = await manifest();
+        const previous = data && (parse(await readCopy(data.current)) ? data.current : data.previous);
+        const slot = [0, 1, 2].find(n => !data || (n !== data.current.slot && n !== data.previous?.slot));
+        const id = Array.from(crypto.getRandomValues(new Uint32Array(3)), n => n.toString(36).padStart(7, "0")).join("");
+        const tag = id + ":";
+        const width = size - tag.length;
+        const parts = [];
+        for (let offset = 0; offset < snapshot.length;) {
+          let end = Math.min(offset + width, snapshot.length);
+          if (end < snapshot.length && /[\uD800-\uDBFF]/.test(snapshot[end - 1])) end--;
+          parts.push(tag + snapshot.slice(offset, end));
+          offset = end;
+        }
+        const current = { slot, id, count: parts.length };
+        if (!valid(current)) throw invalid();
+        for (let i = 0; i < parts.length; i++) {
+          await write("bn_s" + slot + "_" + i, parts[i]);
+        }
+        if (await readCopy(current) !== snapshot || (await manifest()).raw !== raw) {
+          throw new Error("Concurrent cloud save");
+        }
+        await write(header, JSON.stringify({ current, previous }));
+      });
+      queue = job.catch(() => {});
+      return job;
+    }
+  };
+}
+
 // ----- VK: внутри VK в адресе есть vk_app_id/vk_user_id (или ?platform=vk для проверки)
-// VK Storage хранит до 4096 байт на ключ, поэтому сохранение режется на куски bn_0..bn_N, а bn_n хранит их число.
 // Покупки за голоса: окно VKWebAppShowOrderBox, товар и цену ВК спрашивает у нашего сервера (server/src/worker.js, /vk/pay).
 // Включаются флагом window.VK_PAY (build.ps1, $vkPay) — только когда в настройках приложения указан адрес сервера для платежей.
 // На iPhone/iPad платежи ВК в мини-приложениях недоступны — там магазина нет.
 const VK_VOTES = st => Math.max(2, Math.round(st * 0.26));   // звёзды Telegram → голоса ВК (1 голос = 7 ₽); та же формула на сервере
 const VK_ADAPTER = (() => {
-  let q = Promise.resolve(), ctx = null, paid = [], adReady = false, adCheck = null;
+  let ctx = null, paid = [], adReady = false, adCheck = null;
   const wait = ms => new Promise(r => setTimeout(r, ms));
+  const storage = chunkedCloudStorage(
+    keys => vkBridge.send("VKWebAppStorageGet", { keys }).then(r => Object.fromEntries((r.keys || []).map(k => [k.key, k.value]))),
+    async (key, value) => {
+      const result = await vkBridge.send("VKWebAppStorageSet", { key, value });
+      if (!result || result.result !== true) throw new Error("VK cloud storage write failed");
+      await wait(400);
+    },
+    1365 // 4096 байт на ключ: до трёх байт UTF-8 на единицу UTF-16
+  );
   const checkAds = () => {
     if (adCheck) return adCheck;
     adCheck = vkBridge.send("VKWebAppCheckNativeAds", { ad_format: "reward" })
@@ -138,28 +223,7 @@ const VK_ADAPTER = (() => {
         .finally(() => { ctx.ads(); setTimeout(checkAds, 1000); });
     },
     interstitial: () => show("interstitial").catch(() => {}),
-    load() {
-      return vkBridge.send("VKWebAppStorageGet", { keys: ["bn_n"] }).then(r => {
-        const n = +(((r.keys || [])[0] || {}).value) || 0;
-        if (!n) return null;
-        const keys = []; for (let i = 0; i < n; i++) keys.push("bn_" + i);
-        return vkBridge.send("VKWebAppStorageGet", { keys }).then(r2 => {
-          const m = {}; (r2.keys || []).forEach(k => { m[k.key] = k.value; });
-          let str = ""; for (let i = 0; i < n; i++) str += m["bn_" + i] || "";
-          try { return JSON.parse(str); } catch (e) { return null; }
-        });
-      });
-    },
-    save(obj) {
-      const str = JSON.stringify(obj), parts = [];
-      for (let i = 0; i < str.length; i += 1500) parts.push(str.slice(i, i + 1500));
-      const job = q.then(async () => {
-        for (let i = 0; i < parts.length; i++) { await vkBridge.send("VKWebAppStorageSet", { key: "bn_" + i, value: parts[i] }); await wait(400); }
-        await vkBridge.send("VKWebAppStorageSet", { key: "bn_n", value: String(parts.length) });
-      });
-      q = job.catch(() => {});
-      return job;
-    }
+    ...storage
   };
 })();
 
@@ -215,7 +279,7 @@ const YA_ADAPTER = (() => {
 // telegram-web-app.js лежит в сборке (telegram.org в РФ бывает недоступен) и грузится уже после старта игры, не задерживая страницу.
 // CloudStorage хранит до 4096 символов на ключ, поэтому сохранение режется на куски, как в VK. Рекламы в Telegram нет — кнопки рекламы скрыты.
 const TG_ADAPTER = (() => {
-  let tg = null, q = Promise.resolve();
+  let tg = null;
   const SERVER = "https://blatnoy-nomer.blatnoy.workers.dev";   // server/ — Cloudflare Worker: игроки и проверка подписки на канал
   // запрос к серверу с подписанными данными запуска; null — сервер недоступен (сеть, блокировка) или нет данных Telegram
   // raw — вернуть ответ как есть, даже с ошибкой (админке нужен текст ошибки)
@@ -223,6 +287,13 @@ const TG_ADAPTER = (() => {
     Promise.race([fetch(SERVER + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ initData: tg.initData }, extra)) })
       .then(r => r.json()).then(j => raw ? j : j && j.ok ? j : null), new Promise(r => setTimeout(() => r(null), raw ? 20000 : 8000))]).catch(() => null);
   const call = (fn, ...a) => new Promise((ok, fail) => tg.CloudStorage[fn](...a, (e, r) => e ? fail(e) : ok(r)));
+  const storage = chunkedCloudStorage(
+    keys => call("getItems", keys),
+    async (key, value) => {
+      if (!await call("setItem", key, value)) throw new Error("Telegram cloud storage write failed");
+    },
+    4000
+  );
   const has = v => tg.isVersionAtLeast && tg.isVersionAtLeast(v);
   return {
     name: "tg",
@@ -297,27 +368,7 @@ const TG_ADAPTER = (() => {
       new Promise(res => { try { tg.openInvoice(j.link, st => res(st)); } catch (e) { res("failed"); } })),
     // оплаченные, но ещё не выданные покупки: [{ id, item }]; null — сервер недоступен
     claim: () => api("/api/claim").then(j => j ? Object.assign(j.items || [], { ev: j.ev }) : null),   // ev — событие из админки (×доход/×удача)
-    load() {
-      return call("getItem", "bn_n").then(v => {
-        const n = +v || 0;
-        if (!n) return null;
-        const keys = []; for (let i = 0; i < n; i++) keys.push("bn_" + i);
-        return call("getItems", keys).then(m => {
-          let str = ""; for (let i = 0; i < n; i++) str += m["bn_" + i] || "";
-          try { return JSON.parse(str); } catch (e) { return null; }
-        });
-      });
-    },
-    save(obj) {
-      const str = JSON.stringify(obj), parts = [];
-      for (let i = 0; i < str.length; i += 4000) parts.push(str.slice(i, i + 4000));
-      const job = q.then(async () => {
-        for (let i = 0; i < parts.length; i++) await call("setItem", "bn_" + i, parts[i]);
-        await call("setItem", "bn_n", String(parts.length));
-      });
-      q = job.catch(() => {});
-      return job;
-    }
+    ...storage
   };
 })();
 
