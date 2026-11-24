@@ -149,7 +149,8 @@
   const FAR_Y = 905, NEAR_Y = 1052, FAR_L = 236, NEAR_L = 318, MID_LINE = 948;
   const PAN = 34;                            // скорость «камеры» по улице, ед/с
   let cv, g, W = 0, sc = 1, VW = 0, raf = 0, last = 0, T = 0, pan = 0, el = null;
-  let sky, far, mid, glowY, glowR, stars = [], beacons = [], signs = [], dynWin = [], plane = null, nextPlane = 6;
+  let sky, far, mid, glowY, glowR, headBeam, stars = [], beacons = [], signs = [], dynWin = [], plane = null, nextPlane = 6;
+  let winter = false, winterTree, winterLights;
   const lanes = { far: { y: FAR_Y, L: FAR_L, dir: -1, cars: [], next: 0.5 }, near: { y: NEAR_Y, L: NEAR_L, dir: 1, cars: [], next: 1.5 } };
   let nextConvoy = rand(35, 60);
   const TRAFFIC = [[['granta', ['#d6d6d6', '#7a1a1a', '#2b3a55', '#b9b19a']], 3], [['camry', ['#101215', '#e8e8ea', '#5a5f66']], 3], [['taxi', ['#e8b81a']], 2],
@@ -159,8 +160,16 @@
     const H = cv.height; sc = H / VH; VW = cv.width / sc;
     // небо
     sky = canvas(cv.width, H); let s = sky.getContext('2d'); s.scale(sc, sc);
-    const sg = s.createLinearGradient(0, 0, 0, RT); sg.addColorStop(0, '#060919'); sg.addColorStop(0.55, '#161236'); sg.addColorStop(0.85, '#38194a'); sg.addColorStop(1, '#4a1f52');
+    const sg = s.createLinearGradient(0, 0, 0, RT);
+    const colors = winter ? ['#070e22', '#112751', '#22446b', '#305975'] : ['#060919', '#161236', '#38194a', '#4a1f52'];
+    [0, 0.55, 0.85, 1].forEach((stop, i) => sg.addColorStop(stop, colors[i]));
     s.fillStyle = sg; s.fillRect(0, 0, VW, VH);
+    if (winter) {
+      s.save(); s.translate(VW * 0.38, 330); s.rotate(-0.14); s.scale(Math.max(VW * 0.62, 350), 220);
+      const aurora = s.createRadialGradient(0, 0, 0, 0, 0, 1);
+      aurora.addColorStop(0, '#58dbe045'); aurora.addColorStop(1, '#58dbe000');
+      s.fillStyle = aurora; s.fillRect(-1, -1, 2, 2); s.restore();
+    }
     const mx = VW * 0.78, my = 150, mg = s.createRadialGradient(mx, my, 0, mx, my, 170); mg.addColorStop(0, 'rgba(255,236,190,0.35)'); mg.addColorStop(1, 'rgba(255,236,190,0)');
     s.fillStyle = mg; s.fillRect(mx - 170, my - 170, 340, 340); s.fillStyle = '#fff1cf'; s.beginPath(); s.arc(mx, my, 42, 0, 7); s.fill();
     s.fillStyle = 'rgba(200,190,160,0.25)'; s.beginPath(); s.arc(mx - 12, my - 8, 9, 0, 7); s.arc(mx + 14, my + 10, 6, 0, 7); s.fill();
@@ -168,6 +177,60 @@
     // дальние дома (плитка шириной 2400 с повтором)
     far = tile(2400, 2400 * sc, layerFar); mid = tile(1900, 1900 * sc, layerMid);
     glowY = glowSprite(160, '255,214,140'); glowR = glowSprite(60, '255,40,60');
+    if (!headBeam) headBeam = headBeamSprite();
+    if (winter && !winterTree) buildWinterSprites();
+  }
+  function buildWinterSprites() {
+    const lights = ['#ffca70', '#9ce5ff', '#ff858a', '#97efc2'];
+    winterTree = canvas(180, 272);
+    const tree = winterTree.getContext('2d');
+    tree.fillStyle = '#c6e8ff80'; tree.beginPath(); tree.ellipse(90, 257, 84, 11, 0, 0, Math.PI * 2); tree.fill();
+    tree.fillStyle = '#635044'; tree.fillRect(82, 217, 16, 36);
+    for (const [top, foot, reach] of [[115, 238, 79], [71, 189, 63], [28, 138, 45]]) {
+      const needles = tree.createLinearGradient(90 - reach, top, 90 + reach, foot);
+      needles.addColorStop(0, '#388c7b'); needles.addColorStop(1, '#133c46');
+      tree.fillStyle = needles; tree.beginPath(); tree.moveTo(90, top);
+      tree.quadraticCurveTo(90 + reach * 0.4, foot - 39, 90 + reach, foot - 9);
+      tree.quadraticCurveTo(90, foot + 15, 90 - reach, foot - 9);
+      tree.quadraticCurveTo(90 - reach * 0.4, foot - 39, 90, top); tree.fill();
+      tree.strokeStyle = '#d1ebfbab'; tree.lineWidth = 4; tree.beginPath();
+      tree.moveTo(90 - reach * 0.77, foot - 12); tree.quadraticCurveTo(90, foot + 5, 90 + reach * 0.77, foot - 12); tree.stroke();
+      for (let i = 0; i < 5; i++) {
+        const n = i - 2, x = 90 + n * reach * 0.32, y = foot - 10 - n * n * 2.6;
+        tree.fillStyle = tree.shadowColor = lights[(i + top) % lights.length]; tree.shadowBlur = 9;
+        tree.beginPath(); tree.arc(x, y, 3.2, 0, Math.PI * 2); tree.fill();
+      }
+      tree.shadowBlur = 0;
+    }
+    tree.fillStyle = tree.shadowColor = '#ffe19a'; tree.shadowBlur = 15; tree.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 6 : 14;
+      tree.lineTo(90 + Math.cos(a) * r, 22 + Math.sin(a) * r);
+    }
+    tree.closePath(); tree.fill();
+    winterLights = canvas(480, 80);
+    const string = winterLights.getContext('2d');
+    string.strokeStyle = '#accfe07a'; string.beginPath(); string.moveTo(0, 10); string.quadraticCurveTo(240, 103, 480, 10); string.stroke();
+    for (let x = 12, i = 0; x < 480; x += 23, i++) {
+      const t = x / 480, y = 13 + 186 * t * (1 - t);
+      string.fillStyle = string.shadowColor = lights[i % lights.length]; string.shadowBlur = 10;
+      string.beginPath(); string.arc(x, y, 3.5, 0, Math.PI * 2); string.fill();
+    }
+  }
+  function headBeamSprite() {   // один спрайт для обеих полос: мягкие края поперёк луча и затухание вдаль
+    const c = canvas(240, 56), g = c.getContext('2d');
+    for (let x = 0; x < c.width; x++) {
+      const distance = x / (c.width - 1), center = 25 + 6 * distance, spread = 6 + 18 * distance;
+      const strength = 0.33 * Math.pow(1 - distance, 1.7);
+      const fade = g.createLinearGradient(0, center - spread, 0, center + spread);
+      fade.addColorStop(0, 'rgba(255,240,205,0)');
+      fade.addColorStop(0.23, `rgba(255,240,205,${strength * 0.35})`);
+      fade.addColorStop(0.5, `rgba(255,240,205,${strength})`);
+      fade.addColorStop(0.77, `rgba(255,240,205,${strength * 0.35})`);
+      fade.addColorStop(1, 'rgba(255,240,205,0)');
+      g.fillStyle = fade; g.fillRect(x, center - spread, 1, spread * 2);
+    }
+    return c;
   }
   function glowSprite(r, rgb) { const c = canvas(r * 2 * sc, r * 2 * sc), x = c.getContext('2d'), gr = x.createRadialGradient(r * sc, r * sc, 0, r * sc, r * sc, r * sc);
     gr.addColorStop(0, `rgba(${rgb},0.6)`); gr.addColorStop(0.35, `rgba(${rgb},0.22)`); gr.addColorStop(1, `rgba(${rgb},0)`); x.fillStyle = gr; x.fillRect(0, 0, c.width, c.height); return c; }
@@ -209,6 +272,10 @@
       const w = R(120, 230), h = R(130, 330), base = RT, top = base - h;
       building(rnd, x, bx, top, w, h, base, '#0b0f24', 0.28, 0.95, 10, 13, 20, 25, tw, (wx, wy, ww, wh) => dynWin.push([wx, wy, ww, wh, Math.random() < 0.5, rand(2, 14)]));
       x.fillStyle = '#080b1a'; x.fillRect(bx - 4, top - 6, w + 8, 8);   // карниз
+      if (winter) {
+        x.fillStyle = '#b2ddf59c'; x.fillRect(bx, top - 8, w, 4);
+        x.fillStyle = '#8ebcdc81'; x.fillRect(bx + 10, top - 11, w * 0.43, 3);
+      }
       if (rnd() < 0.55 && w > 150) {   // витрина первого этажа и вывеска
         const sg = x.createLinearGradient(0, base - 46, 0, base); sg.addColorStop(0, 'rgba(255,190,110,0.45)'); sg.addColorStop(1, 'rgba(255,190,110,0.1)');
         x.fillStyle = sg; x.fillRect(bx + 10, base - 46, w - 20, 40);
@@ -256,14 +323,17 @@
   function carLights(car, gy) {   // фары, фонари и их отражения на мокром асфальте (поверх всех машин, режим «lighter»)
     const c = M[car.type], f = car.L / 1000, dir = car.dir;
     const ux = u => dir > 0 ? car.x + u * f : car.x + (1000 - u) * f, vy = v => gy + v * f;
-    const hx = ux(998), hy = vy(c.yh + 20), tx = ux(4), ty = vy((c.kind === 'sedan' ? c.yt : c.yBr) + 26), reach = car.L * 2.1;
-    const bg = g.createLinearGradient(hx, 0, hx + dir * reach, 0); bg.addColorStop(0, 'rgba(255,240,205,0.34)'); bg.addColorStop(1, 'rgba(255,240,205,0)');
-    g.fillStyle = bg; g.beginPath(); g.moveTo(hx, hy - 6 * f * 10); g.lineTo(hx + dir * reach, hy - car.L * 0.16); g.lineTo(hx + dir * reach, gy + car.L * 0.06); g.lineTo(hx, hy + 6 * f * 10); g.closePath(); g.fill();
+    const hx = ux(998), hy = vy(c.yh + 20), tx = ux(4), ty = vy((c.kind === 'sedan' ? c.yt : c.yBr) + 26);
+    g.save(); g.translate(hx, hy); g.scale(dir, 1);
+    g.drawImage(headBeam, 0, -car.L * 0.16, car.L * 2.1, car.L * 0.36);
+    g.restore();
     const s1 = car.L * 0.22; g.drawImage(glowY, hx - s1, hy - s1, s1 * 2, s1 * 2);
     const s2 = car.L * 0.14; g.drawImage(glowR, tx - s2, ty - s2, s2 * 2, s2 * 2);
     // отражения: вертикальные блики под огнями
-    const rf = (x, y, rgb, a, w) => { const gr = g.createLinearGradient(0, gy, 0, gy + car.L * 0.32); gr.addColorStop(0, `rgba(${rgb},${a})`); gr.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = gr; g.fillRect(x - w / 2, gy, w, car.L * 0.32); };
-    rf(hx, hy, '255,235,190', 0.22, car.L * 0.06); rf(tx, ty, '255,50,60', 0.2, car.L * 0.05);
+    g.save(); g.globalAlpha = 0.38;
+    g.drawImage(glowY, hx - car.L * 0.07, gy - car.L * 0.05, car.L * 0.14, car.L * 0.32);
+    g.drawImage(glowR, tx - car.L * 0.06, gy - car.L * 0.05, car.L * 0.12, car.L * 0.30);
+    g.restore();
   }
 
   let dprCap = 2, slow = 0, slowT = 0;
@@ -309,6 +379,15 @@
       g.fillStyle = gr; g.fillRect(-34, 0, 68, 34); g.restore();   // размытый блик на мокром асфальте
       g.globalCompositeOperation = 'source-over'; g.fillStyle = '#ffe9b8'; g.fillRect(x + 32, RT - 234, 16, 5);
     }
+    if (winter) {
+      g.fillStyle = '#9cc3e376'; g.fillRect(0, RT + 4, VW, 10);
+      g.fillStyle = '#b2d7f095'; g.fillRect(0, RT + 4, VW, 3);
+      const spacing = 560, shift = -((pan * 0.65) % spacing);
+      for (let x = shift - spacing / 2; x < VW + 100; x += spacing) {
+        g.drawImage(winterTree, x - 72, RT - 243, 144, 259);
+        g.drawImage(winterLights, x, RT - 274, spacing, 85);
+      }
+    }
     // машины
     if ((nextConvoy -= dt) < 0) { convoy(); nextConvoy = rand(45, 75); }
     for (const key of ['far', 'near']) {
@@ -348,6 +427,11 @@
     stop() {   // выключить: вернуть обычный фон из style.css
       if (!cv) return; cancelAnimationFrame(raf); removeEventListener('resize', resize);
       cv.remove(); cv = g = sky = null; el.style.animation = ''; el.style.background = '';
+    },
+    setWinter(on) {
+      if (winter === on) return;
+      winter = on;
+      if (cv?.width && cv.height && sky) buildStatic();
     },
     event(name) { if (name === 'legend' && cv) convoy(); }
   };

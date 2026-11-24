@@ -189,7 +189,8 @@ const VK_ADAPTER = (() => {
     return adCheck;
   };
   const show = format => { ctx.pause(true); return vkBridge.send("VKWebAppShowNativeAds", { ad_format: format }).finally(() => ctx.pause(false)); };
-  const ios = /^mobile_ip/.test(new URLSearchParams(location.search).get("vk_platform") || "");
+  const launch = new URLSearchParams(location.search);
+  const ios = /^mobile_ip/.test(launch.get("vk_platform") || "");
   const word = n => { const w = n % 10 === 1 && n % 100 !== 11 ? "голос" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "голоса" : "голосов"; return typeof L === "function" ? L(w) : w; };
   return {
     name: "vk",
@@ -197,6 +198,19 @@ const VK_ADAPTER = (() => {
     direct: true,
     get canPay() { return window.VK_PAY === 1 && !ios && !!window.vkBridge; },
     price: (k, st) => k === "cos_vip" || !st ? null : `${VK_VOTES(st)} ${word(VK_VOTES(st))}`,   // «Хозяин района» — это рейтинг и друзья, их в ВК нет
+    openPost(owner, post) {
+      const fallback = () => window.open(`https://vk.ru/wall${owner}_${post}`, "_blank");
+      if (!vkBridge.supports?.("VKWebAppOpenWallPost")) return fallback();
+      vkBridge.send("VKWebAppOpenWallPost", { owner_id: owner, post_id: post })
+        .then(result => { if (result?.result === false) fallback(); }, fallback);
+    },
+    postTasks(action, task) {
+      if (!launch.has("sign")) return Promise.resolve({ ok: false, error: "disabled" });
+      return fetch("https://blatnoy-nomer.blatnoy.workers.dev/vk/post-tasks", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ launch: launch.toString(), action, task }), signal: AbortSignal.timeout?.(10000)
+      }).then(r => r.json()).catch(() => ({ ok: false, error: "unavailable" }));
+    },
     buy: k => vkBridge.send("VKWebAppShowOrderBox", { type: "item", item: k })
       .then(r => { if (!r || r.success === false) return "cancelled"; paid.push({ id: "vk_" + (r.order_id || Date.now()), item: k }); return "paid"; }, () => "cancelled"),
     claim: () => Promise.resolve(paid.slice()),
@@ -367,7 +381,7 @@ const TG_ADAPTER = (() => {
     buy: item => api("/api/invoice", { item }).then(j => !j || !j.link ? "noserver" :
       new Promise(res => { try { tg.openInvoice(j.link, st => res(st)); } catch (e) { res("failed"); } })),
     // оплаченные, но ещё не выданные покупки: [{ id, item }]; null — сервер недоступен
-    claim: () => api("/api/claim").then(j => j ? Object.assign(j.items || [], { ev: j.ev }) : null),   // ev — событие из админки (×доход/×удача)
+    claim: acked => api("/api/claim", { delivery: "ack", acked }).then(j => j ? Object.assign(j.items || [], { ev: j.ev }) : null),   // ev — событие из админки (×доход/×удача)
     ...storage
   };
 })();
@@ -424,7 +438,9 @@ const Platform = (() => {
     get direct() { return !!a.direct; },                  // покупку выдаёт игра сама (ВК, Яндекс), а не сервер через claim
     price: (k, st) => !a.canPay ? null : a.price ? a.price(k, st) : "⭐ " + st,   // Telegram — цена в звёздах как есть
     buy: item => a.buy ? a.buy(item) : Promise.resolve("noserver"),
-    claim: () => a.claim ? a.claim() : Promise.resolve(null),
+    vkPostTasks: (action, task) => a.postTasks ? a.postTasks(action, task) : Promise.resolve({ ok: false, error: "disabled" }),
+    openVkPost: (owner, post) => a.openPost?.(owner, post),
+    claim: acked => a.claim ? a.claim(acked) : Promise.resolve(null),
     consume(x) { if (a.consume) a.consume(x); },
     get canShare() { return !!a.refLink; },               // приглашения и «похвастаться» — только в Telegram
     get refLink() { return a.refLink || ""; },

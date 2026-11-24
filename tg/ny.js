@@ -243,8 +243,8 @@ function nyBuy(key) {
 // ----- новогодние эксклюзивы за донат (звёзды Telegram, голоса ВК, яны Яндекса). Цены и названия — в server/src/worker.js (ITEMS);
 // в Яндексе каждый товар нужно завести в консоли с тем же ключом. Продаются только в праздники.
 const NY_PAID = [
-  { k: "ny_sani", st: 149, i: "🛷", t: "Сани Деда Мороза", hit: 1, d: () => L("эксклюзивная суперлегенда-тачка и именной номер «Х 001 ОХ 77»"), done: () => !!S.paid.ny_sani },
-  { k: "ny_gold", st: 99, i: "🌟", t: "Золотой календарь", hit: 1, d: () => L("все подарки календаря ×2, 32-й подарок 1 января — праздничный контейнер, гараж «Золотая ёлка»"), done: () => !!N().gold },
+  { k: "ny_sani", st: 149, t: "Сани Деда Мороза", d: () => L("Суперлегендарная машина и именной номер"), done: () => !!S.paid.ny_sani },
+  { k: "ny_gold", st: 99, i: "🌟", t: "Золотой календарь", hit: 1, d: () => L("бонусы к оставшимся подаркам, праздничный контейнер с 1 января и гараж «Золотая ёлка» навсегда"), done: () => !!N().gold },
   { k: "ny_set", st: 79, i: "🎁", t: "Новогодний набор", d: () => L("300 🍊, новогодняя легенда и доход ×2 на 3 часа · один раз"), done: () => !!S.paid.ny_set },
   { k: "case_ny", st: 39, i: "🎅", t: "Кейс Деда Мороза", d: () => L("3 новогодних номера сразу: блатной, легенда (25%) или суперлегенда (2%)") },
   { k: "box_ny", st: 79, i: "📦", t: "Праздничный контейнер", hit: 1, d: () => L("все новогодние тачки: Куранты и Снегурочка — 30%, шанс на Сани Деда Мороза") },
@@ -252,7 +252,31 @@ const NY_PAID = [
   ...NY_COS_PAID.filter(([, x]) => x.st).map(([k, x]) => ({ k: "cos_" + k + "_" + x.id, st: x.st, i: "", t: x.n, cos: [k, x], d: () => L("анимированное оформление навсегда"), done: () => S.cos.own.includes(k + ":" + x.id) }))
 ];
 NY_PAID.forEach(x => Lprops(x, "t"));
+const GOLD_CALENDAR = NY_PAID.find(it => it.k === "ny_gold");
 const paidList = () => nyOn() && Platform.canPay ? NY_PAID.filter(it => sells(it.k, it.st)) : [];
+const buyItem = shopBuy;
+shopBuy = function (item) {
+  if (!nyOn() && NY_PAID.some(it => it.k === item)) return toast(L("Новогоднее событие закончилось."));
+  buyItem(item);
+};
+function goldCalendarOfferPrice(s) {
+  return hasFeaturedShop() && S.tut === -1 && s.cal > 0 && !s.gold && nyOn()
+    ? priceOf(GOLD_CALENDAR.k, GOLD_CALENDAR.st) : null;
+}
+function openGoldCalendar() {
+  const s = N(), price = goldCalendarOfferPrice(s);
+  if (!price) return;
+  const plate = S.plates[0] || { l1: "А", d: "777", l23: "АА", reg: "77", tier: 0 };
+  openModal(`<div class="nymodal nygold-details"><h2>🌟 ${GOLD_CALENDAR.t}</h2>
+    <div class="nygold-garage gar-goldtree"><div><small>Оформление гаража</small><b>Золотая ёлка</b></div><span aria-hidden="true">🎄</span>${plateHTML(plate, "small")}</div>
+    <ul class="nygold-benefits">
+      ${s.cal < calLen() ? `<li><b>Бонусы к оставшимся подаркам</b><small>Бонусы к монетам, мандаринам и ускорению. К бланкам и номерам — мандарины.</small></li>` : ""}
+      <li><b>Дополнительный подарок</b><small>Праздничный контейнер доступен с 1 января.</small></li>
+      <li><b>Гараж «Золотая ёлка» навсегда</b><small>Оформление включится сразу после покупки.</small></li>
+    </ul>
+    <button class="btn star shopbtn" type="button" data-act="shopBuy" data-k="${GOLD_CALENDAR.k}"><span>Купить календарь</span><b>${price}</b></button>
+    <button class="btn alt" type="button" data-act="nyOpen" data-t="cal">К подаркам</button></div>`);
+}
 const SANI_PLATE = { l1: "Х", d: "001", l23: "ОХ", reg: "77" };
 const _shopGrant = shopGrant;
 shopGrant = function (item, why) {
@@ -265,7 +289,7 @@ shopGrant = function (item, why) {
   else if (item === "ny_set") { S.paid.ny_set = 1; addM(300); S.buffUntil = Math.max(S.buffUntil, Date.now()) + 3 * 3600000; renderPills(); giveNy(4, L("Новогодний набор")); }
   else if (item === "ny_gold") {
     s.gold = 1; if (!S.cos.own.includes("gar:goldtree")) S.cos.own.push("gar:goldtree"); S.cos.gar = "goldtree"; applyCos(); sendState();
-    enqueueCinema({ color: "#ffd23f", bg: "#2a1f05", cls: "nycine", icon: "🌟", top: L("Новогодний эксклюзив"), title: L("ЗОЛОТОЙ КАЛЕНДАРЬ"), sub: L("Все подарки календаря теперь вдвое больше, а 1 января тебя ждёт 32-й — праздничный контейнер. И гараж «Золотая ёлка» уже твой!"), confetti: 160 });
+    enqueueCinema({ color: "#ffd23f", bg: "#2a1f05", cls: "nycine", icon: "🌟", top: L("Новогодний эксклюзив"), title: L("ЗОЛОТОЙ КАЛЕНДАРЬ"), sub: L("Бонусы к оставшимся подаркам включены. Праздничный контейнер доступен с 1 января. Гараж «Золотая ёлка» уже твой!"), confetti: 160 });
   }
   else if (item === "box_ny" || item === "ny_sani") {
     if (!window.DC_NY) return _shopGrant(item, why);
@@ -299,15 +323,18 @@ function openNy(t) {
   let body = "";
   if (nyTab === "cal") {
     const avail = Math.min(calLen(), calAvail()), nx = s.cal, nc = CAL[nx];
+    const goldPrice = goldCalendarOfferPrice(s);
+    const goldCard = goldPrice ? `<button class="btn nygold-card" type="button" data-act="nyGoldCalendar">
+      <span class="nygold-icon" aria-hidden="true">🌟</span><span class="nygold-copy"><strong>${GOLD_CALENDAR.t}</strong><small>${nx < calLen() ? "Больше наград и гараж «Золотая ёлка»" : "Дополнительный подарок и гараж «Золотая ёлка»"}</small></span><b>${goldPrice}</b></button>` : "";
     const head = nx >= calLen() ? `<div class="nyhead done">✅ ${L("Все подарки календаря открыты!")}</div>`
       : nx < avail ? `<div class="nyhead ready"><span class="nyhi">${nc.i}</span><div><small>${L("Подарок №{0} · {1}", nx + 1, calDate(nx))}${avail - nx > 1 ? " · " + L("ещё ждут: {0}", avail - nx - 1) : ""}</small><b>${nc.t}</b></div><button class="btn sm green ready" data-act="nyGift" data-i="${nx}">${L("Забрать")}</button></div>`
       : `<div class="nyhead"><span class="nyhi">🎁</span><div><small>${L("Следующий подарок — {0}", calDate(nx))}</small><b>${nc.t}</b></div></div>`;
-    body = head + `<div class="nycal">` +
+    body = head + goldCard + `<div class="nycal">` +
       CAL.slice(0, calLen()).map((c, i) => { const done = i < s.cal, open = i < avail, ready = i === s.cal && open, big = i >= LAST;
         return `<button class="nygift ${done ? "done" : ready ? "ready" : open ? "wait" : "lock"} ${big ? "last" : ""} ${c.gold ? "gold" : ""}" ${ready ? `data-act="nyGift" data-i="${i}"` : "disabled"} title="${c.t}">
           <span class="nyd">${big ? calDate(i) : i + 1}</span><span class="nyi">${done ? "✅" : c.i}</span>${big ? `<small>${c.t}</small>` : ""}</button>`; }).join("") + `</div>` +
       `<p class="hint">${L("Подарок №N открывается N декабря. Пропустил — не страшно, накопившиеся подарки заберёшь подряд.")}</p>` +
-      (s.gold ? `<p class="nyfest">🌟 ${L("Золотой календарь: подарки вдвое больше и 32-й подарок 1 января")}</p>` : sells("ny_gold", 99) ? `<button class="btn star" data-act="nyOpen" data-t="paid">🌟 ${L("Золотой календарь — подарки ×2 и 32-й подарок")}</button>` : "");
+      (s.gold ? `<p class="nyfest">🌟 ${L("Золотой календарь: бонусы к подаркам и 32-й подарок с 1 января")}</p>` : !goldCard && sells(GOLD_CALENDAR.k, GOLD_CALENDAR.st) ? `<button class="btn star" data-act="nyOpen" data-t="paid">🌟 ${L("Золотой календарь — бонусы и 32-й подарок")}</button>` : "");
   } else if (nyTab === "shop") {
     body = `<p class="hint">${L("Меняй мандарины на подарки. Мандарины сгорят после праздников — не копи их до весны!")}</p><div class="card coslist">` +
       SHOP_NY.map(it => { const own = it.cos && S.cos.own.includes(it.cos[0] + ":" + it.cos[1].id), lock = it.lvl && S.lvl < it.lvl(), gone = it.left && !it.left();
@@ -317,12 +344,21 @@ function openNy(t) {
           : `<button class="btn sm ${s.m >= it.c ? "green" : "alt"}" data-act="nyBuy" data-k="${it.k}" ${s.m >= it.c ? "" : "disabled"}>${it.c} 🍊</button>`;
         return `<div class="cosrow"><div class="cosprev nyprev">${prev}</div><div class="cosn"><b>${it.t}</b><small>${own ? L("куплено") : it.d()}</small></div>${btn}</div>`; }).join("") + `</div>`;
   } else if (nyTab === "paid" && paidList().length) {
-    body = `<p class="hint">${L("Только до 14 января — потом эти товары исчезнут из игры.")} ${SHOP_NOTE()}</p><div class="card coslist nypaid">` +
-      paidList().map(it => { const done = it.done && it.done();
+    body = `<p class="nyoffer-note">${L("В продаже до 14 января")}</p><div class="nypaid">` +
+      paidList().map(it => {
+        const done = it.done && it.done();
+        const titleId = `nyoffer-${it.k}`;
+        const buy = done ? `<span class="nyoffer-owned">✓ ${L("куплено")}</span>`
+          : `<button class="btn sm star" type="button" data-act="shopBuy" data-k="${it.k}" aria-describedby="${titleId}">${priceOf(it.k, it.st)}</button>`;
+        if (it.k === "ny_sani") return `<article class="nyoffer nyoffer-sani">
+          <img class="nyoffer-sani-photo" src="${DC_NY.photo("sani")}" alt="">
+          <div class="nyoffer-sani-body"><h3 id="${titleId}">${it.t}</h3><p>${it.d()}</p>
+            <div class="nyoffer-sani-footer">${plateHTML({ ...SANI_PLATE, tier: 4, ny: true }, "small other")}<div class="nyoffer-buy">${buy}</div></div></div></article>`;
         const prev = it.cos ? (it.cos[0] === "hold" ? `<div class="oh-${it.cos[1].id}">${plateHTML({ l1: "Е", d: "027", l23: "ХО", reg: "77", tier: 3 }, "small other")}</div>` : it.cos[0] === "fx" ? `<div class="ppins pfx-${it.cos[1].id}">${plateHTML({ l1: "Е", d: "027", l23: "ХО", reg: "77", tier: 3 }, "small")}</div>` : `<div class="garswatch gar-${it.cos[1].id}">🚘</div>`)
-          : `<div class="nysi">${it.i}</div>`;
-        const btn = done ? "✅" : `<button class="btn sm star" data-act="shopBuy" data-k="${it.k}">${priceOf(it.k, it.st)}</button>`;
-        return `<div class="cosrow ${it.hit ? "hit" : ""}"><div class="cosprev nyprev">${prev}</div><div class="cosn"><b>${it.t}</b><small>${done ? L("куплено") : it.d()}</small></div>${btn}</div>`; }).join("") + `</div>`;
+          : `<span aria-hidden="true">${it.i}</span>`;
+        return `<article class="nyoffer ${it.hit ? "nyoffer-featured" : ""}"><div class="nyoffer-heading">${it.cos ? "" : `<span class="nyoffer-icon">${prev}</span>`}<h3 id="${titleId}">${it.t}</h3></div>
+          <p>${it.d()}</p><div class="nyoffer-footer">${it.cos ? prev : ""}<div class="nyoffer-buy">${buy}</div></div></article>`;
+      }).join("") + `</div>`;
   } else {
     nyTab = "how";
     body = `<div class="card nyhow">
@@ -424,8 +460,12 @@ function snowLoop(t) {
 }
 function applySnow() { nyOn() && N().snow ? snowStart() : snowStop(); }
 
-// ----- праздничный вид: гирлянда под шапкой
-function applyDeco() { document.body.classList.toggle("ny", nyOn()); }
+// ----- праздничный вид интерфейса и ночного города
+function applyDeco() {
+  const on = nyOn();
+  document.body.classList.toggle("ny", on);
+  window.BgCity?.setWinter?.(on);
+}
 
 // ----- сюжет и праздничные моменты (проверка раз в 3 секунды, когда игрок не занят)
 let introQ = false;
@@ -457,6 +497,7 @@ Object.assign(ACTS, {
   nyTease: () => openTease(),
   nyTeaseOk: () => { Platform.track("ny_tease_wait"); closeModal(); bells(); fx.confetti(40, ["#ff3d71", "#7dff8a", "#ffd23f", "#fff"]); },
   nyOpen: d => openNy(d.t),
+  nyGoldCalendar: () => openGoldCalendar(),
   nyGift: d => calOpen(+d.i),
   nyBuy: d => nyBuy(d.k),
   nySnow: (d, e, el) => { const s = N(); s.snow = s.snow ? 0 : 1; el.classList.toggle("on", !!s.snow); applySnow(); save(); }

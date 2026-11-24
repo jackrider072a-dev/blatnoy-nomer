@@ -1,20 +1,38 @@
 /* ===================== НОВОГОДНЕЕ ОБНОВЛЕНИЕ (ny.js) ===================== */
 #nysnow{position:fixed;inset:0;width:100%;height:100%;z-index:5;pointer-events:none}
 
-/* гирлянда под шапкой */
-body.ny header{position:relative}
+/* зимняя шапка, табло и навигация */
+body.ny #bg:not(:has(canvas)){background:radial-gradient(ellipse at 30% 16%,#29626b99,transparent 52%),linear-gradient(160deg,#0b172f,#172342 60%,#10182b)}
+body.ny header{position:relative;background:radial-gradient(ellipse at 0% 0%,#214d54,transparent 70%),linear-gradient(#142b40,#112134);border-bottom-color:#4e8b9c}
 body.ny header::after{content:"";position:absolute;left:0;right:0;bottom:-7px;height:10px;pointer-events:none;
   background:radial-gradient(circle,#ff3d71 0 3px,transparent 4px) 0 0/48px 10px,radial-gradient(circle,#ffd23f 0 3px,transparent 4px) 12px 0/48px 10px,
   radial-gradient(circle,#7dff8a 0 3px,transparent 4px) 24px 0/48px 10px,radial-gradient(circle,#4fc3f7 0 3px,transparent 4px) 36px 0/48px 10px;
   animation:nyblink 1.6s steps(2) infinite}
 @keyframes nyblink{50%{filter:brightness(.45)}}
+body.ny #app nav{background:linear-gradient(#142a3e,#091729);border-top-color:#507e91}
+body.ny #app nav button{color:#a7bfd4}
+body.ny #app nav button.on{color:#dbf7ff;background:linear-gradient(#214658,#182d43);box-shadow:inset 0 2px 0 #a3edff}
+body.ny .stage{position:relative;background:radial-gradient(ellipse at 50% 0%,#26506c80,transparent 72%),linear-gradient(#172938,#101e30)}
+body.ny .stage.g0{border-color:#557f9b}
+body.ny .stage::before,body.ny .stage::after{position:absolute;top:10px;color:#c6efffa6;font-size:17px;line-height:1;pointer-events:none}
+body.ny .stage::before{content:"❄";left:12px}body.ny .stage::after{content:"❄";right:12px}
+body.ny .pack:not(.nypack){background:#15263bea;border-color:#36536a}
+body.ny .mbox:has(.nymodal){background:radial-gradient(ellipse at 50% 0%,#23536a75,transparent 52%),#102136;border-color:#5b92a9;box-shadow:0 0 30px #4a8eaa38}
+body.ny .nymodal>h2{color:#e5f8ff;font-size:20px;margin-bottom:8px}
+body.ny .nytop{background:#234357c9;border:1px solid #73b7d047}
+body.ny .nytop small{color:#c2dfec}
+body.ny .nygift:not(.ready):not(.last){background:#182f47;border-color:#5683a65c}
+body.ny .nygift .nyd{color:#bed6e9}
+@media(prefers-reduced-motion:reduce){body.ny header::after,body.ny .nybar.ready,body.ny .nygift.ready{animation:none}}
 
 /* плашка «Новый год» */
 .pill.nypill{background:linear-gradient(90deg,#0f5a2e,#7a1424);color:#fff;cursor:pointer}
-.nybar{display:flex;align-items:center;gap:8px;width:100%;margin:0 0 10px;padding:10px 12px;border-radius:14px;border:1px solid #ffffff22;cursor:pointer;color:#fff;font:inherit;
+.nybar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;width:100%;margin:0 0 10px;padding:10px 12px;border-radius:14px;border:1px solid #ffffff22;cursor:pointer;color:#fff;font:inherit;
   background:linear-gradient(100deg,#0d4a28,#123a5c 55%,#6a1020);box-shadow:0 0 14px #4fc3f733;text-align:left}
 .nybar .nyb-t{font-weight:bold;font-size:14px}.nybar .nyb-m{font-weight:bold;color:#ffb36b}.nybar .nyb-g{margin-left:auto;font-size:12px;color:#cfe8ff}
 .nybar.ready{animation:nypulse 1.4s infinite}.nybar.ready .nyb-g{color:#ffd23f;font-weight:bold}
+body.ny .nybar{border-color:#8ed4dd80;background:radial-gradient(ellipse at 8% 0%,#357e66,transparent 68%),linear-gradient(105deg,#154456,#1b2e4d 62%,#48344c);box-shadow:0 2px 0 #19354c,0 0 16px #72d1e335}
+.nybar .nyb-g,.nybar .nyb-m{white-space:nowrap}
 @keyframes nypulse{50%{box-shadow:0 0 22px #ffd23f99}}
 .nymore .nybar{margin-top:4px}
 
@@ -36,6 +54,18 @@ body.ny header::after{content:"";position:absolute;left:0;right:0;bottom:-7px;he
 .cosprev.nyprev{width:110px}
 .nyhow p{margin:6px 0;font-size:14px;text-align:left}
 .nyfest{color:#ffd23f;font-weight:bold}
+.btn.nygold-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;margin:5px 0 8px;padding:10px 9px;text-align:left;color:#fff2cb;
+  border:1px solid #d7a848;background:radial-gradient(ellipse at 0 0,#664715,transparent 78%),#241b14;box-shadow:0 3px 0 #23170e,inset 0 0 16px #e6b85724}
+.nygold-icon{display:grid;place-items:center;width:33px;height:33px;border:1px solid #d7a84870;border-radius:9px;background:#7d531d;font-size:18px}
+.nygold-copy strong,.nygold-copy small{display:block}
+.nygold-copy strong{font-size:15px}.nygold-copy small{margin-top:3px;font-size:11px;font-weight:normal;color:#f1dcb0}
+.nygold-card>b{white-space:nowrap;padding:5px;border-radius:6px;background:#ffd673;color:#301c0a;font-size:12px}
+.btn.nygold-card:focus-visible{outline:2px solid #ffd673;outline-offset:3px}
+.nygold-garage{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;min-height:108px;margin:12px 0;padding:12px 14px;text-align:left;border:1px solid #d7a84880;border-radius:12px}
+.nygold-garage>div:first-child>*{display:block;color:#ffe6a6}.nygold-garage>div:first-child>b{margin-top:3px;font-size:20px}.nygold-garage>div:first-child>small{font-size:12px}
+.nygold-garage>span{grid-row:span 2;font-size:46px;filter:drop-shadow(0 0 10px #efb94890)}.nygold-garage .plate{justify-self:start}
+.nygold-benefits{display:grid;gap:8px;margin:0;padding:0;list-style:none;text-align:left}
+.nygold-benefits li{border-left:2px solid #d7a84880;padding:4px 0 4px 10px}.nygold-benefits b,.nygold-benefits small{display:block}.nygold-benefits small{margin-top:3px;color:#bac5da;line-height:1.35}
 
 /* новогодний номер: ледяной, с инеем */
 .plate.nyp{background:linear-gradient(180deg,#ffffff 0%,#e3f5ff 55%,#bfe6ff 100%);box-shadow:0 0 18px #9be7ffaa,inset 0 .12em 0 #fff}
@@ -63,7 +93,21 @@ body.hold-garland .plate:not(.other),.oh-garland .plate.other{outline:.14em dott
 .dc-rh.ny{color:#9be7ff}
 .nygift.gold{background:linear-gradient(90deg,#3a2a05,#6a4a0a);border-color:#ffd23f}
 .nygift.last.gold small{color:#fff}
-.nypaid .cosrow.hit{background:#ffd23f14;border-radius:10px}
+.nyoffer-note{margin:10px 0;color:#b4c1d9;font-size:12px;line-height:1.35}
+.nypaid{display:grid;gap:10px;text-align:left}
+.nyoffer{min-width:0;padding:11px 12px;border:1px solid #34405c;border-radius:13px;background:#141d30}
+.nyoffer-featured{border-color:#80663c;background:linear-gradient(120deg,#2b241a,#161c2b)}
+.nyoffer h3{margin:0;color:#f2f5fc;font-size:16px;line-height:1.25;overflow-wrap:anywhere}
+.nyoffer p{margin:5px 0 0;color:#c6d1e7;font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+.nyoffer-heading,.nyoffer-footer,.nyoffer-sani-footer{display:flex;flex-wrap:wrap;align-items:center;gap:7px 10px}
+.nyoffer-heading{flex-wrap:nowrap}.nyoffer-icon{font-size:20px;line-height:1}
+.nyoffer-footer,.nyoffer-sani-footer{margin-top:8px}.nyoffer-buy{max-width:100%;margin-left:auto}
+.nyoffer-buy .btn{width:auto;max-width:100%;min-height:36px;margin:0;padding:8px 12px}
+.nyoffer-owned{color:#9be7c0;font-size:13px;font-weight:bold}
+.nyoffer-sani{padding:0;overflow:hidden;border-color:#9d7948;background:#151c2d}
+.nyoffer-sani-photo{display:block;width:100%;height:clamp(125px,43vw,168px);object-fit:cover;object-position:center;background:#202a3d}
+.nyoffer-sani-body{padding:12px}.nyoffer-sani h3{font-size:19px;color:#fff0ce}
+.nyoffer-sani-footer .plate{--ph:27px;--pf:16px}
 .nyshopban{margin-bottom:8px}
 
 /* ===== оформление за донат ===== */

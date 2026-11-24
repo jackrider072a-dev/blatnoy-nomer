@@ -145,6 +145,31 @@ small{color:var(--dim);font-size:11px}
 .subbtn{font-size:15px}.subbtn b{color:inherit;white-space:nowrap}
 .btn.star{background:linear-gradient(135deg,#ffd23f,#ff9a3c);box-shadow:0 4px 0 #a8620f;color:#3a2200}
 .shopbtn{display:flex;align-items:center;gap:10px;text-align:left}.shopbtn span{flex:1}.shopbtn small{display:block;font-weight:normal;font-size:12px;opacity:.85;margin-top:2px}
+.btn.shop-banner{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;min-height:76px;padding:12px 14px;text-align:left;color:#f5fbff;
+  background:radial-gradient(ellipse at 100% 100%,#562581 0,transparent 60%),radial-gradient(ellipse at 0 0,#164761 0,transparent 62%),linear-gradient(110deg,#101b39,#1c133f);
+  border:1px solid #72d9ff;box-shadow:0 3px 0 #232051,0 0 16px #53bdff45,inset 0 0 16px #785dff30}
+.btn.shop-banner[hidden]{display:none}
+.shop-banner-icon{display:grid;place-items:center;width:42px;height:42px;background:#23376c;border:1px solid #82dafa80;border-radius:12px;font-size:23px;box-shadow:0 0 12px #5ecaff35}
+.shop-banner-copy strong,.shop-banner-copy small{display:block}
+.shop-banner-copy strong{font-size:20px;line-height:1.1}
+.shop-banner-copy small{margin-top:4px;color:#d4ddfb;font-size:12px;font-weight:normal}
+.shop-banner-arrow{color:#dbbfff;font-size:28px;line-height:1}
+.btn.shop-preview-link{border:1px solid #6ed8ff60;background:#101f34;color:#c9f2ff;box-shadow:0 3px 0 #162639}
+.btn.shop-banner:focus-visible,.btn.shop-preview-link:focus-visible{outline:2px solid #d8f8ff;outline-offset:3px}
+.shop-neon-preview{display:grid;justify-items:center;gap:14px;margin:14px 0;padding:16px 10px 22px;border:1px solid #6ed8ff55;border-radius:14px;background:radial-gradient(ellipse at 50% 70%,#263657,#11192b)}
+.shop-neon-preview small{color:#d4ddfb}
+.offline-reward>p{margin:8px 0 0;color:#c0cde1}
+.offline-amount{margin:12px 0;background:radial-gradient(ellipse at 50% 0%,#55452c,#1d2539 75%);border:1px solid #876d47;border-radius:14px;padding:19px 10px;color:#ffe08c;font-size:clamp(21px,7vw,32px);font-weight:bold;overflow-wrap:anywhere}
+.offline-reward .shopbtn{flex-wrap:wrap}.offline-reward .shopbtn b{white-space:normal;overflow-wrap:anywhere}
+.vk-post-task{text-align:left;margin-top:10px}
+.vk-post-task>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.vk-post-task strong{color:var(--gold);font-size:13px;white-space:nowrap}
+.vk-post-task .row{align-items:center;flex-wrap:wrap;gap:6px}
+.vk-post-task .btn{width:auto;flex:1 1 120px;padding:9px;font-size:14px}
+.vk-post-done{flex:1 1 120px;color:#9be7c0;text-align:center;font-size:13px;margin-top:4px}
+.vk-post-status{color:#d2e6ff;font-size:14px}
+.shop-neon-preview .plate.mid{--ph:48px;--pf:clamp(22px,7vw,30px)}
+@media(prefers-reduced-motion:reduce){.shop-neon-preview.oh-neon .plate.other{animation:none;box-shadow:0 0 16px #3ff2ff90}}
 #jpShare{width:70%;max-width:280px;opacity:0;pointer-events:none;transition:opacity .4s;margin-top:8px}
 #jpShare.on{opacity:1;pointer-events:auto}
 .sale{font-style:normal;font-size:11px;background:#e0475b;color:#fff;padding:2px 6px;border-radius:6px;vertical-align:middle}
@@ -407,7 +432,9 @@ small{color:var(--dim);font-size:11px}
 .tk-body{flex:1;min-width:0}
 .tk-name{color:var(--cc,#ffd23f);font-size:13px}
 .tk-text{margin:3px 0 0;font-size:14px;line-height:1.4;min-height:2.8em;color:var(--txt)}
-.tk-next{flex:none;background:var(--gold);color:#2a2000;border:0;border-radius:10px;padding:8px 12px;font:bold 13px Arial;cursor:pointer}
+.tk-next,.tk-choice button{flex:none;background:var(--gold);color:#2a2000;border:0;border-radius:10px;padding:8px 12px;font:bold 13px Arial;cursor:pointer}
+.tk-choice:not([hidden]){display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tk-choice [data-choice="skip"]{background:#34415f;color:var(--txt)}
 .tk-skip{position:absolute;top:-30px;right:4px;background:#000a;color:var(--dim);border:0;border-radius:8px;padding:5px 10px;font:11px Arial;cursor:pointer}
 .goal{cursor:pointer}
 .goal .gch{display:block;color:var(--gold);font-weight:bold;margin-bottom:3px}

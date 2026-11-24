@@ -262,7 +262,7 @@ function nyOpen(kind) {
   setTimeout(() => showPaidBox(b, car), 300);
   return true;
 }
-window.DC_NY = { open: nyOpen, full: isFull, busy: () => !!(opening || switching) };
+window.DC_NY = { open: nyOpen, photo: img, full: isFull, busy: () => !!(opening || switching) };
 window.DC_ADMIN = { list: () => CARS.map(c => [c.k, c.n, c.r, RC[c.r].n]), give: giveCar, take: takeCar, mine: () => D().cars.map(x => x.k),
   clear: () => takeCar("all") };
 

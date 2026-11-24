@@ -100,6 +100,7 @@ const fresh = () => ({
   playSec: 0, payAcc: 0, payT: 0, ordersDone: 0, buffUntil: 0, buyers: 0, taxis: 0, botAcc: 0, adNext: 0,
   subs: { at: 0, n: 0 },                               // бонусы за подписку (только Telegram): tg/vk — получено, at/n — когда и сколько раз звали
   paid: { x2: 0, got: [], starter: 0, starterUntil: 0 }, // покупки за звёзды (Telegram): x2 — доход ×2 навсегда, got — id уже выданных платежей, набор новичка
+  vkPostRewards: [], // выдачи за задания ВКонтакте, уже применённые к сохранению
   quests: { day: "", list: [], chest: 0 },              // задания дня: list — [{ k, n, base, got, nt }], chest — сундук за все три забран
   album: { got: {}, rw: {} },                           // альбом номеров: got — собранные клетки ("r:77", "d:777"…), rw — забранные награды страниц ("reg1" — половина, "reg2" — вся)
   soc: { resp: 0 },                                     // сколько респектов гаражу игрок уже видел (Telegram)
@@ -113,6 +114,7 @@ function normalize(r) {                              // сохранение (л
   s.forge = Object.assign(fresh().forge, r.forge);                        // мастерская: старые сейвы с другим форматом
   s.subs = Object.assign(fresh().subs, r.subs);
   s.paid = Object.assign(fresh().paid, r.paid); if (!Array.isArray(s.paid.got)) s.paid.got = [];
+  if (!Array.isArray(s.vkPostRewards)) s.vkPostRewards = [];
   s.quests = Object.assign(fresh().quests, r.quests); if (!Array.isArray(s.quests.list)) s.quests.list = [];
   s.album = Object.assign(fresh().album, r.album); s.album.got = Object.assign({}, s.album.got); s.album.rw = Object.assign({}, s.album.rw);
   s.soc = Object.assign(fresh().soc, r.soc);
@@ -157,6 +159,7 @@ let hadLocal = false;
 const localSaveTime = hadLocal ? Number(S.t) || 0 : 0;
 const up = id => S.up[id] || 0;
 let noSave = false, cloudOK = false, cloudDirty = false, cloudWriting = false, cloudUrgent = false;
+let tgCloudReceipts = [];
 const save = () => {
   if (noSave) return; cloudDirty = true; try { S.t = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {}
   if (Platform.primary) cloudFlush(false);           // хранилище площадки — главное (CrazyGames): пишем сразу, SDK сам копит изменения
@@ -890,9 +893,11 @@ function renderPacks() {
 // кнопки рекламы прячем, если площадка её не даёт (блокировщик, пробный запуск) — пустых кнопок быть не должно
 function syncAdButtons() {
   $("btnAd").style.display = Platform.adsOK ? "" : "none";
-  $("btnShop").style.display = Platform.canPay && S.tut === -1 ? "" : "none";   // магазин (Telegram, ВК, Яндекс) — после обучения
+  const shopReady = Platform.canPay && S.tut === -1;
+  $("btnFeaturedShop").hidden = !shopReady || !hasFeaturedShop();
+  $("btnShop").style.display = shopReady && !hasFeaturedShop() ? "" : "none";
   $("btnShop").textContent = shopIco() + " " + L("Магазин");
-  renderVkStarter();
+  renderStarterOffer();
   $("btnBuff").style.display = Platform.adsOK && S.lvl >= 3 && S.plates.length ? "" : "none";   // доход ×2 имеет смысл, когда гараж уже приносит деньги
 }
 // вкладки открываются по мере роста, чтобы новичок не тонул в кнопках
@@ -969,6 +974,7 @@ function renderGarage() {
   const locked = S.plates.filter(isLocked).length;
   h += `<div class="row botrow"><button class="btn alt" data-act="botOpen">${L("🤖 Помощник")}${up("bot") ? ` <small>${S.bot.on ? L("работает") : L("выключен")}</small>` : ""}</button><button class="btn alt" data-act="botOpen" data-sec="wish">${L("🎯 Ищу номер")}${S.bot.wish.length ? ` <small>${S.bot.wish.length}</small>` : ""}</button></div>
     <div class="row"><button class="btn mreobtn" data-act="ordOpen">${L("🏛 МРЭО")} <small>${L("номер на заказ")}</small></button><button class="btn mreobtn cosbtn" data-act="cos">${L("🎨 Оформление")} <small>${L("рамки, эффекты, гараж")}</small></button></div>`;
+  if (S.plates.length && neonPreviewPrice()) h += `<button class="btn sm shop-preview-link" type="button" data-act="neonPreview">Примерить неоновую рамку</button>`;
   h += `<div class="mergegrid">${TIERS.slice(0, TOP).map((tr, t) => { const n = freeOf(t).length, lk = S.plates.filter(p => p.tier === t && isLocked(p)).length, ok = n >= MERGE_NEED[t];
     return `<button class="mcell ${ok ? "ready" : ""}" data-act="merge" data-t="${t}" ${ok ? "" : "disabled"} style="--mc:${tr.color}"><b>${tr.name}</b><small>${Math.min(n, 99)}/${MERGE_NEED[t]} → ${TIERS[t + 1].name}${lk ? " · 🔒" + lk : ""}</small></button>`; }).join("")}</div>`;
   if (locked) h += `<p class="hint" style="margin:4px 0">${L("🔒 Под замком: {0} — они не сливаются и не продаются. Замок — кнопка у номера.", locked)}</p>`;
@@ -1075,7 +1081,7 @@ function showMenu() {
     <div class="mfoot">${L("Игра вымышленная: номера генерируются случайно, монеты нельзя обменять на реальные деньги.")}</div>`;
   $("menu").classList.remove("hidden");
 }
-function hideMenu() { $("menu").classList.add("hidden"); Mus.start(); }
+function hideMenu() { $("menu").classList.add("hidden"); Mus.start(); showVkWelcome(); }
 function showHowTo() {
   const P = [
     "🚘 Покупай бланки номеров. Табло крутится — и выпадает номер одной из 6 редкостей: обычный, красивый, редкий, блатной, легенда или суперлегенда.",
@@ -1102,6 +1108,7 @@ function renderMore() {
   <div class="row"><button class="btn alt" data-act="profile">${L("✏️ Мой профиль")}</button>${Platform.canShare ? `<button class="btn ${reqsN ? "green ready" : "alt"}" data-act="friends">${L("👥 Друзья")}${reqsN ? ` <b class="badge">${reqsN}</b>` : ""}</button>` : ""}</div>
   ${isAdmin ? `<button class="btn red" data-act="admin">🛠 Админка</button>` : ""}
   ${Platform.canPay ? `<button class="btn star" data-act="shop">${shopIco()} ${L("Магазин — деньги, номера, ×2 навсегда")}</button>` : ""}
+  ${Platform.name === "vk" && S.tut === -1 && vkPostTasks.length ? `<button class="btn alt" type="button" data-act="vkPostTasks">🎯 Задания ВКонтакте</button>` : ""}
   ${questsHTML()}
   ${Platform.canShare ? `<div class="card"><h3>${L("🤝 Пригласи друга")}</h3><p>${L("Друг сразу получит блатной номер, а ты — блатной, когда друг дойдёт до 3 уровня. Друзей — без ограничений!")}</p>
     ${refs.n ? `<p style="font-size:13px;color:#8d99b3">${L("Пришли по твоей ссылке: {0} · втянулись: {1}", refs.n, refs.done)}</p>` : ""}
@@ -1142,6 +1149,7 @@ function doPrestige() {
   const g = prestigeGain(); if (g < 1) return;
   const keep = { drawn: S.drawn, goal: S.goal, achClaim: S.achClaim, story: S.story, tut: S.tut, title: S.title, sets: S.sets, merges: S.merges, mergeBest: S.mergeBest, forge: Object.assign({}, S.forge, { sel: [], coins: 0, target: null, lots: [], boost: false }), found: S.found, ach: S.ach, lvl: S.lvl, xp: S.xp, set: S.set, mini: S.mini, daily: S.daily, tc: S.tc, bought: S.bought, sold: S.sold, earned: S.earned, ordersDone: S.ordersDone, playSec: S.playSec, taxis: S.taxis, buyers: S.buyers, subs: S.subs, paid: S.paid, quests: S.quests, album: S.album, soc: S.soc, cos: S.cos, bot: Object.assign({}, S.bot, { log: [] }), prof: Object.assign({}, S.prof, { pins: [] }) };   // покупки и бонусы за подписку переезд не обнуляет
   const n = fresh(); Object.assign(n, keep); n.pts = S.pts + g; n.prest = S.prest + 1; n.nid = S.nid; n.coins = START_COINS + 200 * n.pts;
+  n.vkPostRewards = S.vkPostRewards;
   S = n; pending = null; closeModal(); cinemaQueue.length = 0;
   enqueueCinema({ color: "#ffb300", bg: "#3a2a05", big: true, icon: "🏛", top: L("Переезд в Москву"), title: L("НОВАЯ ЖИЗНЬ"), value: g, valueLabel: L("СВЯЗИ ПОЛУЧЕНО"), valueIcon: "⭐",
     x: L("Всего ⭐ {0}: +{1}% к доходу и ×{2} к удаче", n.pts, n.pts * 10, Math.pow(1.03, n.pts).toFixed(2)), sub: L("Деньги, гараж и апгрейды обнулены — зато теперь всё идёт быстрее") });
@@ -1884,6 +1892,23 @@ const COS = {
     { id: "show", n: "Шоурум", st: 35 }, { id: "elite", n: "Элитный паркинг", st: 49 }, { id: "palace", n: "Дворец", vip: 1 }]
 };
 Object.values(COS).forEach(a => a.forEach(x => Lprops(x, "n")));
+const NEON_FRAME_ITEM = "cos_hold_neon";
+const NEON_FRAME = COS.hold.find(x => x.id === "neon");
+function neonPreviewPrice() {
+  return hasFeaturedShop() && S.tut === -1 && !S.cos.own.includes("hold:neon") ? priceOf(NEON_FRAME_ITEM, NEON_FRAME.st) : null;
+}
+function openNeonPreview(back) {
+  const price = neonPreviewPrice();
+  if (!price) return;
+  const own = S.plates[0];
+  const plate = own || { l1: "А", d: "777", l23: "АА", reg: "77", tier: 3 };
+  const backAction = back === "shop" ? 'data-act="shop"' : back === "cos" ? 'data-act="cos" data-t="hold"' : 'data-act="closeModal"';
+  openModal(`<h2>${NEON_FRAME.n}</h2>
+    <div class="shop-neon-preview oh-neon"><small>${own ? "На твоём номере" : "На примере номера"}</small>${plateHTML(plate, "mid other")}</div>
+    <p>Рамка включится сразу и останется на всех твоих номерах навсегда.</p>
+    <button class="btn star shopbtn" type="button" data-act="shopBuy" data-k="${NEON_FRAME_ITEM}"><span>Купить рамку</span><b>${price}</b></button>
+    <button class="btn alt" type="button" ${backAction}>${back === "shop" || back === "cos" ? "Назад" : "Закрыть"}</button>`);
+}
 const VIP_ST = 99;
 const isVip = () => !!S.cos.vip;
 // покупка за звёзды пришла (или подарок из админки): cos_hold_neon … / cos_vip
@@ -1925,6 +1950,7 @@ function openCos(t) {
     const prev = cosTab === "hold" ? `<div class="oh-${x.id}">${plateHTML(ex, "small other")}</div>` : cosTab === "fx" ? `<div class="ppins pfx-${x.id}">${plateHTML(ex, "small")}</div>` : `<div class="garswatch gar-${x.id}">🚘</div>`;
     const btn = on ? `<button class="btn sm alt" data-act="cosSet" data-k="${cosTab}" data-v="">${L("✓ Снять")}</button>`
       : own ? `<button class="btn sm green" data-act="cosSet" data-k="${cosTab}" data-v="${x.id}">${L("Надеть")}</button>`
+      : cosTab === "hold" && x === NEON_FRAME && neonPreviewPrice() ? `<button class="btn sm alt" data-act="neonPreview" data-back="cos">Примерить</button>`
       : x.vip ? (sells("cos_vip", VIP_ST) ? `<button class="btn sm star" data-act="shopBuy" data-k="cos_vip">👑 ${priceOf("cos_vip", VIP_ST)}</button>` : "")
       : x.st ? `<button class="btn sm star" data-act="shopBuy" data-k="cos_${cosTab}_${x.id}">${priceOf("cos_" + cosTab + "_" + x.id, x.st)}</button>`
       : `<button class="btn sm ${S.coins >= x.p ? "green" : "alt"}" data-act="cosBuy" data-k="${cosTab}" data-v="${x.id}" ${S.coins >= x.p ? "" : "disabled"}>${fmt(x.p)} 💰</button>`;
@@ -2100,8 +2126,9 @@ function tutGo(n) {
     syncAdButtons();
   } else if (n > 0) Platform.track("tut_" + n);
   save(); tutHide(); renderGoal(); renderSubs();
-  if (completed && Platform.name === "vk" && starterOn()) {
-    say([["valera", `Ну всё, освоился, племяш! Хочешь побыстрее раскрутить гараж? В наборе за ${priceOf("starter", 15)} — блатной номер, монеты и двойной доход на час.`]], null, openVkStarter);
+  if (completed && hasFeaturedShop() && starterOn()) {
+    const price = Platform.name === "tg" ? `${STARTER_ST} звёзд` : priceOf("starter", STARTER_ST);
+    say([["valera", `Ну всё, освоился, племяш! Хочешь побыстрее раскрутить гараж? В наборе за ${price} — блатной номер, монеты и двойной доход на час.`]], null, openStarterOffer);
   }
 }
 function tutTick() {
@@ -2293,16 +2320,65 @@ function showInfo(id) {
 let modalLocked = false;
 function openModal(html, locked) { $("mbox").innerHTML = html; $("modal").classList.remove("hidden"); modalLocked = !!locked; }
 let dailyAfter = false;                                // ежедневный бонус ждёт, пока закроют окно офлайн-дохода
+let vkOfflineFrom = localSaveTime, vkWelcomeReady = false, vkOffline = null;
 function closeModal() {
+  if ($("vkOfflineReward") && !$("modal").classList.contains("hidden")) vkOffline = null;
   $("modal").classList.add("hidden"); modalLocked = false; if (miniRun) { miniRun.run = false; miniRun = null; }
   if (dailyAfter) { dailyAfter = false; setTimeout(checkDaily, 400); }
+  showVkWelcome();
 }
 $("modal").addEventListener("click", e => { if (e.target === $("modal") && !modalLocked) closeModal(); });
+
+function settleVkOffline() {
+  const seconds = vkOfflineFrom ? Math.min((Date.now() - vkOfflineFrom) / 1000, 3600) : 0;
+  const coins = seconds > 30 && S.plates.length ? Math.floor(income() * seconds * 0.5) : 0;
+  if (coins > 0) {
+    gain(coins);
+    vkOffline = { coins, busy: false };
+    save(); cloudFlush(true); renderHeader(); refreshDisabled();
+  }
+  vkWelcomeReady = true;
+  showVkWelcome();
+}
+function showVkWelcome() {
+  if (!vkWelcomeReady || !$("menu").classList.contains("hidden") || !$("modal").classList.contains("hidden")) return;
+  vkWelcomeReady = false;
+  if (!vkOffline) { if (S.drawn >= 3) setTimeout(checkDaily, 700); return; }
+  const { coins } = vkOffline;
+  dailyAfter = S.drawn >= 3;
+  openModal(`<section id="vkOfflineReward" class="offline-reward"><h2>🌙 Пока тебя не было</h2>
+    <p>Твой гараж заработал</p><div class="offline-amount">+${coins.toLocaleString(I18N.loc)} 💰</div>
+    <button id="vkOfflineAd" class="btn star shopbtn hidden" type="button" data-act="vkOfflineDouble"><span>Удвоить за рекламу</span><b>${(coins * 2).toLocaleString(I18N.loc)} 💰</b></button>
+    <button id="vkOfflineCollect" class="btn alt" type="button" data-act="closeModal">Забрать</button></section>`);
+  syncVkOfflineAd();
+}
+function syncVkOfflineAd() {
+  const button = $("vkOfflineAd");
+  if (!button || !vkOffline) return;
+  button.classList.toggle("hidden", !Platform.adsOK && !vkOffline.busy);
+  button.disabled = vkOffline.busy;
+  $("vkOfflineCollect").disabled = vkOffline.busy;
+}
+async function doubleVkOffline() {
+  const reward = vkOffline;
+  if (!reward || reward.busy || !Platform.adsOK) return;
+  reward.busy = true; modalLocked = true; syncVkOfflineAd();
+  const ok = await Platform.rewarded();
+  if (ok) {
+    gain(reward.coins); save(); cloudFlush(true); renderHeader(); refreshDisabled();
+    toast(L("Удвоено! +{0} 💰", fmt(reward.coins))); Snd.sell(); fx.confetti(40);
+    if (vkOffline === reward) closeModal();
+  } else if (vkOffline === reward) {
+    reward.busy = false; modalLocked = false; syncVkOfflineAd();
+    toast("Реклама не завершилась. Обычная награда доступна.");
+  }
+}
 
 // ===================== ПЛАТФОРМЫ =====================
 // Всё, что зависит от площадки (Яндекс Игры, VK, ...), — в platform.js; здесь только реакция игры.
 function setPaused(p) {
   hidden = p;
+  checkVkPostReturn(p);
   if (A.ctx) p ? A.ctx.suspend() : A.ctx.resume();
   if (!p) { lastTick = Date.now(); }
 }
@@ -2312,14 +2388,17 @@ Platform.init({
   pause: setPaused,
   mute: setMuted,
   busy: b => $("adwait").classList.toggle("hidden", !b),
-  ads: () => { renderPacks(); renderHeader(); if (tab === "more") renderMore(); if (tab === "forge") renderForge(); if (tab === "cars") renderTab(); },
+  ads: () => { renderPacks(); renderHeader(); syncVkOfflineAd(); if (tab === "more") renderMore(); if (tab === "forge") renderForge(); if (tab === "cars") renderTab(); },
   shop: () => { renderPacks(); if (tab === "more" || tab === "cars") renderTab(); },   // Яндекс: каталог покупок загрузился позже старта
   lang: l => { if (I18N.set(l)) { applyLang(); if (!$("menu").classList.contains("hidden")) showMenu(); } }
 }).then(() => {
   renderSubs();
   // ВК, Яндекс: оплаченное, но не выданное прошлый раз — выдаём уже поверх сохранения из облака
   const progressReady = Platform.hasCloud ? cloudLoad() : Promise.resolve();
-  progressReady.then(() => { if (Platform.direct) setTimeout(() => claimPaid(1), 1500); });
+  progressReady.then(() => {
+    if (Platform.direct) setTimeout(() => claimPaid(1), 1500);
+    if (Platform.name === "vk") { settleVkOffline(); refreshVkPostTasks(); }
+  });
   // Telegram: игрок регистрируется на сервере; уже подписан на канал (например, подписался и закрыл игру) — бонус сразу
   if (Platform.name === "tg") Promise.all([Platform.hello(), progressReady]).then(([j]) => {
     Platform.track(j ? "srv_ok" : "srv_fail"); if (!j) return;
@@ -2362,6 +2441,7 @@ function cloudLoad() {
     // иначе облако берём, если на этом устройстве сохранения нет или в облаке более свежее, а локальное заливаем наверх
     if (has && (Platform.primary || !hadLocal || (c.t || 0) > localSaveTime)) {
       cloudDirty = false;
+      if (Platform.name === "vk") vkOfflineFrom = Number(c.t) || 0;
       applyCloud(c, Platform.primary);
     } else cloudDirty = true;
     cloudOK = true;
@@ -2369,6 +2449,7 @@ function cloudLoad() {
 }
 function applyCloud(c, silent) {
   S = normalize(c); restorePend(); fixDupes(); albumBackfill(); applyCos(); pending = null; $("resolveRow").style.display = "none";
+  if (Platform.name === "tg") tgCloudReceipts = S.paid.got.slice();
   dispCoins = S.coins; lastTick = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {}
   if (S.forgePend) applyForge(true);
@@ -2380,9 +2461,11 @@ function cloudFlush(now) {
   if (cloudWriting) { cloudUrgent ||= now; return; }
   cloudWriting = true;
   cloudDirty = false;
+  const receipts = Platform.name === "tg" ? S.paid.got.slice() : null;
   const failed = () => { cloudDirty = true; cloudWriting = cloudUrgent = false; };
   try {
     Platform.save(S, now).then(() => {
+      if (receipts) tgCloudReceipts = receipts;
       cloudWriting = false;
       const urgent = cloudUrgent; cloudUrgent = false;
       if (urgent) cloudFlush(true);
@@ -2392,6 +2475,76 @@ function cloudFlush(now) {
 setInterval(() => cloudFlush(false), 15000);
 document.addEventListener("visibilitychange", () => { if (document.hidden) cloudFlush(true); });
 addEventListener("pagehide", () => { save(); cloudFlush(true); });
+
+// ----- задания с проверкой лайков ВКонтакте (список приходит с сервера тестовым аккаунтам)
+let vkPostTasks = [], vkPostBusy = null, vkPostReturn = null;
+const vkPostClaimed = new Set();
+function applyVkPostRewards(rewards) {
+  let coins = 0;
+  for (const reward of rewards) {
+    if (!reward || typeof reward.receipt !== "string" || !Number.isSafeInteger(reward.coins) || reward.coins <= 0) continue;
+    vkPostClaimed.add(reward.id);
+    if (S.vkPostRewards.includes(reward.receipt)) continue;
+    S.vkPostRewards.push(reward.receipt);
+    coins += reward.coins;
+  }
+  if (coins) {
+    S.coins += coins; save(); cloudFlush(true); renderHeader(); refreshDisabled();
+  }
+  return coins;
+}
+async function refreshVkPostTasks() {
+  const reply = await Platform.vkPostTasks("list");
+  if (!reply?.ok) return;
+  vkPostTasks = reply.tasks;
+  applyVkPostRewards(reply.rewards);
+  if (tab === "more") renderMore();
+}
+function openVkPostTasks(message = "") {
+  if (Platform.name !== "vk" || S.tut !== -1) return;
+  openModal(`<section id="vkPostTaskList"><h2>🎯 Задания ВКонтакте</h2><p>Открой пост, поставь лайк и вернись для проверки.</p>
+    ${vkPostTasks.map(task => {
+      const claimed = vkPostClaimed.has(task.id);
+      return `<article class="card vk-post-task"><div><b>${escapeHTML(task.title)}</b><strong>+${fmt(task.coins)} 💰</strong></div>
+        <div class="row"><button class="btn alt" type="button" data-act="vkPostOpen" data-id="${task.id}">Открыть пост в ВК</button>
+        ${claimed ? `<span class="vk-post-done">✓ Награда получена</span>` : `<button class="btn green" type="button" data-act="vkPostClaim" data-id="${task.id}" ${vkPostBusy ? "disabled" : ""}>${vkPostBusy === task.id ? "Проверяем…" : "Проверить"}</button>`}</div></article>`;
+    }).join("")}${vkPostTasks.length ? "" : "<p>Сейчас нет активных заданий.</p>"}
+    ${message ? `<p class="vk-post-status" role="status">${message}</p>` : ""}<button class="btn alt" type="button" data-act="closeModal">Закрыть</button></section>`);
+}
+function openVkTaskPost(id) {
+  const task = vkPostTasks.find(t => t.id === id);
+  if (!task) return;
+  vkPostReturn = vkPostClaimed.has(id) ? null : { id, away: false };
+  Platform.openVkPost(task.owner, task.post);
+}
+function checkVkPostReturn(paused) {
+  if (!vkPostReturn) return;
+  if (paused) { vkPostReturn.away = true; return; }
+  if (!vkPostReturn.away) return;
+  const { id } = vkPostReturn;
+  vkPostReturn = null;
+  if ($("vkPostTaskList") && !$("modal").classList.contains("hidden")) claimVkPostTask(id);
+}
+async function claimVkPostTask(id) {
+  if (Platform.name !== "vk" || S.tut !== -1 || vkPostBusy || vkPostClaimed.has(id) || !vkPostTasks.some(t => t.id === id)) return;
+  if (vkPostReturn?.id === id) vkPostReturn = null;
+  vkPostBusy = id;
+  openVkPostTasks();
+  const reply = await Platform.vkPostTasks("claim", id);
+  vkPostBusy = null;
+  const coins = reply?.ok ? applyVkPostRewards([reply.reward]) : 0;
+  if (reply?.error === "inactive") {
+    vkPostTasks = vkPostTasks.filter(t => t.id !== id);
+    if (tab === "more") renderMore();
+  }
+  const message = coins ? `Начислено ${fmt(coins)} монет.` : reply?.ok ? "Награда уже получена."
+    : reply?.error === "like_missing" ? "ВКонтакте пока не видит лайк на этом посте."
+    : reply?.error === "inactive" ? "Срок задания закончился."
+    : reply?.error === "disabled" ? "Задание недоступно. Попробуй открыть игру заново."
+    : "Не удалось проверить лайк. Попробуй чуть позже.";
+  if ($("vkPostTaskList") && !$("modal").classList.contains("hidden")) openVkPostTasks(message);
+  else if (coins) toast(message);
+}
 function rewardedAd(cb) {                             // локально (без площадки) награда выдаётся сразу
   Platform.rewarded().then(ok => {
     if (ok) return cb();
@@ -2468,8 +2621,9 @@ setInterval(() => {                                   // время от вре�
     ${subsHTML("green")}<button class="btn alt" data-act="closeModal">${L("Позже")}</button>`);
 }, 10000);
 // ----- магазин: каталог игры и выдача покупок; цены ВК и Telegram сверяются с ITEMS в server/src/worker.js.
+const STARTER_ST = 15;
 const SHOP = [
-  { k: "starter", st: 15, ico: "🎁", n: "Набор новичка", d: () => L("+{0} 💰, блатной номер и доход ×2 на час", fmt(shopCash("starter"))) },
+  { k: "starter", st: STARTER_ST, ico: "🎁", n: "Набор новичка", d: () => L("+{0} 💰, блатной номер и доход ×2 на час", fmt(shopCash("starter"))) },
   { k: "cash_s", st: 25, ico: "💰", n: "Пачка денег", d: () => L("+{0} 💰 — 30 минут дохода", fmt(shopCash("cash_s"))) },
   { k: "blat", st: 49, ico: "🚘", n: "Блатной номер", d: () => L("Случайный блатной — сразу в гараж") },
   { k: "cash_l", st: 99, ico: "💼", n: "Чемодан денег", d: () => L("+{0} 💰 — 3 часа дохода", fmt(shopCash("cash_l"))) },
@@ -2483,47 +2637,51 @@ const shopIco = () => Platform.name === "tg" ? "⭐" : "🛒";
 const SHOP_NOTE = () => Platform.name === "vk" ? L("Покупки за голоса ВКонтакте. Спасибо, что поддерживаешь игру!")
   : Platform.name === "ya" ? L("Покупки за яны Яндекс Игр. Спасибо, что поддерживаешь игру!") : L("Покупки за звёзды Telegram. Спасибо, что поддерживаешь игру!");
 const shopCash = k => k === "cash_l" ? Math.max(6000, Math.round(income() * 10800 / 10) * 10) : k === "starter" ? Math.max(1500, Math.round(income() * 3600 / 10) * 10) : Math.max(1000, Math.round(income() * 1800 / 10) * 10);
-// В ВК набор виден после первого слияния и обучения. На остальных площадках действует прежний таймер.
-const starterOn = () => sells("starter", 15) && !S.paid.starter && (Platform.name === "vk"
+function hasFeaturedShop() { return Platform.name === "vk" || Platform.name === "tg"; }
+// В VK и Telegram набор открывается после слияния и обучения. Для остальных площадок он по-прежнему ограничен таймером.
+const starterOn = () => sells("starter", STARTER_ST) && !S.paid.starter && (hasFeaturedShop()
   ? S.tut === -1 && S.merges > 0
   : !S.paid.starterUntil || Date.now() < S.paid.starterUntil);
 function starterStart() { if (!S.paid.starterUntil) { S.paid.starterUntil = Date.now() + 864e5; save(); } }
-function renderVkStarter() {
-  const button = $("btnVkStarter");
-  const available = Platform.name === "vk" && starterOn();
+function renderStarterOffer() {
+  const button = $("btnStarterOffer");
+  const available = hasFeaturedShop() && starterOn();
   button.style.display = available ? "" : "none";
-  if (available && !button.firstElementChild) button.innerHTML = `<span>🎁 Набор новичка<small>Блатной номер, монеты и доход ×2 на час</small></span><b>${priceOf("starter", 15)}</b>`;
+  if (available && !button.firstElementChild) button.innerHTML = `<span>🎁 Набор новичка<small>Блатной номер, монеты и доход ×2 на час</small></span><b>${priceOf("starter", STARTER_ST)}</b>`;
 }
-function openVkStarter() {
-  if (Platform.name !== "vk" || !starterOn()) return;
+function openStarterOffer() {
+  if (!hasFeaturedShop() || !starterOn()) return;
   const garageNote = S.plates.length >= slots() ? `<div class="hint">Если в гараже не хватит места, игра может продать один из номеров за монеты.</div>` : "";
   openModal(`<h2>🎁 Набор новичка</h2>
     <div class="card" style="text-align:left"><p>🚘 <b>Блатной номер</b> в коллекцию</p><p>💰 <b>+${fmt(shopCash("starter"))}</b> монет</p><p>🔥 <b>Доход ×2</b> на 1 час</p></div>
     ${garageNote}
-    <button class="btn star shopbtn" data-act="shopBuy" data-k="starter"><span>Купить набор</span><b>${priceOf("starter", 15)}</b></button>
+    <button class="btn star shopbtn" data-act="shopBuy" data-k="starter"><span>Купить набор</span><b>${priceOf("starter", STARTER_ST)}</b></button>
     <button class="btn alt" data-act="closeModal">${L("Не сейчас")}</button>`);
 }
 function openShop() {
   Platform.track("shop_open");
-  const timedStarter = Platform.name !== "vk";
+  const timedStarter = !hasFeaturedShop();
+  const neonPrice = neonPreviewPrice();
   if (timedStarter && starterOn()) starterStart();
   const items = SHOP.filter(s => sells(s.k, s.st) && !(s.k === "x2" && S.paid.x2) && (s.k !== "starter" || starterOn()));
   openModal(`<h2>${shopIco()} ${L("Магазин")}</h2><p>${SHOP_NOTE()}</p>
     ${items.map(s => {
-      if (s.k === "starter" && !timedStarter) return `<button class="btn star shopbtn" data-act="vkStarter"><span>${s.ico} ${L(s.n)}<small>${s.d()}</small></span><b>${priceOf(s.k, s.st)}</b></button>`;
+      if (s.k === "starter" && !timedStarter) return `<button class="btn star shopbtn" data-act="starterOffer"><span>${s.ico} ${L(s.n)}<small>${s.d()}</small></span><b>${priceOf(s.k, s.st)}</b></button>`;
       return `<button class="btn ${s.k === "x2" || s.k === "starter" ? "star" : "alt"} shopbtn" data-act="shopBuy" data-k="${s.k}"><span>${s.ico} ${L(s.n)}${s.k === "starter" ? ` <i class="sale">−70%</i>` : ""}<small>${s.d()}${s.k === "starter" ? " · " + L("осталось") + ` <span class="timer" data-until="${S.paid.starterUntil}"></span>` : ""}</small></span><b>${priceOf(s.k, s.st)}</b></button>`;
     }).join("")}
     ${S.paid.x2 ? `<div class="hint">${L("🔥 Доход ×2 навсегда уже куплен")}</div>` : ""}
+    ${neonPrice ? `<button class="btn shop-preview-link shopbtn" type="button" data-act="neonPreview" data-back="shop"><span>Неоновая рамка<small>Примерить на номер</small></span><b>${neonPrice}</b></button>`
+      : hasFeaturedShop() ? `<button class="btn shop-preview-link" type="button" data-act="cos" data-t="hold">Посмотреть оформление</button>` : ""}
     ${Platform.name === "tg" ? `<div class="hint">${L("Условия покупок — /terms, помощь с оплатой — /paysupport в боте.")}</div>` : ""}
     <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
 }
 setInterval(() => {                                   // один раз: предложить набор новичка, когда игрок освоился (6+ минут игры после обучения)
-  if (Platform.name === "vk" || !starterOn() || S.paid.starterUntil || S.tut !== -1 || S.playSec < 360 || !(srvOK || Platform.direct)) return;
+  if (hasFeaturedShop() || !starterOn() || S.paid.starterUntil || S.tut !== -1 || S.playSec < 360 || !(srvOK || Platform.direct)) return;
   if (!$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden") || jpState || Talk.cur || rolling || pending || cinemaQueue.length) return;
   starterStart(); Platform.track("starter_show");
   openModal(`<h2>${L("🎁 Набор новичка")}</h2><p>${L("Только для новичков и только 24 часа — в 3 раза дешевле обычного:")}</p>
     <div class="card" style="text-align:left"><p>💰 <b>+${fmt(shopCash("starter"))}</b> ${L("— час дохода гаража")}</p><p>🚘 <b>${L("Блатной номер")}</b> ${L("— сразу в гараж")}</p><p>🔥 <b>${L("Доход ×2")}</b> ${L("— на целый час")}</p></div>
-    <button class="btn star shopbtn" data-act="shopBuy" data-k="starter"><span>${L("Забрать набор")} <i class="sale">−70%</i></span><b>${priceOf("starter", 15)}</b></button>
+    <button class="btn star shopbtn" data-act="shopBuy" data-k="starter"><span>${L("Забрать набор")} <i class="sale">−70%</i></span><b>${priceOf("starter", STARTER_ST)}</b></button>
     <button class="btn alt" data-act="closeModal">${L("Не сейчас")}</button>`);
 }, 10000);
 // выдача: покупки и подарки (why — откуда подарок: друг, рейтинг)
@@ -2557,9 +2715,17 @@ const GIFT_WHY = id => /^refnew_/.test(id) ? L("🎁 Подарок за то, �
 // забрать оплаченное и подарки: при запуске, раз в 1,5 минуты и сразу после оплаты — вебхук может прийти на секунду позже.
 // Во время обучения не забираем — подарок дождётся на сервере.
 let claimBusy = false;
+function telegramSavedReceipts() {
+  const receipts = new Set(tgCloudReceipts);
+  try {
+    const saved = JSON.parse(localStorage.getItem(SAVE_KEY) || "null")?.paid?.got;
+    if (Array.isArray(saved)) saved.forEach(id => receipts.add(id));
+  } catch (e) {}
+  return S.paid.got.filter(id => receipts.has(id));
+}
 function claimPaid(tries, afterPay) {
   if (claimBusy || !(Platform.canShare || Platform.direct) || (S.tut !== -1 && !afterPay)) return; claimBusy = true;
-  Platform.claim().then(items => {
+  Platform.claim(Platform.name === "tg" ? telegramSavedReceipts() : undefined).then(items => {
     claimBusy = false;
     if (items && !Platform.direct) setEvent(items.ev);    // события из админки — только с сервера Telegram
     const got = (items || []).filter(x => !S.paid.got.includes(x.id));
@@ -2576,7 +2742,7 @@ function claimPaid(tries, afterPay) {
 setInterval(() => { if ((srvOK || Platform.direct) && !document.hidden) claimPaid(1); }, 90000);
 let shopBusy = false;
 function shopBuy(k) {
-  if (Platform.name === "vk" && k === "starter" && !starterOn()) return;
+  if (hasFeaturedShop() && k === "starter" && !starterOn()) return;
   if (shopBusy) return; shopBusy = true; Platform.track("shop_try_" + k);
   Platform.buy(k).then(st => {
     shopBusy = false;
@@ -3106,7 +3272,9 @@ const ACTS = {
   sellPending: () => resolvePending(true), keepPending: () => resolvePending(false),
   subGo: d => subGo(d.k),
   gateGo: () => { Platform.openLink("https://t.me/blatnoynomer_tg"); Platform.track("gate_go"); }, gateCheck: () => gateCheck(true),
-  shop: () => openShop(), vkStarter: () => openVkStarter(), shopBuy: d => shopBuy(d.k),
+  shop: () => openShop(), starterOffer: () => openStarterOffer(), neonPreview: d => openNeonPreview(d.back), shopBuy: d => shopBuy(d.k),
+  vkPostTasks: () => openVkPostTasks(), vkPostClaim: d => claimVkPostTask(d.id),
+  vkPostOpen: d => openVkTaskPost(d.id),
   admin: () => openAdmin(), admTab: d => openAdmin(d.t), admCheat: d => admCheat(d.k),
   admSearch: () => admPlayers(($("admQ") || {}).value || ""),
   admPlayer: d => { const g = $("gifts-" + d.uid); if (g) { g.classList.toggle("hidden"); g.parentElement.classList.toggle("open", !g.classList.contains("hidden")); } },
@@ -3193,6 +3361,7 @@ const ACTS = {
   brag: d => brag(S.plates.find(x => x.id === +d.id) || (lastRevealed && lastRevealed.id === +d.id ? lastRevealed : null)),
   notifOn: () => { closeModal(); Platform.askNotify().then(ok => { Platform.track(ok ? "notif_on" : "notif_off"); toast(ok ? L("🔔 Напоминания включены") : L("Напоминания выключены — их можно включить, нажав /start в боте")); if (ok) sendState(); }); },
   taxi: (d, e) => taxi(e),
+  vkOfflineDouble: () => doubleVkOffline(),
   offlineDouble: (d, e, el) => {                      // удвоить офлайн-доход за рекламу (один раз на окно)
     if (el.dataset.used) return; el.dataset.used = 1; el.disabled = true;
     rewardedAd(() => { const v = +d.v; gain(v); toast(L("Удвоено! +{0} 💰", fmt(v))); Snd.sell(); fx.fly(innerWidth / 2, innerHeight / 2, 14); fx.confetti(40); save(); closeModal(); renderHeader(); });
@@ -3339,7 +3508,7 @@ function applyLang() {                                // язык определ
 (function start() {
   translateStatic(); restorePend(); fixDupes(); albumBackfill(); applyCos();
   const off = Math.min((Date.now() - (S.t || Date.now())) / 1000, 3600);
-  if (off > 30 && S.plates.length) {
+  if (Platform.name !== "vk" && off > 30 && S.plates.length) {
     const g = income() * off * 0.5; gain(g);
     if (off > 120 && g >= 50) { dailyAfter = S.drawn >= 3; setTimeout(() => openModal(`<h2>${L("🌙 Пока тебя не было")}</h2><p style="font-size:14px;color:#8d99b3">${L("Твой гараж заработал")}</p>
       <div style="font-size:34px;font-weight:bold;color:#ffd23f;margin:8px 0">+${fmt(g)} 💰</div>
@@ -3351,7 +3520,7 @@ function applyLang() {                                // язык определ
   startStage();
   if (S.forgePend) setTimeout(() => applyForge(true), 600);     // незавершённое улучшение после перезагрузки
   refreshMarket(); ensureOrders(); renderAll(); renderGoal(); scheduleBuyer();
-  if (S.drawn >= 3 && !dailyAfter) setTimeout(checkDaily, 700);       // новичку бонус не мешает первому знакомству; после окна офлайн-дохода — по его закрытию
+  if (Platform.name !== "vk" && S.drawn >= 3 && !dailyAfter) setTimeout(checkDaily, 700);       // в ВК очередь приветствия открывается после стартового меню
   // музыка стартует после первого касания (требование браузеров)
   document.addEventListener("pointerdown", function once() { ac(); Mus.start(); document.removeEventListener("pointerdown", once); });
 })();
