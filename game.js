@@ -1072,10 +1072,14 @@ function buyUp(id) {
 
 // ===================== ЕЩЁ: мини-игра, престиж, серии, достижения, статистика, настройки =====================
 // ===================== СТАРТОВОЕ МЕНЮ И «КАК ИГРАТЬ» =====================
+let vkProgressReady = false;
+const STAR_BOX_ITEM = "box_star", STAR_BOX_ST = 49;
 function showMenu() {
+  const starPrice = vkProgressReady && Platform.name === "vk" && priceOf(STAR_BOX_ITEM, STAR_BOX_ST);
   $("menu").innerHTML = `<div class="mlogo">🚘</div><h1>${I18N.TITLE[I18N.lang] || I18N.TITLE.ru}</h1>
     <div class="msub">${L("Выбивай блатные номера и собирай гараж с доходом")}</div>
     <button class="btn green" data-act="menuPlay">${L("▶ Играть")}</button>
+    ${starPrice ? `<button class="btn star shopbtn" data-act="shopBuy" data-k="${STAR_BOX_ITEM}"><span>⭐ Звёздный контейнер<small>Мифическая машина 70% · суперлегенда 30%</small></span><b>${starPrice}</b></button>` : ""}
     <button class="btn alt" data-act="menuHow">${L("📖 Как играть")}</button>
     <button class="btn alt" data-act="menuSettings">${L("🔧 Настройки")}</button>
     <div class="mfoot">${L("Игра вымышленная: номера генерируются случайно, монеты нельзя обменять на реальные деньги.")}</div>`;
@@ -2064,7 +2068,7 @@ function storyEvents() {                                // короткие ре
 const Talk = { q: [], cur: null, i: 0, typeT: null, full: "" };
 const TK = { el: $("talk") }; ["dim", "hole", "finger", "box", "ava", "name", "text", "next", "skip", "choice"].forEach(k => TK[k] = TK.el.querySelector(".tk-" + k));
 function say(lines, then, choice) { Talk.q.push({ lines: lines.slice(), then, choice }); }
-const talkBusy = () => rolling || forging || miniRun || jpState || cinemaQueue.length || !$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden");
+const talkBusy = () => rolling || forging || miniRun || jpState || cinemaQueue.length || $("dcOv")?.classList.contains("on") || !$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden");
 function tkSet(who, text) {
   const c = CHARS[who]; TK.box.style.setProperty("--cc", c.c); TK.ava.textContent = c.i; TK.name.textContent = c.n;
   clearInterval(Talk.typeT); Talk.full = text; let i = 0; TK.text.textContent = "";
@@ -2341,7 +2345,7 @@ function settleVkOffline() {
   showVkWelcome();
 }
 function showVkWelcome() {
-  if (!vkWelcomeReady || !$("menu").classList.contains("hidden") || !$("modal").classList.contains("hidden")) return;
+  if (!vkWelcomeReady || !$("menu").classList.contains("hidden") || !$("modal").classList.contains("hidden") || $("dcOv")?.classList.contains("on")) return;
   vkWelcomeReady = false;
   if (!vkOffline) { if (S.drawn >= 3) setTimeout(checkDaily, 700); return; }
   const { coins } = vkOffline;
@@ -2397,7 +2401,11 @@ Platform.init({
   const progressReady = Platform.hasCloud ? cloudLoad() : Promise.resolve();
   progressReady.then(() => {
     if (Platform.direct) setTimeout(() => claimPaid(1), 1500);
-    if (Platform.name === "vk") { settleVkOffline(); refreshVkPostTasks(); }
+    if (Platform.name === "vk") {
+      vkProgressReady = true;
+      if (!$("menu").classList.contains("hidden")) showMenu();
+      settleVkOffline(); refreshVkPostTasks();
+    }
   });
   // Telegram: игрок регистрируется на сервере; уже подписан на канал (например, подписался и закрыл игру) — бонус сразу
   if (Platform.name === "tg") Promise.all([Platform.hello(), progressReady]).then(([j]) => {
@@ -2743,6 +2751,7 @@ setInterval(() => { if ((srvOK || Platform.direct) && !document.hidden) claimPai
 let shopBusy = false;
 function shopBuy(k) {
   if (hasFeaturedShop() && k === "starter" && !starterOn()) return;
+  if (k === STAR_BOX_ITEM && Platform.name === "vk" && !vkProgressReady) return toast("Сохранение загружается. Попробуй через секунду.");
   if (shopBusy) return; shopBusy = true; Platform.track("shop_try_" + k);
   Platform.buy(k).then(st => {
     shopBusy = false;

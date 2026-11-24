@@ -1,7 +1,7 @@
 // ===================== ТАЧКИ: вкладка «Тачки» — контейнеры с машинами, номера на тачках, коллекция =====================
 // Подключается после game.js и пользуется его функциями: S, fmt, toast, fx, openModal, plateHTML…
 // Фото машин — Wikimedia Commons (свободные лицензии), авторы — в CREDITS ниже и в окне «Авторы фото» внизу вкладки.
-// Звёздный контейнер — покупка за звёзды Telegram через магазин бота (товар box_star в server/src/worker.js).
+// Звёздный контейнер — покупка за голоса ВК или звёзды Telegram (товар box_star).
 // Смысл: тачка без номера не зарабатывает. Вешаешь на неё свой номер из гаража — тачка приносит доход,
 // чем круче номер, тем больше. Редкость номера = редкость тачки → «идеальная пара» ×1.5.
 "use strict";
@@ -87,13 +87,15 @@ const BOXES = [
   { id: "elite", n: "Элитный контейнер", sn: "Элитный", r: 3, price: 4000000, odds: [0, 0, 0, 75, 24, 1], elite: 1, note: "Гарантированно легендарная машина или выше" },
 ];
 RC.forEach(r => Lprops(r, "n", "tag")); BOXES.forEach(b => Lprops(b, "n", "sn", "note"));   // переводятся при чтении (английский — в i18n.js)
-// звёздный (он первый в списке) — только там, где есть оплата звёздами. Проверяем каждый раз: SDK Telegram грузится уже после старта игры
+const STAR_BOX = BOXES[0];
 // звёздный виден только там, где есть в каталоге. Лента может начинаться с праздничных (в праздники они первые), поэтому — не по номеру, а по признаку
-const hidBox = b => !!(b && b.star && !sells("box_star", 49));
+const hidBox = b => !!(b && b.star && !sells(STAR_BOX_ITEM, STAR_BOX_ST));
 const minBi = () => Math.max(0, BOXES.findIndex(b => !hidBox(b)));
 const maxBi = () => { for (let i = BOXES.length - 1; i >= 0; i--) if (!hidBox(BOXES[i])) return i; return 0; };
 const stepBi = (from, dir) => { let i = from + dir; while (i >= 0 && i < BOXES.length && hidBox(BOXES[i])) i += dir; return i; };
-const starPrice = () => priceOf("box_star", 49);
+const starPrice = () => priceOf(STAR_BOX_ITEM, STAR_BOX_ST);
+const starUnlocked = d => Platform.name === "vk" || d.eliteOpened;
+const vkStarBox = b => b.star && Platform.name === "vk";
 const STAR_LOCK = "Открой элитный контейнер за монеты, чтобы открыть доступ к звёздному.";
 const FREE_AFTER = { rare: 1, epic: 2 };
 const FREE_GOAL = {
@@ -123,6 +125,10 @@ function D() {
 const SLOT0 = 3, SLOT_COST = [13000, 27000, 50000, 83000, 130000, 220000, 330000, 530000, 830000, 1300000, 2000000, 3300000];
 const cap = () => SLOT0 + (D().slots || 0), SLOT_MAX = SLOT0 + SLOT_COST.length;
 const isFull = () => D().cars.length >= cap();
+function reserveCarSlot() {
+  const d = D();
+  if (isFull()) d.slots = d.cars.length + 1 - SLOT0;
+}
 const slotCost = () => SLOT_COST[D().slots || 0];   // undefined — уже максимум
 const slotBtn = () => slotCost() != null ? `<button class="btn sm" data-act="dcSlot" data-cost="${slotCost()}">${L("🅿️ +1 место — {0} 💰", fmt(slotCost()))}</button>` : `<small class="dc-slmax">${L("Максимум — {0} мест", SLOT_MAX)}</small>`;
 function garageBar() {
@@ -186,18 +192,19 @@ const _shopGrant = shopGrant;
 shopGrant = function (item, why) {                         // оплатили звёздный контейнер — открываем его
   if (/^uncar_/.test(item)) { if (takeCar(item.slice(6))) save(); return; }          // админ забрал тачку
   if (/^car_/.test(item)) { if (giveCar(item.slice(4))) { Platform.track("gift_car"); save(); } return; }   // тачка из админки
-  if (item !== "box_star") return _shopGrant(item, why);
-  const b = BOXES[0], car = awardCar(carOfR(pick6(b.odds)));
+  if (item !== STAR_BOX_ITEM) return _shopGrant(item, why);
+  if (vkStarBox(STAR_BOX)) { ensureStarter(D()); reserveCarSlot(); }
+  const car = awardCar(carOfR(pick6(STAR_BOX.odds)));
   if (!why) S.paid.buys = (S.paid.buys || 0) + 1;
   Platform.track("paid_box"); Platform.happytime();
   save();
-  setTimeout(() => showPaidBox(b, car), 300);
+  setTimeout(() => showPaidBox(STAR_BOX, car), 300);
 };
 
 // ---------- выдача тачки из админки (подарок car_КЛЮЧ или читы): гараж полон — место добавляется само ----------
 function giveCar(k, quiet) {
   const c = CK[k]; if (!c) return false;
-  const d = D(); if (isFull()) d.slots = Math.max(d.slots || 0, d.cars.length + 1 - SLOT0);
+  reserveCarSlot();
   awardCar(c);
   if (quiet) return true;
   toast(L("🎁 Тачка {0} ({1}) — в гараже!", c.n, RC[c.r].n)); fx.confetti(c.r >= 3 ? 120 : 60); if (c.r >= 3) vignette(RC[c.r].c);
@@ -254,7 +261,7 @@ function syncBoxes() {
 }
 function nyOpen(kind) {
   const b = NY_BOX[kind]; if (!b) return false;
-  const d = D(); if (isFull()) d.slots = Math.max(d.slots || 0, d.cars.length + 1 - SLOT0);   // купленное за мандарины или донат — место найдётся всегда
+  reserveCarSlot();
   let c = null;
   if (kind === "sani") c = CK.sani;
   const car = c ? awardCar(c, true) : nyPick(b);
@@ -405,13 +412,16 @@ function carGoal(d) {
   const hint = starter && starter.pl == null && !d.payoutCars ? L("Дядя Валера оставил тебе {0}. Поставь свой номер во вкладке «Мои тачки».", CK[starter.k].n) : L(FREE_GOAL[next]);
   return `<div class="card"><b>${hint}</b></div>`;
 }
+function ensureStarter(d) {
+  if (d.starter || d.legacyRewards || d.seen.length) return false;
+  d.starter = awardCar(CK.granta).x.id; d.sub = "my";
+  Platform.track("dc_starter");
+  return true;
+}
 function renderCars() {
   cleanup(); preload();
   const d = D();
-  if (!d.starter && !d.legacyRewards && !d.seen.length) {
-    d.starter = awardCar(CK.granta).x.id; d.sub = "my";
-    Platform.track("dc_starter"); save();
-  }
+  if (ensureStarter(d)) save();
   if (S.tut === 3 && d.cars.length) d.sub = "my";
   syncBoxes();
   if (d.bi >= BOXES.length || d.bi < 0 || hidBox(BOXES[d.bi])) d.bi = minBi();
@@ -427,13 +437,13 @@ function renderCars() {
 }
 
 // ---------- контейнеры ----------
-function boxInfo(b, i) {
-  const d = D(), c = boxCol(b), free = freeReady(d, b), starLocked = b.star && !d.eliteOpened;
+function boxInfo(b) {
+  const d = D(), c = boxCol(b), free = freeReady(d, b), starLocked = b.star && !starUnlocked(d);
   const segs = b.odds.map((v, r) => v > 0 ? `<i style="flex:${Math.max(v, 3)};background:${RC[r].c};animation-delay:${r * 60}ms"></i>` : "").join("");
   const inside = (b.pool ? CARS.filter(x => x.ny || (x.r === 4 && b.pool.some(([k]) => k === "*4")))   // донатный: все новогодние и обычные мифические
     : CARS.filter(x => b.odds[x.r] > 0 && !x.ny)).sort((a, z) => (z.ny ? 1 : 0) - (a.ny ? 1 : 0) || z.r - a.r || z.p - a.p).slice(0, 10);
   const btn = starLocked ? `<p class="dc-note">🔒 ${L(STAR_LOCK)}</p>`
-    : isFull() && b !== NY_BOX.paid ? `<button class="btn alt dc-open" data-act="dcFull">${L("🅿️ Гараж полон ({0}) — освободи место", D().cars.length + "/" + cap())}</button>`
+    : isFull() && !vkStarBox(b) && b !== NY_BOX.paid ? `<button class="btn alt dc-open" data-act="dcFull">${L("🅿️ Гараж полон ({0}) — освободи место", D().cars.length + "/" + cap())}</button>`
     : b.nyb ? (b === NY_BOX.paid ? `<button class="btn star dc-open" data-act="dcOpen">${L("Открыть за {0}", priceOf("box_ny", 79))}</button>`
       : NY.boxLeft() > 0 ? `<button class="btn ${NY.m() >= NY.boxCost ? "green" : "alt"} dc-open" data-act="dcOpen">${L("Открыть за {0} 🍊", NY.boxCost)}</button><p class="dc-note">${L("У тебя {0} 🍊 · осталось {1} из 5", fmt(NY.m()), NY.boxLeft())}</p>`
       : `<p class="dc-note">${L("Все 5 подарочных контейнеров уже открыты")}</p>`)
@@ -446,22 +456,23 @@ function boxInfo(b, i) {
     <div class="dc-note">${b.note}</div>${free ? `<span class="dc-free">${L("первый раз бесплатно!")}</span>` : ""}
     ${b.free && d.free[b.id] && !free ? `<p class="dc-note">${L(FREE_GOAL[b.id])}</p>` : ""}
     ${b.star ? `<div class="dc-promo">${(NOBRAND ? L("💎 Почти каждый третий — <b>суперлегенда</b>") : L("💎 Почти каждый третий — <b>суперлегенда</b>: Bugatti, Koenigsegg, Pagani, Aurus, Rolls-Royce"))}</div>` : ""}
+    ${vkStarBox(b) ? btn : ""}
     <div class="dc-bar">${segs}</div>
     <div class="dc-leg">${b.odds.map((v, r) => v > 0 ? `<span style="--c:${RC[r].c}">${RC[r].n} ${v}%</span>` : "").join("")}</div>
     ${b.pool ? `<div class="dc-leg dc-pool">${b.pool.map(([k, w]) => `<span style="--c:${k === "*4" ? RC[4].c : RC[CK[k].r].c}">${k === "*4" ? L("Обычные мифические") : CK[k].n} ${w}%</span>`).join("")}</div>` : ""}
     <div class="dc-thumbs">${inside.map((x, k) => `<div style="--c:${RC[x.r].c};animation-delay:${120 + k * 45}ms"><img src="${img(x.k)}">${x.n}</div>`).join("")}</div>
-    ${btn}`;
+    ${vkStarBox(b) ? "" : btn}`;
 }
 function orbs(b) { return b.r >= 3 || b.star ? Array.from({ length: b.star ? 7 : b.elite ? 6 : 4 }, (_, k) => `<i class="dc-orb" style="left:50%;top:44%;animation-delay:${-k * 3 / (b.star ? 7 : b.elite ? 6 : 4)}s;animation-duration:${b.star ? 2.4 : 3}s"></i>`).join("") : ""; }
 // лента всех контейнеров: звёздный первым, крупнее и с переливающейся рамкой
 function boxList() {
   const d = D();
   return `<div class="dc-list" id="dcList">${BOXES.map((b, i) => { if (hidBox(b)) return "";
-    const free = freeReady(d, b), starUnlocked = b.star && d.eliteOpened;
-    const price = b.nyb ? (b === NY_BOX.paid ? priceOf("box_ny", 79) : NY.boxCost + " 🍊") : b.star ? starUnlocked ? starPrice() : "🔒" : free ? L("бесплатно") : fmt(b.price) + " 💰";
-    return `<div class="dc-li${starUnlocked ? " hit" : ""}${i === d.bi ? " on" : ""}${free ? " fr" : ""}" style="--rc:${boxCol(b)}" data-act="dcPickBox" data-i="${i}">
-      ${b.nyb ? `<span class="dc-badge">🎄</span>` : starUnlocked ? `<span class="dc-badge">${L("🔥 ХИТ")}</span>` : free ? `<span class="dc-badge g">🎁</span>` : ""}
-      ${crate(b)}<b>${b.sn}</b><small>${price}</small>${starUnlocked ? `<em>${L("30% суперлегенда")}</em>` : ""}</div>`;
+    const free = freeReady(d, b), starForSale = b.star && starUnlocked(d);
+    const price = b.nyb ? (b === NY_BOX.paid ? priceOf("box_ny", 79) : NY.boxCost + " 🍊") : b.star ? starForSale ? starPrice() : "🔒" : free ? L("бесплатно") : fmt(b.price) + " 💰";
+    return `<div class="dc-li${starForSale ? " hit" : ""}${i === d.bi ? " on" : ""}${free ? " fr" : ""}" style="--rc:${boxCol(b)}" data-act="dcPickBox" data-i="${i}">
+      ${b.nyb ? `<span class="dc-badge">🎄</span>` : starForSale ? `<span class="dc-badge">${L("🔥 ХИТ")}</span>` : free ? `<span class="dc-badge g">🎁</span>` : ""}
+      ${crate(b)}<b>${b.sn}</b><small>${price}</small>${starForSale ? `<em>${L("30% суперлегенда")}</em>` : ""}</div>`;
   }).join("")}</div>`;
 }
 const starStage = b => b.star ? `<div class="dc-twinkle"></div><div class="dc-ribbon">${L("⭐ Лучший шанс на суперлегенду — 30%")}</div>` : "";
@@ -474,7 +485,7 @@ function renderBoxes() {
       <div class="dc-crate" id="dcCrate">${crate(b)}</div>
       <button class="dc-arr l" data-act="dcPrev" ${d.bi > minBi() ? "" : "disabled"}>‹</button><button class="dc-arr r" data-act="dcNext" ${d.bi < maxBi() ? "" : "disabled"}>›</button>
       <div class="dc-dots">${BOXES.map((x, i) => hidBox(x) ? "" : `<i data-i="${i}" class="${i === d.bi ? "on" : ""}"></i>`).join("")}</div>
-    </div><div class="dc-info" id="dcInfo">${boxInfo(b, d.bi)}</div>`;
+    </div><div class="dc-info" id="dcInfo">${boxInfo(b)}</div>`;
   const sh = $("dcShow"); let x0 = null;
   sh.addEventListener("pointerdown", e => { x0 = e.clientX; });
   sh.addEventListener("pointerup", e => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 40) boxGo(dx < 0 ? 1 : -1); });
@@ -504,7 +515,7 @@ async function boxGo(dir, to) {   // смена контейнера: стары
     { transform: `translateX(${-dir * 7}%) translateY(-18px) rotateY(${-dir * 12}deg) scale(1.1)`, opacity: 1, filter: "blur(0) brightness(1.4)", offset: .62 },
     { transform: "translateY(4px) scale(1.04,.94)", filter: "brightness(1.1)", offset: .82 },
     { transform: "none", filter: "none" }], { duration: 640, easing: "cubic-bezier(.2,.8,.3,1)" });
-  info.innerHTML = boxInfo(b, n); info.getAnimations().forEach(a => a.cancel());
+  info.innerHTML = boxInfo(b); info.getAnimations().forEach(a => a.cancel());
   info.animate([{ opacity: 0, transform: `translateX(${dir * 30}px)` }, { opacity: 1, transform: "none" }], { duration: 320, easing: "ease-out" });
   await wait(520);
   Sx.land(b.r); buzz(b.r >= 3 ? 30 : 15);   // приземление: волна по полу, искры цвета редкости
@@ -530,8 +541,8 @@ function pay(i) {
     Platform.track("box_nygift"); return true;
   }
   if (b.star) {
-    if (!d.eliteOpened) toast(L(STAR_LOCK));
-    else if (sells("box_star", 49)) shopBuy("box_star");
+    if (!starUnlocked(d)) toast(L(STAR_LOCK));
+    else if (!hidBox(b)) shopBuy(STAR_BOX_ITEM);
     return false;
   }
   if (S.coins < b.price) { toast(L("Не хватает монет: нужно {0} 💰", fmt(b.price))); shake($("coinsBox")); return false; }
@@ -542,13 +553,13 @@ function ov() { let o = $("dcOv"); if (!o) { o = document.createElement("div"); 
 function openBox(viaAd = false, index = D().bi) {
   const d = D(), i = viaAd ? BOXES.findIndex(x => x.id === AD_BOX) : index, b = BOXES[i];
   if (!b || opening || switching) return;
-  if (!viaAd && isFull() && b !== NY_BOX.paid) return fullModal();   // донатный: место в гараже добавится само при выдаче
+  if (!viaAd && isFull() && !vkStarBox(b) && b !== NY_BOX.paid) return fullModal();
   if (!viaAd && !pay(i)) return;
   if (viaAd) Platform.track("box_ad");
   const car = b.nyb ? nyPick(b) : awardCar(carOfR(pick6(b.odds)), nyWinter());
-  if (b.elite && !d.eliteOpened) {
+  if (b.elite && !starUnlocked(d)) {
     d.eliteOpened = true;
-    if (sells("box_star", 49)) toast(L("⭐ Звёздный контейнер теперь доступен!"));
+    if (!hidBox(STAR_BOX)) toast(L("⭐ Звёздный контейнер теперь доступен!"));
     Platform.track("dc_star_unlock");
   }
   save();
@@ -556,9 +567,14 @@ function openBox(viaAd = false, index = D().bi) {
 }
 function showPaidBox(b, car) {
   if (opening || switching) return setTimeout(() => showPaidBox(b, car), 1500);
-  if (tab !== "cars") openTab("cars");
-  if (tab === "cars" && D().eliteOpened && sells("box_star", 49)) {
-    D().sub = "boxes"; D().bi = BOXES.findIndex(x => x.star); renderCars();
+  if (vkStarBox(b) && !$("menu").classList.contains("hidden")) {
+    animateBox(b, car);
+    hideMenu();
+    return;
+  }
+  if (tab !== "cars" && !(vkStarBox(b) && S.tut >= 0)) openTab("cars");
+  if (tab === "cars" && (vkStarBox(b) || D().eliteOpened) && !hidBox(STAR_BOX)) {
+    D().sub = "boxes"; D().bid = STAR_BOX.id; renderCars();
   }
   animateBox(b, car);
 }
@@ -612,7 +628,7 @@ async function reveal(c, x, isNew) {
     <div class="dco-n">${c.n}</div>
     <div class="dco-i"><div>${L("Стоимость")}<b>${fmt(c.p)} 💰</b></div><div>${L("С номером")}<b style="color:var(--ok)">${L("от +{0}/30 сек", fmt(c.base * (isWinter(c, x) ? WINTER : 1) * PAY_SEC))}</b></div></div>
     <div class="dco-b"><button class="btn green" data-act="dcPick" data-id="${x.id}">${L("🔢 Повесить номер")}</button>
-      <div class="row2"><button class="btn alt" data-act="dcSellWon">${L("Продать {0}", fmt(c.p * SELL))}</button>${isFull() ? `<button class="btn alt" data-act="dcFull">${L("🅿️ Гараж полон")}</button>` : opening.b.once ? "" : !opening.b.star || (D().eliteOpened && sells("box_star", 49)) ? `<button class="btn" data-act="dcAgain">${L("Ещё ↻")}</button>` : ""}</div>
+      <div class="row2"><button class="btn alt" data-act="dcSellWon">${L("Продать {0}", fmt(c.p * SELL))}</button>${isFull() && !vkStarBox(opening.b) ? `<button class="btn alt" data-act="dcFull">${L("🅿️ Гараж полон")}</button>` : opening.b.once ? "" : !opening.b.star || (starUnlocked(D()) && !hidBox(opening.b)) ? `<button class="btn" data-act="dcAgain">${L("Ещё ↻")}</button>` : ""}</div>
       <button class="btn alt dco-close" data-act="dcClose">${L("Закрыть — тачка останется в гараже")}</button></div></div>
     <button class="dco-x" data-act="dcClose" aria-label="${L("Закрыть")}">✕</button>`;
   fitPlates(o);
@@ -622,7 +638,7 @@ async function reveal(c, x, isNew) {
   if (c.r >= 3) setTimeout(() => fx.confetti(sup ? 220 : 90, sup ? cols : undefined), 250);
   if (sup) for (let k = 1; k <= 3; k++) setTimeout(() => { flash(); fx.firework(Math.random() * innerWidth, innerHeight * (.2 + Math.random() * .4)); Sx.boom(); }, 900 * k);
 }
-function closeOv() { const o = ov(); o.classList.remove("on", "quake"); o.innerHTML = ""; $("fx").style.zIndex = ""; opening = null; renderCars(); }
+function closeOv() { const o = ov(); o.classList.remove("on", "quake"); o.innerHTML = ""; $("fx").style.zIndex = ""; opening = null; renderCars(); showVkWelcome(); }
 
 // ---------- мои тачки ----------
 function renderMy(flyId) {
