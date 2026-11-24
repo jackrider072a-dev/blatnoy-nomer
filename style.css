@@ -407,7 +407,9 @@ small{color:var(--dim);font-size:11px}
 .tk-body{flex:1;min-width:0}
 .tk-name{color:var(--cc,#ffd23f);font-size:13px}
 .tk-text{margin:3px 0 0;font-size:14px;line-height:1.4;min-height:2.8em;color:var(--txt)}
-.tk-next{flex:none;background:var(--gold);color:#2a2000;border:0;border-radius:10px;padding:8px 12px;font:bold 13px Arial;cursor:pointer}
+.tk-next,.tk-choice button{flex:none;background:var(--gold);color:#2a2000;border:0;border-radius:10px;padding:8px 12px;font:bold 13px Arial;cursor:pointer}
+.tk-choice:not([hidden]){display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tk-choice [data-choice="skip"]{background:#34415f;color:var(--txt)}
 .tk-skip{position:absolute;top:-30px;right:4px;background:#000a;color:var(--dim);border:0;border-radius:8px;padding:5px 10px;font:11px Arial;cursor:pointer}
 .goal{cursor:pointer}
 .goal .gch{display:block;color:var(--gold);font-weight:bold;margin-bottom:3px}

@@ -892,6 +892,7 @@ function syncAdButtons() {
   $("btnAd").style.display = Platform.adsOK ? "" : "none";
   $("btnShop").style.display = Platform.canPay && S.tut === -1 ? "" : "none";   // магазин (Telegram, ВК, Яндекс) — после обучения
   $("btnShop").textContent = shopIco() + " " + L("Магазин");
+  renderVkStarter();
   $("btnBuff").style.display = Platform.adsOK && S.lvl >= 3 && S.plates.length ? "" : "none";   // доход ×2 имеет смысл, когда гараж уже приносит деньги
 }
 // вкладки открываются по мере роста, чтобы новичок не тонул в кнопках
@@ -2035,8 +2036,8 @@ function storyEvents() {                                // короткие ре
 
 // ---------- окно реплик ----------
 const Talk = { q: [], cur: null, i: 0, typeT: null, full: "" };
-const TK = { el: $("talk") }; ["dim", "hole", "finger", "box", "ava", "name", "text", "next", "skip"].forEach(k => TK[k] = TK.el.querySelector(".tk-" + k));
-function say(lines, then) { Talk.q.push({ lines: lines.slice(), then }); }
+const TK = { el: $("talk") }; ["dim", "hole", "finger", "box", "ava", "name", "text", "next", "skip", "choice"].forEach(k => TK[k] = TK.el.querySelector(".tk-" + k));
+function say(lines, then, choice) { Talk.q.push({ lines: lines.slice(), then, choice }); }
 const talkBusy = () => rolling || forging || miniRun || jpState || cinemaQueue.length || !$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden");
 function tkSet(who, text) {
   const c = CHARS[who]; TK.box.style.setProperty("--cc", c.c); TK.ava.textContent = c.i; TK.name.textContent = c.n;
@@ -2048,11 +2049,19 @@ function dlgLine() { const [who, text] = Talk.cur.lines[Talk.i]; tkSet(who, L(te
 function dlgNext() {
   if (tkFinish()) return;
   if (++Talk.i < Talk.cur.lines.length) return dlgLine();
-  const then = Talk.cur.then; Talk.cur = null; TK.el.classList.add("hidden"); if (then) then();
+  dlgClose();
+}
+function dlgClose() {
+  tkFinish();
+  const then = Talk.cur.then;
+  Talk.cur = null; TK.el.classList.add("hidden"); TK.choice.hidden = true;
+  if (then) then();
 }
 function dlgStart(item) {
   Talk.cur = item; Talk.i = 0; Tut.block = false; Tut.txt = "";
-  TK.el.className = "dlg"; TK.box.className = "tk-box bottom"; TK.next.style.display = ""; TK.skip.style.display = "none";
+  TK.el.className = "dlg"; TK.box.className = "tk-box bottom"; TK.skip.style.display = "none";
+  TK.next.style.display = item.choice ? "none" : "";
+  TK.choice.hidden = !item.choice;
   TK.hole.style.display = TK.finger.style.display = "none";   // подсветка от обучения в диалоге не нужна
   dlgLine();
 }
@@ -2083,8 +2092,18 @@ TUT.forEach(s => typeof s.say === "string" && Lprops(s, "say"));
 const Tut = { block: false, target: null, txt: "", base: 0, scrolled: -1 };
 const shown = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
 function tutHide() { TK.el.classList.add("hidden"); Tut.block = false; Tut.target = null; }
-function tutGo(n) { S.tut = n; Tut.base = S.taxis; Tut.txt = ""; if (n >= TUT.length) S.tut = -1;
-  if (S.tut === -1) Platform.track(n === -1 ? "tut_skip" : "tut_done"); else if (n > 0) Platform.track("tut_" + n); save(); tutHide(); renderGoal(); renderSubs(); }
+function tutGo(n) {
+  const completed = S.tut === TUT.length - 1 && n === TUT.length;
+  S.tut = n >= TUT.length ? -1 : n; Tut.base = S.taxis; Tut.txt = "";
+  if (S.tut === -1) {
+    Platform.track(n === -1 ? "tut_skip" : "tut_done");
+    syncAdButtons();
+  } else if (n > 0) Platform.track("tut_" + n);
+  save(); tutHide(); renderGoal(); renderSubs();
+  if (completed && Platform.name === "vk" && starterOn()) {
+    say([["valera", `Ну всё, освоился, племяш! Хочешь побыстрее раскрутить гараж? В наборе за ${priceOf("starter", 15)} — блатной номер, монеты и двойной доход на час.`]], null, openVkStarter);
+  }
+}
 function tutTick() {
   const st = TUT[S.tut]; if (!st) return tutGo(-1);
   if (st.done && st.done()) return tutGo(S.tut + 1);
@@ -2105,6 +2124,14 @@ function tutTick() {
   TK.finger.style.left = r.left + r.width / 2 - 18 + "px"; TK.finger.style.top = (low ? r.top - 46 : r.bottom + 4) + "px";
 }
 TK.el.addEventListener("click", e => {
+  if (Talk.cur?.choice) {
+    const picked = e.target.closest("[data-choice]")?.dataset.choice;
+    if (!picked) return tkFinish();
+    const open = Talk.cur.choice;
+    dlgClose();
+    if (picked === "open") open();
+    return;
+  }
   if (Talk.cur) return dlgNext();
   if (e.target.closest(".tk-skip")) { tutGo(-1); toast(L("Обучение пропущено")); return; }
   const st = TUT[S.tut]; if (st && st.next && !tkFinish()) tutGo(S.tut + 1);
@@ -2440,7 +2467,7 @@ setInterval(() => {                                   // время от вре�
   openModal(`<h2>${L("🎁 Бонус за подписку")}</h2><p>${L("Подпишись на наши паблики — там новые номера, конкурсы и секреты игры. За каждую подписку:")} <b style="color:var(--gold)">+${fmt(subReward())} 💰</b></p>
     ${subsHTML("green")}<button class="btn alt" data-act="closeModal">${L("Позже")}</button>`);
 }, 10000);
-// ----- магазин за звёзды (только Telegram). Цены и выдача товара — на сервере (server/src/worker.js, ITEMS), игра только показывает и выдаёт.
+// ----- магазин: каталог игры и выдача покупок; цены ВК и Telegram сверяются с ITEMS в server/src/worker.js.
 const SHOP = [
   { k: "starter", st: 15, ico: "🎁", n: "Набор новичка", d: () => L("+{0} 💰, блатной номер и доход ×2 на час", fmt(shopCash("starter"))) },
   { k: "cash_s", st: 25, ico: "💰", n: "Пачка денег", d: () => L("+{0} 💰 — 30 минут дохода", fmt(shopCash("cash_s"))) },
@@ -2456,20 +2483,42 @@ const shopIco = () => Platform.name === "tg" ? "⭐" : "🛒";
 const SHOP_NOTE = () => Platform.name === "vk" ? L("Покупки за голоса ВКонтакте. Спасибо, что поддерживаешь игру!")
   : Platform.name === "ya" ? L("Покупки за яны Яндекс Игр. Спасибо, что поддерживаешь игру!") : L("Покупки за звёзды Telegram. Спасибо, что поддерживаешь игру!");
 const shopCash = k => k === "cash_l" ? Math.max(6000, Math.round(income() * 10800 / 10) * 10) : k === "starter" ? Math.max(1500, Math.round(income() * 3600 / 10) * 10) : Math.max(1000, Math.round(income() * 1800 / 10) * 10);
-// набор новичка: одна покупка, предложение действует сутки с первого открытия магазина или всплывашки
-const starterOn = () => sells("starter", 15) && !S.paid.starter && (!S.paid.starterUntil || Date.now() < S.paid.starterUntil);
+// В ВК набор виден после первого слияния и обучения. На остальных площадках действует прежний таймер.
+const starterOn = () => sells("starter", 15) && !S.paid.starter && (Platform.name === "vk"
+  ? S.tut === -1 && S.merges > 0
+  : !S.paid.starterUntil || Date.now() < S.paid.starterUntil);
 function starterStart() { if (!S.paid.starterUntil) { S.paid.starterUntil = Date.now() + 864e5; save(); } }
+function renderVkStarter() {
+  const button = $("btnVkStarter");
+  const available = Platform.name === "vk" && starterOn();
+  button.style.display = available ? "" : "none";
+  if (available && !button.firstElementChild) button.innerHTML = `<span>🎁 Набор новичка<small>Блатной номер, монеты и доход ×2 на час</small></span><b>${priceOf("starter", 15)}</b>`;
+}
+function openVkStarter() {
+  if (Platform.name !== "vk" || !starterOn()) return;
+  const garageNote = S.plates.length >= slots() ? `<div class="hint">Если в гараже не хватит места, игра может продать один из номеров за монеты.</div>` : "";
+  openModal(`<h2>🎁 Набор новичка</h2>
+    <div class="card" style="text-align:left"><p>🚘 <b>Блатной номер</b> в коллекцию</p><p>💰 <b>+${fmt(shopCash("starter"))}</b> монет</p><p>🔥 <b>Доход ×2</b> на 1 час</p></div>
+    ${garageNote}
+    <button class="btn star shopbtn" data-act="shopBuy" data-k="starter"><span>Купить набор</span><b>${priceOf("starter", 15)}</b></button>
+    <button class="btn alt" data-act="closeModal">${L("Не сейчас")}</button>`);
+}
 function openShop() {
-  Platform.track("shop_open"); if (starterOn()) starterStart();
+  Platform.track("shop_open");
+  const timedStarter = Platform.name !== "vk";
+  if (timedStarter && starterOn()) starterStart();
   const items = SHOP.filter(s => sells(s.k, s.st) && !(s.k === "x2" && S.paid.x2) && (s.k !== "starter" || starterOn()));
   openModal(`<h2>${shopIco()} ${L("Магазин")}</h2><p>${SHOP_NOTE()}</p>
-    ${items.map(s => `<button class="btn ${s.k === "x2" || s.k === "starter" ? "star" : "alt"} shopbtn" data-act="shopBuy" data-k="${s.k}"><span>${s.ico} ${L(s.n)}${s.k === "starter" ? ` <i class="sale">−70%</i>` : ""}<small>${s.d()}${s.k === "starter" ? " · " + L("осталось") + ` <span class="timer" data-until="${S.paid.starterUntil}"></span>` : ""}</small></span><b>${priceOf(s.k, s.st)}</b></button>`).join("")}
+    ${items.map(s => {
+      if (s.k === "starter" && !timedStarter) return `<button class="btn star shopbtn" data-act="vkStarter"><span>${s.ico} ${L(s.n)}<small>${s.d()}</small></span><b>${priceOf(s.k, s.st)}</b></button>`;
+      return `<button class="btn ${s.k === "x2" || s.k === "starter" ? "star" : "alt"} shopbtn" data-act="shopBuy" data-k="${s.k}"><span>${s.ico} ${L(s.n)}${s.k === "starter" ? ` <i class="sale">−70%</i>` : ""}<small>${s.d()}${s.k === "starter" ? " · " + L("осталось") + ` <span class="timer" data-until="${S.paid.starterUntil}"></span>` : ""}</small></span><b>${priceOf(s.k, s.st)}</b></button>`;
+    }).join("")}
     ${S.paid.x2 ? `<div class="hint">${L("🔥 Доход ×2 навсегда уже куплен")}</div>` : ""}
     ${Platform.name === "tg" ? `<div class="hint">${L("Условия покупок — /terms, помощь с оплатой — /paysupport в боте.")}</div>` : ""}
     <button class="btn alt" data-act="closeModal">${L("Закрыть")}</button>`);
 }
 setInterval(() => {                                   // один раз: предложить набор новичка, когда игрок освоился (6+ минут игры после обучения)
-  if (!starterOn() || S.paid.starterUntil || S.tut !== -1 || S.playSec < 360 || !(srvOK || Platform.direct)) return;
+  if (Platform.name === "vk" || !starterOn() || S.paid.starterUntil || S.tut !== -1 || S.playSec < 360 || !(srvOK || Platform.direct)) return;
   if (!$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden") || jpState || Talk.cur || rolling || pending || cinemaQueue.length) return;
   starterStart(); Platform.track("starter_show");
   openModal(`<h2>${L("🎁 Набор новичка")}</h2><p>${L("Только для новичков и только 24 часа — в 3 раза дешевле обычного:")}</p>
@@ -2527,6 +2576,7 @@ function claimPaid(tries, afterPay) {
 setInterval(() => { if ((srvOK || Platform.direct) && !document.hidden) claimPaid(1); }, 90000);
 let shopBusy = false;
 function shopBuy(k) {
+  if (Platform.name === "vk" && k === "starter" && !starterOn()) return;
   if (shopBusy) return; shopBusy = true; Platform.track("shop_try_" + k);
   Platform.buy(k).then(st => {
     shopBusy = false;
@@ -3056,7 +3106,7 @@ const ACTS = {
   sellPending: () => resolvePending(true), keepPending: () => resolvePending(false),
   subGo: d => subGo(d.k),
   gateGo: () => { Platform.openLink("https://t.me/blatnoynomer_tg"); Platform.track("gate_go"); }, gateCheck: () => gateCheck(true),
-  shop: () => openShop(), shopBuy: d => shopBuy(d.k),
+  shop: () => openShop(), vkStarter: () => openVkStarter(), shopBuy: d => shopBuy(d.k),
   admin: () => openAdmin(), admTab: d => openAdmin(d.t), admCheat: d => admCheat(d.k),
   admSearch: () => admPlayers(($("admQ") || {}).value || ""),
   admPlayer: d => { const g = $("gifts-" + d.uid); if (g) { g.classList.toggle("hidden"); g.parentElement.classList.toggle("open", !g.classList.contains("hidden")); } },
