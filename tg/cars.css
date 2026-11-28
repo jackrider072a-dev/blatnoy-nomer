@@ -37,7 +37,8 @@ nav button em#carsDot{display:none}
 @keyframes dcfly{0%{transform:translateY(-260%) rotate(-18deg) scale(1.4);opacity:0}60%{transform:translateY(6%) rotate(2deg);opacity:1}100%{transform:none}}
 
 /* ---------- мои тачки ---------- */
-.dc-filters{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px}
+.dc-filters{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;padding-bottom:7px;scroll-snap-type:x proximity;
+  -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 30px),#0003);mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 30px),#0003)}
 .dc-filters button{flex:none;font:bold 11px Arial;border:1px solid #2a3350;border-radius:12px;padding:6px 10px;background:var(--card);color:#cfd6e6;cursor:pointer}
 .dc-filters button.on{background:var(--gold);color:#222;border-color:var(--gold)}
 .dc-filters button i{font-style:normal;display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:4px}
@@ -48,6 +49,20 @@ nav button em#carsDot{display:none}
 .dc-crow{display:flex;align-items:center;gap:8px;margin-top:4px}
 .dc-crow .t{flex:1;min-width:0}.dc-crow .t b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dc-crow .t small{font-size:12px;color:var(--ok);font-weight:bold}.dc-crow .t small.no{color:#ff8a98}
+.dc-acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.dc-acts small{align-self:center;color:var(--dim);font-size:11px;text-align:center}
+.dc-act{min-height:42px;padding:7px 8px;border:1px solid #475778;border-radius:10px;background:#202b43;color:#eef3ff;
+  font:700 12px/1.25 Arial,sans-serif;cursor:pointer;transition:background .15s,border-color .15s}
+.dc-act.on{border-color:#ab883d;color:var(--gold);background:#302a20}
+.dc-act.sell{border-color:#845063;background:#312433;color:#ffabb7}
+.dc-act.sell.sure{border-color:#df5f73;background:#ac374d;color:#fff}
+.dc-act:focus-visible,.dco-x:focus-visible{outline:2px solid #d8f8ff;outline-offset:2px}
+@media (hover:hover){
+  .dc-act:hover{border-color:#7187b0;background:#2b3956}
+  .dc-act.on:hover{border-color:var(--gold);background:#413321}
+  .dc-act.sell:hover{border-color:#d37a90;background:#453044}
+  .dc-act.sell.sure:hover{border-color:#ff93a6;background:#c9445b}
+}
 .dc-pair{display:inline-block;margin-left:4px;font-size:10px;padding:1px 6px;border-radius:6px;background:#ffd23f26;color:var(--gold)}
 .dc-card.pop{animation:dccard .6s}
 @keyframes dccard{30%{transform:scale(1.03);box-shadow:0 0 30px var(--rc)}}
@@ -111,6 +126,8 @@ nav button em#carsDot{display:none}
 .dco-i div{border-radius:10px;background:var(--card);border:1px solid #232b40;padding:7px 12px;font-size:11px;color:var(--dim);text-align:center}.dco-i b{display:block;color:#fff;font-size:14px;margin-top:2px}
 .dco-b{position:relative;width:92%;animation:dcpin .5s .7s both}
 .dco-b .row2{display:flex;gap:8px}.dco-b .btn{font-size:14px;padding:12px 6px}
+.dco-b .dco-close{margin-top:8px;padding:10px;border:1px solid #ffffff25;background:transparent;box-shadow:none;color:var(--dim);font-size:13px}
+.dco-x{position:absolute;top:14px;right:14px;z-index:6;width:38px;height:38px;border:1px solid #ffffff30;border-radius:50%;background:#0009;color:#fff;font:bold 18px Arial;cursor:pointer}
 @keyframes dcpin{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:none}}
 .dc-flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:72}.dc-flash.go{animation:dcfl .6s ease-out}@keyframes dcfl{0%{opacity:.85}100%{opacity:0}}
 
