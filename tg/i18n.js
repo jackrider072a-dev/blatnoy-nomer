@@ -510,6 +510,8 @@ I18N.en = {
 
 // ----- вкладка «Тачки» (cars.js)
 Object.assign(I18N.en, {
+  "Тачек пока нет — открой контейнер в магазине.": "No cars yet. Open a container in the shop.",
+  "🎁 Забрать в магазине: {0}": "🎁 Claim in the shop: {0}",
   "Тачки": "Cars", "🚘 Тачка": "🚘 Car", "📦 Контейнеры": "📦 Crates", "🚘 Мои тачки · {0}": "🚘 My cars · {0}", "🏆 Коллекция": "🏆 Collection",
   "А ещё я оставил тебе машину. Загляни во вкладку «Тачки».": "I left you a car too. Take a look in the Cars tab.",
   "Поставь на машину свой номер, и она начнёт приносить доход.": "Put your plate on the car and it will start earning.",

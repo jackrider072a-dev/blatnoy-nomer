@@ -1,4 +1,4 @@
-/* ===== демо: вкладка «Тачки» внутри игры — контейнеры с машинами, номера на тачках, коллекция ===== */
+/* ===== Вкладка «Тачки», коллекция и выдача машин ===== */
 nav button em#carsDot{display:none}
 #modal{z-index:80}   /* выбор номера открывается и поверх экрана выпадения */
 #tab-cars{padding-bottom:16px}
@@ -10,43 +10,6 @@ nav button em#carsDot{display:none}
 .dc-seg{display:flex;gap:4px;background:var(--card);border:1px solid #232b40;border-radius:14px;padding:4px;margin-bottom:10px}
 .dc-seg button{flex:1;font:bold 12px Arial;border:0;border-radius:10px;padding:9px 2px;background:none;color:var(--dim);cursor:pointer}
 .dc-seg button.on{background:var(--card2);color:var(--gold);box-shadow:inset 0 -2px 0 var(--gold)}
-
-/* ---------- витрина контейнеров ---------- */
-.dc-show{position:relative;height:250px;border-radius:18px;overflow:hidden;border:2px solid var(--line);perspective:700px;touch-action:pan-y;
-  background:radial-gradient(70% 55% at 50% 72%,color-mix(in srgb,var(--rc) 22%,transparent),transparent 70%),linear-gradient(#171d2e,#121726);transition:border-color .5s,box-shadow .5s}
-.dc-show.hot{border-color:var(--rc);box-shadow:0 0 30px color-mix(in srgb,var(--rc) 45%,transparent)}
-.dc-beam{position:absolute;left:50%;top:-40px;width:260px;height:300px;margin-left:-130px;pointer-events:none;filter:blur(3px);
-  background:conic-gradient(from 160deg at 50% 0,transparent,color-mix(in srgb,var(--rc) 35%,transparent) 14deg,color-mix(in srgb,var(--rc) 35%,transparent) 26deg,transparent 40deg)}
-.dc-floor{position:absolute;left:50%;bottom:26px;width:220px;height:46px;margin-left:-110px;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--rc) 55%,transparent),transparent)}
-.dc-floor::after{content:"";position:absolute;inset:12px 34px;border-radius:50%;border:2px solid color-mix(in srgb,var(--rc) 75%,transparent);box-shadow:0 0 18px var(--rc)}
-.dc-ring{position:absolute;left:50%;bottom:30px;width:200px;height:40px;margin-left:-100px;border-radius:50%;border:3px solid var(--rc);opacity:0;pointer-events:none}
-.dc-crate{position:absolute;left:50%;top:22px;width:180px;height:180px;margin-left:-90px;transform-style:preserve-3d}
-.dc-crate .cr{width:100%;height:100%;filter:drop-shadow(0 16px 14px #000c);animation:dcbob 3.2s ease-in-out infinite}
-@keyframes dcbob{0%,100%{transform:translateY(0) rotateY(-10deg)}50%{transform:translateY(-8px) rotateY(10deg)}}
-.dc-streak{position:absolute;inset:0;pointer-events:none;opacity:0;background:repeating-linear-gradient(0deg,transparent 0 12px,color-mix(in srgb,var(--rc) 40%,transparent) 12px 13px,transparent 13px 31px)}
-.dc-arr{position:absolute;top:50%;margin-top:-22px;width:42px;height:42px;border-radius:50%;border:2px solid var(--line);background:#0b0e16cc;color:#fff;font:bold 22px Arial;z-index:3;cursor:pointer}
-.dc-arr.l{left:8px}.dc-arr.r{right:8px}.dc-arr:disabled{opacity:.25}
-.dc-dots{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;gap:5px}
-.dc-dots i{width:7px;height:7px;border-radius:4px;background:#ffffff30;transition:.35s}.dc-dots i.on{width:20px;background:var(--rc)}
-.dc-orb{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--rc);box-shadow:0 0 8px var(--rc);pointer-events:none;animation:dcorb 3s linear infinite}
-@keyframes dcorb{0%{transform:rotate(0) translateX(105px) rotate(0) scale(.6)}50%{transform:rotate(180deg) translateX(105px) rotate(-180deg) scale(1.2)}100%{transform:rotate(360deg) translateX(105px) rotate(-360deg) scale(.6)}}
-.dc-info{padding:12px 2px 0}
-.dc-name{text-align:center;font-size:22px;font-weight:bold;color:var(--rc);text-shadow:0 0 14px color-mix(in srgb,var(--rc) 55%,transparent);min-height:27px}
-.dc-name span{display:inline-block;animation:dcl .45s cubic-bezier(.2,1.6,.4,1) both}
-@keyframes dcl{0%{opacity:0;transform:translateY(14px) scale(.4) rotate(-12deg)}100%{opacity:1;transform:none}}
-.dc-note{text-align:center;font-size:12px;color:var(--dim);margin-top:2px}
-.dc-free{display:block;width:max-content;margin:6px auto 0;font:bold 11px Arial;padding:4px 10px;border-radius:7px;background:var(--ok);color:#0b2a14;animation:readypulse 1.4s infinite}
-.dc-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:#ffffff0c;margin-top:12px}
-.dc-bar i{height:100%;min-width:4px;transform-origin:left;animation:dcgrow .5s cubic-bezier(.2,.9,.3,1) both}
-@keyframes dcgrow{from{transform:scaleX(0)}}
-.dc-leg{display:flex;flex-wrap:wrap;gap:3px 11px;font-size:11px;color:#c7cee0;margin-top:6px}
-.dc-leg span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--c);margin-right:5px}
-.dc-thumbs{display:flex;gap:6px;overflow-x:auto;margin-top:10px;padding-bottom:3px}
-.dc-thumbs div{flex:none;width:78px;border-radius:10px;background:var(--card);border:1px solid #232b40;border-bottom:3px solid var(--c);padding:4px;text-align:center;font-size:9px;color:#c7cee0;line-height:1.15;animation:dcin .4s both}
-@keyframes dcin{from{opacity:0;transform:translateX(26px)}}
-.dc-thumbs img{width:70px;height:36px;object-fit:contain}
-.dc-open{font-size:18px}
-.dc-open.star small{display:block;font-size:11px;opacity:.8}
 
 /* ---------- машина + номер поверх фото ---------- */
 .dc-car{position:relative;line-height:0}
@@ -150,57 +113,6 @@ nav button em#carsDot{display:none}
 .dco-b .row2{display:flex;gap:8px}.dco-b .btn{font-size:14px;padding:12px 6px}
 @keyframes dcpin{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:none}}
 .dc-flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:72}.dc-flash.go{animation:dcfl .6s ease-out}@keyframes dcfl{0%{opacity:.85}100%{opacity:0}}
-
-/* лента всех контейнеров над витриной: звёздный первым и заметнее всех */
-@property --dca{syntax:"<angle>";initial-value:0deg;inherits:false}
-.dc-list{display:flex;gap:7px;overflow-x:auto;margin:0 0 10px;padding:9px 2px 7px;scroll-snap-type:x proximity;
-  -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 30px),#0003);mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 30px),#0003)}
-.dc-li{flex:none;width:76px;position:relative;scroll-snap-align:start;border-radius:12px;background:var(--card);border:2px solid #232b40;padding:4px 3px 6px;text-align:center;cursor:pointer;transition:transform .2s,border-color .2s,box-shadow .2s}
-.dc-li .cr{display:block;width:44px;height:44px;margin:0 auto;animation:none;filter:drop-shadow(0 3px 3px #000a)}
-.dc-li b{display:block;font:bold 10px Arial;color:var(--rc);margin-top:1px}
-.dc-li small{display:block;font:bold 10px Arial;color:var(--gold);margin-top:1px;white-space:nowrap}
-.dc-li.fr small{color:var(--ok)}
-.dc-li.on{border-color:var(--rc);box-shadow:0 0 14px color-mix(in srgb,var(--rc) 50%,transparent);transform:translateY(-2px)}
-.dc-li:active{transform:scale(.95)}
-.dc-li.hit{width:120px;padding:6px 4px 7px;border:2px solid transparent;
-  background:linear-gradient(160deg,#16243a,#1a1530) padding-box,conic-gradient(from var(--dca),#5ef2ff,#ffd23f,#ff3d71,#b388ff,#5ef2ff) border-box;
-  animation:dchit 3s linear infinite;box-shadow:0 0 18px #5ef2ff40}
-.dc-li.hit.on{box-shadow:0 0 26px #5ef2ff88}
-@keyframes dchit{to{--dca:360deg}}
-.dc-li.hit .cr{width:58px;height:58px;animation:dcbob 2.6s ease-in-out infinite}
-.dc-li.hit b{font-size:12px;color:#fff;text-shadow:0 0 8px #5ef2ff}
-.dc-li.hit small{font-size:12px;color:#7fd3ff}
-.dc-li em{display:block;font:bold 9.5px Arial;font-style:normal;margin-top:2px;background:linear-gradient(90deg,#fff,#7fb0ff,#ff6b78,#5ef2ff,#fff);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:dctri 2s linear infinite}
-.dc-badge{position:absolute;top:-9px;left:50%;transform:translateX(-50%);z-index:2;font:bold 9.5px Arial;white-space:nowrap;padding:2px 7px;border-radius:7px;color:#fff;
-  background:linear-gradient(90deg,#ff3d71,#ffb300);box-shadow:0 2px 6px #0008;animation:readypulse 1.4s infinite}
-.dc-badge.g{background:var(--ok);color:#0b2a14;padding:1px 5px}
-/* сцена звёздного: мерцающие звёзды и лента-плашка */
-.dc-show.star{background:radial-gradient(70% 55% at 50% 72%,#5ef2ff33,transparent 70%),radial-gradient(90% 60% at 50% 0,#2a1d4a,transparent 70%),linear-gradient(#141a33,#10142a)}
-.dc-twinkle{position:absolute;inset:0;pointer-events:none;animation:dctw 2.4s ease-in-out infinite alternate;
-  background-image:radial-gradient(2px 2px at 12% 22%,#fff,transparent),radial-gradient(1.5px 1.5px at 28% 58%,#ffd76a,transparent),radial-gradient(2px 2px at 82% 18%,#fff,transparent),
-    radial-gradient(1.5px 1.5px at 70% 62%,#7fd3ff,transparent),radial-gradient(2px 2px at 90% 48%,#ffd76a,transparent),radial-gradient(1.5px 1.5px at 8% 70%,#7fd3ff,transparent),
-    radial-gradient(2px 2px at 40% 12%,#fff,transparent),radial-gradient(1.5px 1.5px at 60% 30%,#fff,transparent)}
-@keyframes dctw{from{opacity:.35}to{opacity:1}}
-.dc-ribbon{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:2;white-space:nowrap;font:bold 11px Arial;color:#2a1600;padding:4px 12px;border-radius:8px;
-  background:linear-gradient(90deg,#ffd23f,#ffb300);box-shadow:0 3px 10px #0008;animation:dcrib .6s cubic-bezier(.2,1.5,.4,1) both}
-@keyframes dcrib{from{opacity:0;transform:translate(-50%,-14px) scale(.7)}}
-.dc-promo{margin:8px auto 0;max-width:330px;text-align:center;font-size:12px;color:#cfe9ff;background:#5ef2ff14;border:1px solid #5ef2ff40;border-radius:10px;padding:6px 10px}
-.dc-promo b{color:#5ef2ff}
-
-/* горизонтальные ленты: тонкий золотистый ползунок (общий стиль игры), колёсико мыши листает вбок, правый край гаснет — видно, что дальше ещё есть */
-.dc-thumbs,.dc-filters{padding-bottom:7px;scroll-snap-type:x proximity;
-  -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 30px),#0003);mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 30px),#0003)}
-.dc-thumbs>div{scroll-snap-align:start}
-
-/* закрыть экран выпадения */
-.dco-close{margin-top:8px;font-size:13px!important;padding:10px!important;background:transparent!important;box-shadow:none!important;color:var(--dim)!important;border:1px solid #ffffff25!important}
-.dco-x{position:absolute;top:14px;right:14px;z-index:6;width:38px;height:38px;border-radius:50%;border:1px solid #ffffff30;background:#0009;color:#fff;font:bold 18px Arial;cursor:pointer}
-.dc-acts{display:flex;gap:6px;margin-top:8px}
-.dc-act{flex:1;font:bold 12px Arial;border-radius:10px;padding:8px 6px;cursor:pointer;background:#ffffff08;border:1px solid #ffffff25;color:#cfd6e6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dc-act.on{border-color:var(--gold);color:var(--gold);background:#ffd23f14}
-.dc-act.sell{color:#ff8a98;border-color:#e0475b66}
-.dc-act.sell.sure{background:#e0475b;color:#fff;border-color:#e0475b;animation:readypulse 1s infinite}
-.dc-inprof{margin-top:6px;font:bold 11px Arial;color:var(--gold);text-align:center}
 
 /* тачка в карточке профиля */
 .pcar{margin-top:10px;border-radius:14px;padding:8px 10px 10px;text-align:center;border:1px solid color-mix(in srgb,var(--rc) 50%,#232b40);

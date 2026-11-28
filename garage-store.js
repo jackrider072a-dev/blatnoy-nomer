@@ -112,6 +112,9 @@ const GarageMarket = (() => {
     const peerOrigin = fromFile ? 'null' : location.origin;
     let sent = '';
     let lastCheckout = null;
+    let checkoutPending = false;
+    let frameReady = false;
+    let requestedCase = '';
     let paymentCatalog = null;
     let checkingPayments = false;
     function paidOffers() {
@@ -218,6 +221,7 @@ const GarageMarket = (() => {
       }
       const star = DC_STORE.star();
       const payload = { coins:Math.floor(S.coins), star, covers, other:Platform.canPay, lang:I18N.lang, platform:Platform.name,
+        adAt:DC_STORE.adAt(), starLocked:DC_STORE.starLocked(),
         offers:Object.fromEntries(coinKeys.map(key => [key,DC_STORE.coins(key)])),
         cars:DC_ADMIN.list().map(([id,name]) => [id,name]),
         paid:paidOffers(), plates:[...storeInventory().ownedPlates,...heldKeys()] };
@@ -253,11 +257,23 @@ const GarageMarket = (() => {
       if (!$('modal').classList.contains('hidden')) closeModal();
       openTab('shop');
     };
+    function openRequestedCase() {
+      if (!frameReady || tab !== 'shop' || !requestedCase) return;
+      send('focus-case',{ key:requestedCase });
+      requestedCase = '';
+    }
+    ACTS.dcCase = ({v}) => {
+      if (!coinKeys.includes(v)) return;
+      requestedCase = v;
+      openTab('shop');
+      main.scrollTop = 0;
+      openRequestedCase();
+    };
 
-    window.addEventListener('message',event => {
+    window.addEventListener('message',async event => {
       const request = event.data;
       if (event.source !== screen.contentWindow || event.origin !== peerOrigin || request?.channel !== 'blatnoy-live-shop') return;
-      if (request.type === 'ready') { sent = ''; sync(); return; }
+      if (request.type === 'ready') { frameReady = true; sent = ''; sync(); openRequestedCase(); return; }
       if (tab !== 'shop') return;
       if (request.type === 'other') { originalShop(); return; }
       if (request.type === 'go' && ['cars','garage','buy'].includes(request.tab)) {
@@ -265,7 +281,7 @@ const GarageMarket = (() => {
         main.scrollTop = 0;
         return;
       }
-      if (request.type !== 'checkout' || !Number.isInteger(request.token)) return;
+      if (request.type !== 'checkout' || !Number.isInteger(request.token) || checkoutPending) return;
       if (lastCheckout && request.token <= lastCheckout.token) {
         if (request.token === lastCheckout.token) send('checkout',lastCheckout);
         return;
@@ -274,6 +290,13 @@ const GarageMarket = (() => {
         lastCheckout = {token:request.token,...result,coins:Math.floor(S.coins)};
         send('checkout',lastCheckout);
       };
+      if (request.variant === 'ad') {
+        if (request.key !== 'common') { finish({error:'unavailable'}); return; }
+        checkoutPending = true;
+        try { finish(await DC_STORE.takeAd()); }
+        finally { checkoutPending = false; renderHeader(); }
+        return;
+      }
       if (request.key === 'star' && DC_STORE.star()) {
         finish({native:true});
         shopBuy(STAR_BOX_ITEM);

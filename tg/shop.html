@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#101115">
 <title>Блатной номер — магазин гаража</title>
-<link rel="stylesheet" href="scrollbars.css?v=202611281249">
+<link rel="stylesheet" href="scrollbars.css?v=202611281355">
 
 <script>
 if (window.parent !== window && new URLSearchParams(location.search).has('embedded')) document.documentElement.classList.add('in-game');
@@ -515,10 +515,16 @@ let liveQuote;
 let liveLang = 'ru';
 let livePlatform = '';
 let liveCatalogSnapshot = '';
+let adAt = null;
+let adClock;
+let starLocked = false;
 
 const liveEnglish = {
   'Кейсы':'Cases', 'Другие товары':'More items', 'За монеты':'For coins', 'По редкости':'By rarity',
   'Бесплатно':'Free', 'Открыть бесплатно':'Open for free', 'Открыть за {0}':'Open for {0}',
+  'Открыть бесплатно за рекламу':'Watch an ad to open for free', 'Бесплатно за рекламу через {0}':'Free with an ad in {0}',
+  'Реклама недоступна.':'The ad is unavailable.',
+  'Открой элитный контейнер за монеты, чтобы открыть доступ к звёздному.':'Open an Elite container for coins to unlock the Star container.',
   'Посмотреть кейс':'View case', 'Кейс с машиной':'Car case', 'Обычный контейнер':'Standard container',
   'Редкий контейнер':'Rare container', 'Эпический контейнер':'Epic container', 'Легендарный контейнер':'Legendary container',
   'Элитный контейнер':'Elite container', 'Звёздный контейнер':'Star container',
@@ -809,6 +815,22 @@ function packDetails(offer) {
   return `<ul class="contents">${offer.components.map(part => part.kind === 'plate-series' ? seriesDetails(part) :
     `<li><span class="desc">${part.name}${part.value ? `<small>${part.value}</small>` : ''}</span><strong>${priceText(part.cost)}</strong></li>`).join('')}</ul>`;
 }
+function updateAdButton() {
+  const button = dialog.querySelector('[data-variant="ad"]');
+  if (!dialog.open || !button) { clearInterval(adClock); return; }
+  button.hidden = adAt === null;
+  const seconds = Math.max(0,Math.ceil((adAt - Date.now()) / 1000));
+  const remaining = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2,'0')}`;
+  button.disabled = Boolean(liveQuote) || seconds > 0;
+  button.textContent = seconds ? shopText('Бесплатно за рекламу через {0}',remaining) : shopText('Открыть бесплатно за рекламу');
+}
+function focusCase(key) {
+  const item = catalog.get('case:' + key);
+  if (!item || (liveShop && !item.liveAvailable) || operation?.busy || liveQuote) return;
+  state.selected.cases = 'coins';
+  changeTab('cases');
+  openDetail(item,$('grid').querySelector(`[data-product="${productKey(item)}"]`));
+}
 function openDetail(item, anchor) {
   opener = anchor;
   operation = null;
@@ -849,12 +871,17 @@ function openDetail(item, anchor) {
     contents = poolDetails(item);
   }
   if (!offer && inGame && item.group === 'plates') note = 'Повторы и номера без свободного места попадут в запас гаража.';
+  if (liveShop && item.id === 'elite' && starLocked) note = shopText('Открой элитный контейнер за монеты, чтобы открыть доступ к звёздному.');
+  const showAd = liveShop && item.id === 'common' && adAt !== null;
+  if (showAd) alternative = `<button type="button" class="buy secondary-button" data-open="${productKey(item)}" data-variant="ad">${shopText('Открыть бесплатно за рекламу')}</button>`;
   const terms = reducedPrice ? `<div class="personal-terms"><span class="personal-label">Персональная скидка</span>${personalDeadline()}<small>Одна покупка по этой цене</small></div>` : '';
   dialog.classList.remove('trial');
   dialog.innerHTML = `<div class="dialog-head" style="${styleFor(item)}"><button type="button" class="icon-button close" data-close aria-label="Закрыть">×</button>${artwork(item)}</div>
     <div class="details" style="${styleFor(item)}"><span class="eyebrow">${shopText(badge(item))}</span><h2 id="dialogTitle">${shopText(item.name)}</h2>${terms}${caption ? `<p>${caption}</p>` : ''}${note ? `<p class="hint">${note}</p>` : ''}${contents}</div>
     <div class="dialog-actions">${item.pickOnly || offer?.parts.length === 0 ? '' : `<button type="button" class="buy" data-open="${productKey(item)}" data-cost="${cost}" ${reducedPrice ? 'data-personal-quote' : ''}>${action}</button>`}${alternative}<p>${liveShop ? priceText(state.balance.coins,'coins') : 'Демо-баланс · ' + priceText(state.balance[item.unit],item.unit)}</p></div>`;
   if (!dialog.open) dialog.showModal();
+  clearInterval(adClock);
+  if (showAd) { updateAdButton(); adClock = setInterval(updateAdButton,1000); }
   dialog.scrollTop = 0;
   dialog.querySelector('[data-close]').focus();
 }
@@ -1052,6 +1079,7 @@ $('search').addEventListener('input',event => {
 });
 dialog.addEventListener('cancel',event => { if (liveQuote) event.preventDefault(); else if (operation?.busy) { event.preventDefault(); skip(); } });
 dialog.addEventListener('close',() => {
+  clearInterval(adClock);
   operation = null;
   if (liveShop) paint();
   if (opener?.isConnected) opener.focus();
@@ -1065,6 +1093,7 @@ if (liveShop) {
   window.addEventListener('message',async event => {
     const update = event.data;
     if (event.source !== window.parent || event.origin !== peerOrigin || update?.channel !== 'blatnoy-live-shop') return;
+    if (update.type === 'focus-case') { focusCase(update.key); return; }
     if (update.type === 'enter' && !operation?.busy && !liveQuote) {
       if (dialog.open) dialog.close();
       state.selected.cases = 'coins';
@@ -1075,12 +1104,14 @@ if (liveShop) {
       state.balance.coins = update.coins;
       liveLang = update.lang === 'en' ? 'en' : 'ru';
       livePlatform = update.platform;
+      adAt = Number.isFinite(update.adAt) ? update.adAt : null;
+      starLocked = update.starLocked === true;
       document.documentElement.lang = liveLang;
       document.querySelector('[data-tab="cases"]').textContent = shopText('Кейсы');
       $('live-other').textContent = shopText('Другие товары');
       $('live-other').hidden = !update.other;
       if (operation?.busy || liveQuote) { paintWallet(); return; }
-      const catalogSnapshot = JSON.stringify([update.star,update.covers,update.offers,update.cars,update.paid,update.plates,liveLang,livePlatform]);
+      const catalogSnapshot = JSON.stringify([update.star,update.covers,update.offers,update.cars,update.paid,update.plates,adAt,starLocked,liveLang,livePlatform]);
       if (catalogSnapshot === liveCatalogSnapshot) { paintWallet(); return; }
       liveCatalogSnapshot = catalogSnapshot;
       state.receivedPlates = new Set(update.plates);
@@ -1145,7 +1176,7 @@ if (liveShop) {
     if (update.native) { dialog.close(); return; }
     const car = cars.get(update.id);
     if (!car) {
-      const errors = {full:'В гараже нет места для машины.',coins:'Не хватает монет.',price:'Цена изменилась. Проверь карточку ещё раз.',busy:'Дождись окончания открытия.'};
+      const errors = {full:'В гараже нет места для машины.',coins:'Не хватает монет.',price:'Цена изменилась. Проверь карточку ещё раз.',busy:'Дождись окончания открытия.',ad:'Реклама недоступна.'};
       toast(shopText(errors[update.error] || 'Этот товар сейчас недоступен.'));
       dialog.close();
       sendToGame('ready');
@@ -1183,6 +1214,7 @@ if (inGame && !liveShop) window.addEventListener('message',event => {
     state.selected.cases = 'coins';
     changeTab('cases',true);
   }
+  if (update.type === 'focus-case') focusCase(update.key);
 });
 changeTab(state.tab,true);
 if (personal.endsAt > Date.now() && !personal.boughtCar) personalTimer = setInterval(updatePersonalClock,1000);
