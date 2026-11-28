@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#101115">
 <title>Блатной номер — магазин гаража</title>
-<link rel="stylesheet" href="scrollbars.css?v=202611281231">
-<script>window.VK_SHOP_PREVIEW=1;</script><script src="vk-car-names.js?v=202611281231"></script><script src="platform.js?v=202611281231"></script>
+<link rel="stylesheet" href="scrollbars.css?v=202611281249">
+<script>window.VK_SHOP_PREVIEW=1;</script><script src="vk-car-names.js?v=202611281249"></script><script src="platform.js?v=202611281249"></script>
 <script>
 if (window.parent !== window && new URLSearchParams(location.search).has('embedded')) document.documentElement.classList.add('in-game');
 </script>
@@ -170,6 +170,7 @@ dialog::backdrop { background: #090a10d9; backdrop-filter: blur(5px); }
 .blanks-link { grid-column:1/-1; justify-self:start; min-height:36px; margin-top:6px; padding:6px 9px; border:1px solid #43547b; border-radius:8px; color:var(--text); background:#192139; font:700 12px/1.15 var(--body); }
 .dialog-actions { position: sticky; z-index: 4; bottom: 0; background: #1c1e26; border-top: 1px solid var(--line); padding: 12px 19px; }
 .dialog-actions .buy { width: 100%; }
+.dialog-actions .buy + .buy { margin-top: 7px; }
 .dialog-actions p { text-align: center; color: var(--muted); font-size: 12px; margin-top: 4px; }
 .trial { width: min(650px,calc(100% - 18px)); overflow: hidden; }
 .scene { position: relative; isolation: isolate; overflow: hidden; min-height: 310px; background: radial-gradient(ellipse at 50% 62%,color-mix(in srgb,var(--glow) 55%,transparent),transparent 70%),#161821; }
@@ -476,19 +477,19 @@ function plateSeries(series, region, tier, cost, digits = triples) {
     pool:collectorPlates(tier,cost,digits.map(number => [series,number,region])) };
 }
 const packs = [
+  ['dream_amgone','Гараж мечты','pairs',169,`${cars.get('amgone').name} и суперлегендарный номер АМР 97 · 111–999.`,'dream','amgone',[carPart(5,139,'amgone'),plateSeries('АМР','97',5,99)]],
   ['dash','Разгон','boost',39,'Монеты + час двойного дохода с номеров.','boost1',null,[money('cash_s','Пачка монет',25,'30 мин дохода'),boost('×2 на 1 час',29,1)]],
   ['firstpair','Первая статусная пара','pairs',59,'Случайная легендарная машина и ААА 77 · 111–999.','startPair','m3e46',[carPart(3,39),plateSeries('ААА','77',3,25)]],
   ['duo','Номерной дуэт','plates',45,'По номеру из серий ЕКХ 77 и ООО 77 · 111–999.','plateDuo',null,[plateSeries('ЕКХ','77',4,39),plateSeries('ООО','77',3,25)]],
   ['rolling','Гараж на ходу','boost',109,'Чемодан монет + три часа двойного дохода.','boost3',null,[money('cash_l','Чемодан монет',99,'3 ч дохода'),boost('×2 на 3 часа',59,3)]],
   ['myth','Мифическая пара','pairs',89,'Случайная мифическая машина и ЕКХ 97 · 111–999.','mythPair','s680guard',[carPart(4,69),plateSeries('ЕКХ','97',4,39)]],
-  ['dream','Гараж мечты','pairs',169,'Случайная машина-суперлегенда и АМР 97 · 111–999.','dream','amgone',[carPart(5,119),plateSeries('АМР','97',5,99)]],
   ['first','Первый в кортеже','pairs',229,`${vkShop ? 'Представительский лимузин' : cars.get('auruslimo').name} и АМР 97 · 001–009.`,'first','auruslimo',[carPart(5,199,'auruslimo'),plateSeries('АМР','97',5,99,firstNine)]]
 ].map(([id,name,group,cost,descriptor,design,cover,parts]) => ({ id,name,group,cost:paidCost(cost),descriptor,design,cover,parts,unit:paidUnit,type:'pack' }));
 
 const caseGroups = [['coins','За монеты'],['theme','Тематические'],['rank','По редкости'],['plates','Номера'],['season','Сезонные']];
 const packGroups = [['all','Все наборы'],['pairs','Машина + номер'],['plates','Номера'],['boost','Ускорение']];
 const catalog = new Map([...cases,...packs].map(item => [`${item.type}:${item.id}`,item]));
-const featuredPack = catalog.get('pack:dream');
+const featuredPack = catalog.get('pack:dream_amgone');
 const personalPack = catalog.get('pack:firstpair');
 const personalPrice = paidCost(49);
 const personalStorageKey = vkShop ? 'blatnoy-vk-demo-personal-pair' : 'blatnoy-demo-personal-pair';
@@ -627,6 +628,7 @@ function personalCard() {
 function packDescription(item, offer) {
   if (offer.parts.length === item.parts.length) return item.descriptor;
   if (!offer.parts.length) return 'Все номера обеих серий уже получены.';
+  if (item === featuredPack) return `Номера серии уже получены. ${cars.get('amgone').name} можно купить отдельно.`;
   if (offer.parts[0].kind === 'car') return 'Номера серии уже получены. Машину можно купить отдельно.';
   return 'Одна серия собрана. Можно получить номер из второй.';
 }
@@ -693,10 +695,10 @@ function paintWallet() {
 function paintHero() {
   const target = $('hero');
   if (liveShop) {
-    const item = [featuredPack,catalog.get('pack:myth'),cases.find(entry => entry.id === 'star')].find(entry => entry?.liveAvailable);
+    const item = featuredPack.liveAvailable ? featuredPack : cases.find(entry => entry.id === 'star' && entry.liveAvailable);
     if (!item) { target.replaceChildren(); return; }
     const offer = item.type === 'pack' ? packOffer(item) : null;
-    const saving = (livePlatform === 'tg' || livePlatform === 'vk') && offer?.saved;
+    const saving = (livePlatform === 'tg' || livePlatform === 'vk') && item.liveCar && offer?.saved;
     const badge = saving ? `<span class="value-badge">Выгодно <b>−${priceText(saving)}</b></span>` : '';
     const price = saving ? `<span class="prices"><span class="price">${offerPrice(item)}</span><del class="old">${priceText(offer.old)}</del></span>` : prices(item);
     const description = offer ? packDescription(item,offer) : shopText(item.descriptor);
@@ -708,7 +710,7 @@ function paintHero() {
   target.dataset.cost = String(offer.cost);
   const full = offer.parts.length > 1;
   const label = offer.saved ? `<span class="value-badge">Выгодно <b>−${priceText(offer.saved)}</b></span>` : '';
-  const description = full ? 'Случайная суперлегенда и номер АМР 97.' : 'Серия собрана. Доступна случайная машина-суперлегенда.';
+  const description = packDescription(featuredPack,offer);
   target.innerHTML = `<div class="hero hero-promo${offer.saved ? ' featured-value' : ''}" style="${styleFor(featuredPack)}"><div class="hero-copy">
     ${label}<h1>${featuredPack.name}</h1><p>${description}</p>
     ${prices(featuredPack)}${buttonFor(featuredPack,full ? 'Посмотреть набор' : 'Посмотреть машину')}</div>${artwork(featuredPack,true)}</div>`;
@@ -716,7 +718,8 @@ function paintHero() {
 const searchAliases = { mercedes:'мерседес мерс', maybach:'майбах', bmw:'бмв', lexus:'лексус лх', nissan:'ниссан', skyline:'скайлайн', supra:'супра', escalade:'эскалейд', porsche:'порше порш', ferrari:'феррари', aurus:'аурус', range:'рендж ровер', infiniti:'инфинити', defender:'дефендер окта', bentley:'бентли', bentayga:'бентайга', century:'сенчури центури', mclaren:'макларен', honda:'хонда' };
 function searchMatches(item) {
   const names = (item.pool || item.parts.flatMap(part => part.pool || [part])).flatMap(part => part.kind === 'plate' ? [part.name,part.series,part.id] : [part.name]);
-  const namesAndLabels = [shopText(item.name),shopText(item.descriptor),...names].join(' ').toLocaleLowerCase('ru');
+  const featuredAliases = item === featuredPack ? 'AMG ONE амг оне амг ван амг уан' : '';
+  const namesAndLabels = [shopText(item.name),shopText(item.descriptor),featuredAliases,...names].join(' ').toLocaleLowerCase('ru');
   const aliases = Object.entries(searchAliases).filter(([word]) => namesAndLabels.includes(word)).map(([,words]) => words).join(' ');
   return state.query.split(/\s+/).every(word => `${namesAndLabels} ${aliases}`.includes(word));
 }
@@ -725,9 +728,8 @@ function paintGrid() {
   const category = state.selected[state.tab];
   const grid = $('grid');
   const matches = source.filter(item => (!liveShop || item.liveAvailable) && (state.query ? searchMatches(item) : category === 'all' || item.group === category));
-  const entries = matches.filter(item => item !== featuredPack);
   personalObserver?.disconnect();
-  grid.innerHTML = matches.length ? entries.map(onCard).join('') : `<p class="empty">${shopText('В этом разделе ничего не найдено.')}</p>`;
+  grid.innerHTML = matches.length ? matches.map(onCard).join('') : `<p class="empty">${shopText('В этом разделе ничего не найдено.')}</p>`;
   if (!liveShop && state.tab === 'cases' && !state.query && category === 'coins' && personalAvailable()) {
     grid.children[1].insertAdjacentHTML('afterend',personalCard());
     if (!personal.endsAt) personalObserver?.observe(grid.querySelector('.personal-card'));
@@ -818,12 +820,18 @@ function openDetail(item, anchor) {
   let caption = '';
   let note = '';
   let contents = '';
+  let alternative = '';
   if (offer) {
     const [single] = offer.parts;
     const label = offer.parts.length > 1 ? 'Получить набор' : single?.kind === 'car' ? 'Купить машину' : 'Получить номер';
     action = `${label} · ${liveShop ? offerPrice(item) : priceText(cost)}`;
     if (reducedPrice) caption = `${priceText(cost)} вместо ${priceText(offer.cost)} за первую покупку машины.`;
-    else if (offer.saved && !liveShop) caption = `Отдельные товары ${priceText(offer.old)}. Экономия ${priceText(offer.saved)} (−${offer.discount}%).`;
+    else if (offer.saved && (!liveShop || (item.liveCar && livePlatform !== 'ya'))) caption = `Отдельные товары ${priceText(offer.old)}. Экономия ${priceText(offer.saved)} (−${offer.discount}%).`;
+    if (item === featuredPack && offer.parts.length > 1 && (!liveShop || item.liveCar)) {
+      const carCost = offer.parts.find(part => part.kind === 'car').cost;
+      const price = liveShop ? escapeText(item.liveCar.label) : priceText(carCost);
+      alternative = `<button type="button" class="buy secondary-button" data-open="${productKey(item)}" data-cost="${carCost}" data-variant="car">Только машина · ${price}</button>`;
+    }
     if (item.group === 'boost') {
       const hours = offer.parts.find(part => part.kind === 'boost').hours;
       note = `Время действия складывается. Две покупки дадут ${hours * 2} ч с доходом ×2.`;
@@ -845,7 +853,7 @@ function openDetail(item, anchor) {
   dialog.classList.remove('trial');
   dialog.innerHTML = `<div class="dialog-head" style="${styleFor(item)}"><button type="button" class="icon-button close" data-close aria-label="Закрыть">×</button>${artwork(item)}</div>
     <div class="details" style="${styleFor(item)}"><span class="eyebrow">${shopText(badge(item))}</span><h2 id="dialogTitle">${shopText(item.name)}</h2>${terms}${caption ? `<p>${caption}</p>` : ''}${note ? `<p class="hint">${note}</p>` : ''}${contents}</div>
-    <div class="dialog-actions">${item.pickOnly || offer?.parts.length === 0 ? '' : `<button type="button" class="buy" data-open="${productKey(item)}" data-cost="${cost}" ${reducedPrice ? 'data-personal-quote' : ''}>${action}</button>`}<p>${liveShop ? priceText(state.balance.coins,'coins') : 'Демо-баланс · ' + priceText(state.balance[item.unit],item.unit)}</p></div>`;
+    <div class="dialog-actions">${item.pickOnly || offer?.parts.length === 0 ? '' : `<button type="button" class="buy" data-open="${productKey(item)}" data-cost="${cost}" ${reducedPrice ? 'data-personal-quote' : ''}>${action}</button>`}${alternative}<p>${liveShop ? priceText(state.balance.coins,'coins') : 'Демо-баланс · ' + priceText(state.balance[item.unit],item.unit)}</p></div>`;
   if (!dialog.open) dialog.showModal();
   dialog.scrollTop = 0;
   dialog.querySelector('[data-close]').focus();
@@ -960,20 +968,24 @@ function reveal(item,rewards) {
   });
   dialog.querySelector('[data-close]').focus();
 }
-async function openOffer(item, choiceId, quotedCost) {
+async function openOffer(item, choiceId, quotedCost, variant) {
   if (operation?.busy) return;
   if (liveShop) {
     if (!item?.liveAvailable || liveQuote) return;
     const token = ++liveToken;
     liveQuote = { item, token };
     dialog.querySelectorAll('[data-open]').forEach(button => button.disabled = true);
-    const sku = choiceId ? item.liveChoices?.[choiceId]?.sku : item.liveSku;
-    sendToGame('checkout',{ key:item.id,product:productKey(item),choice:choiceId,sku,quote:Number(quotedCost),token });
+    const sku = choiceId ? item.liveChoices?.[choiceId]?.sku : variant === 'car' ? item.liveCar?.sku : item.liveSku;
+    sendToGame('checkout',{ key:item.id,product:productKey(item),choice:choiceId,variant,sku,quote:Number(quotedCost),token });
     return;
   }
   const choice = item.pickOnly ? item.pool.find(plate => plate.id === choiceId) : undefined;
   if (item.pickOnly && !choice) return;
-  const offer = item.type === 'pack' ? packOffer(item) : null;
+  let offer = item.type === 'pack' ? packOffer(item) : null;
+  if (item === featuredPack && variant === 'car') {
+    const car = offer.parts.find(part => part.kind === 'car');
+    offer = { parts:[car], cost:car.cost };
+  }
   const cost = hasPersonalPrice(item,offer) ? personalPrice : offer?.cost ?? choice?.cost ?? item.cost;
   if (offer && (!offer.parts.length || Number(quotedCost) !== cost)) {
     openDetail(item,opener);
@@ -1024,7 +1036,7 @@ document.addEventListener('click',event => {
     animateCatalog();
     $('filters').querySelector(`[data-group="${state.selected[state.tab]}"]`).focus();
   } else if (button.dataset.product) openDetail(catalog.get(button.dataset.product),button);
-  else if (button.dataset.open) void openOffer(catalog.get(button.dataset.open),button.dataset.plateChoice,button.dataset.cost);
+  else if (button.dataset.open) void openOffer(catalog.get(button.dataset.open),button.dataset.plateChoice,button.dataset.cost,button.dataset.variant);
   else if (button.hasAttribute('data-skip')) skip();
   else if (button.dataset.gameTab && inGame && !operation?.busy) { if (dialog.open) dialog.close(); sendToGame('go', { tab:button.dataset.gameTab }); }
   else if (button.hasAttribute('data-close') && !operation?.busy) dialog.close();
@@ -1073,6 +1085,7 @@ if (liveShop) {
       liveCatalogSnapshot = catalogSnapshot;
       state.receivedPlates = new Set(update.plates);
       const paidCatalog = update.paid;
+      featuredPack.liveCar = paidCatalog[productKey(featuredPack) + ':car'];
       const available = new Set(update.cars.map(([id]) => id));
       const liveFleet = [...cars.values()].filter(car => available.has(car.id) && car.group !== 'winter');
       const coinWeights = new Map(coinsCases.map(([id,,,,,weights]) => [id,weights]));

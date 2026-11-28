@@ -451,12 +451,12 @@ const Platform = (() => {
     vkPostTasks: (action, task) => a.postTasks ? a.postTasks(action, task) : Promise.resolve({ ok: false, error: "disabled" }),
     openVkPost: (owner, post) => a.openPost?.(owner, post),
     claim: acked => a.claim ? a.claim(acked) : Promise.resolve(null),
-    garageStoreReady() {
-      if (!globalThis.GARAGE_PRODUCTS || !a.canPay) return Promise.resolve(false);
-      if (a.name === "ya") return Promise.resolve(true);
+    garageStoreCatalog() {
+      if (!globalThis.GARAGE_PRODUCTS || !a.canPay) return Promise.resolve(null);
+      if (a.name === "ya") return Promise.resolve({enabled:true,dreamAmg:true});
       return fetch("https://blatnoy-nomer.blatnoy.workers.dev/garage/catalog", {signal:AbortSignal.timeout?.(8000)})
         .then(response => response.ok ? response.json() : null)
-        .then(info => Boolean(info?.version === 2 && info.enabled), () => false);
+        .then(info => info?.version === 2 ? info : null, () => null);
     },
     consume(x) { if (a.consume) a.consume(x); },
     get canShare() { return !!a.refLink; },               // приглашения и «похвастаться» — только в Telegram

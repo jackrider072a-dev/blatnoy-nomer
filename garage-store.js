@@ -3,7 +3,8 @@
 const GarageMarket = (() => {
   const coinKeys = ['common','rare','epic','legend','elite'];
   const covers = {common:'vesta',rare:'camry',epic:'cayenne',legend:'p911',elite:'urus',star:'chiron'};
-  const bundleKeys = ['dash','firstpair','duo','rolling','myth','dream','first'];
+  const bundleKeys = ['dash','firstpair','duo','rolling','myth','dream_amgone','first'];
+  const featuredPackKey = 'pack:dream_amgone';
   let showReceipt = () => {};
 
   function storeInventory() {
@@ -111,11 +112,11 @@ const GarageMarket = (() => {
     const peerOrigin = fromFile ? 'null' : location.origin;
     let sent = '';
     let lastCheckout = null;
-    let paidReady = false;
+    let paymentCatalog = null;
     let checkingPayments = false;
     function paidOffers() {
       const offers = {};
-      if (!paidReady || S.tut >= 0) return offers;
+      if (!paymentCatalog?.enabled || S.tut >= 0) return offers;
       const products = globalThis.GARAGE_PRODUCTS || {};
       const owned = new Set([...storeInventory().ownedPlates,...heldKeys()]);
       const add = (key,sku,extra = {}) => {
@@ -132,7 +133,7 @@ const GarageMarket = (() => {
         add('case:' + key,sku);
       }
       for (const key of bundleKeys) {
-        if (key === 'dream' && S.story.ch < STORY.length) continue;
+        if (key === 'dream_amgone' && !paymentCatalog.dreamAmg) continue;
         const sku = 'garage_pack_' + key;
         const pack = products[sku];
         if (!pack) continue;
@@ -143,6 +144,9 @@ const GarageMarket = (() => {
           const selected = remaining[0];
           const suffix = selected.kind === 'plate-series' ? selected.pool[0][2] + '_' + selected.pool[0][3] : 'car';
           add('pack:' + key,sku + '_' + suffix,{partial:true});
+        }
+        if (key === 'dream_amgone' && remaining.length === pack.rewards.length) {
+          add(featuredPackKey + ':car',sku + '_car');
         }
       }
       for (const [sku,item] of Object.entries(products)) {
@@ -201,7 +205,8 @@ const GarageMarket = (() => {
     showReceipt = (sku,rewards) => {
       if (tab !== 'shop') return;
       const bundle = bundleKeys.find(key => sku === 'garage_pack_' + key || sku.startsWith('garage_pack_' + key + '_'));
-      const product = bundle ? 'pack:' + bundle : sku.startsWith('garage_plate_') ? 'case:platepick' : 'case:' + sku.slice('garage_case_'.length);
+      const legacyDream = sku === 'garage_pack_dream' || sku === 'garage_pack_dream_car';
+      const product = legacyDream ? featuredPackKey : bundle ? 'pack:' + bundle : sku.startsWith('garage_plate_') ? 'case:platepick' : 'case:' + sku.slice('garage_case_'.length);
       send('award',{product,rewards});
     };
 
@@ -209,7 +214,7 @@ const GarageMarket = (() => {
       if (tab !== 'shop') return;
       if (!checkingPayments && Platform.canPay && globalThis.GARAGE_PRODUCTS) {
         checkingPayments = true;
-        Platform.garageStoreReady().then(available => { paidReady = available; sync(); });
+        Platform.garageStoreCatalog().then(info => { paymentCatalog = info; sync(); });
       }
       const star = DC_STORE.star();
       const payload = { coins:Math.floor(S.coins), star, covers, other:Platform.canPay, lang:I18N.lang, platform:Platform.name,
@@ -275,7 +280,9 @@ const GarageMarket = (() => {
         return;
       }
       if (request.sku) {
-        const offer = paidOffers()[request.choice ? 'plate:' + request.choice : request.product];
+        let key = request.choice ? 'plate:' + request.choice : request.product;
+        if (key === featuredPackKey && request.variant === 'car') key += ':car';
+        const offer = paidOffers()[key];
         if (!offer || offer.sku !== request.sku) { finish({error:'price'}); return; }
         finish({native:true});
         shopBuy(offer.sku);
