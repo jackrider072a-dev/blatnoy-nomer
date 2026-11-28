@@ -411,8 +411,8 @@ const evOn = () => !!(EV && Date.now() < EV.until * 1000);
 const evMult = k => evOn() ? Math.max(1, +EV[k] || 1) : 1;
 function pityMax() { return PITY_BASE - 10 * up("pity"); }
 // веса редкостей бланка: удача усиливает всё выше самой низкой редкости, легенды и суперлегенды — только корнем из удачи (они «прям редкие»)
-function packWeights(packId) {
-  const ws = PACKS[packId].w.slice(), first = ws.findIndex(x => x > 0), lk = luckMult();
+function packWeights(packId, lk = luckMult()) {
+  const ws = PACKS[packId].w.slice(), first = ws.findIndex(x => x > 0);
   for (let i = first + 1; i <= TOP; i++) ws[i] *= i >= 4 ? Math.sqrt(lk) : lk;
   return ws;
 }
@@ -470,21 +470,26 @@ function markFound(p) {
 // ===================== ЭКОНОМИКА =====================
 function gain(n) { S.coins += n; S.earned += n; S.earnedRun += n; }
 const slots = () => 12 + 2 * up("slots");
-function incMult() { return (1 + PARK * up("park")) * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus() + albumBonus()) * (Date.now() < S.buffUntil ? 2 : 1) * (S.paid.x2 ? 2 : 1) * evMult("inc"); }
+function rentMultiplier() { return 1 + PARK * up("park"); }
+function incMult() { return rentMultiplier() * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus() + albumBonus()) * (Date.now() < S.buffUntil ? 2 : 1) * (S.paid.x2 ? 2 : 1) * evMult("inc"); }
 const incOf = p => p.val / INC_DIV * (INC_K[p.tier] || 1);
 function income() { let s = 0; for (const p of S.plates) s += incOf(p); return s * incMult(); }
 const plateInc = p => incOf(p) * incMult();
 const incStr = v => v < 10 ? v.toFixed(2) : v < 1000 ? v.toFixed(1) : fmt(Math.round(v));   // доход в секунду: копейки у дешёвых, «1.51 млн» у дорогих
 // доход для цены бланков — без временных и купленных множителей (×2 навсегда, ажиотаж, события): они должны давать больше бланков, а не дороже
-function priceIncome() { let s = 0; for (const p of S.plates) s += incOf(p); return s * (1 + PARK * up("park")) * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus() + albumBonus()); }
+function priceIncome() { let s = 0; for (const p of S.plates) s += incOf(p); return s * rentMultiplier() * (1 + 0.1 * S.pts) * (1 + 0.02 * (S.lvl - 1)) * (1 + setBonus() + albumBonus()); }
 const nice = v => { const k = Math.pow(10, Math.max(0, Math.floor(Math.log10(v)) - 1)); return Math.round(v / k) * k; };   // 2 значащие цифры — цена не скачет каждую секунду
+function blankMultiplier() { return Math.pow(0.93, up("disc")); }
 function packPrice(id) {
-  const base = Math.max(60, Math.round(PACKS[id].price * Math.pow(0.93, up("disc"))));
-  const byInc = PACK_SEC[id] * Math.pow(Math.max(1, priceIncome()), 0.8) * Math.pow(100, 0.2) * Math.pow(0.93, up("disc"));
+  const discount = blankMultiplier();
+  const base = Math.max(60, Math.round(PACKS[id].price * discount));
+  const byInc = PACK_SEC[id] * Math.pow(Math.max(1, priceIncome()), 0.8) * Math.pow(100, 0.2) * discount;
   return byInc > base ? nice(byInc) : base;
 }
 const upCost = u => Math.round(u.base * Math.pow(u.mul, up(u.id)));
-const taxiTap = () => (5 + 3 * up("taxi")) * (1 + 0.02 * (S.lvl - 1));
+function taxiTap() { return (5 + 3 * up("taxi")) * (1 + 0.02 * (S.lvl - 1)); }
+function taxiCriticalChance() { return 0.05 * up("crit"); }
+function taxiCriticalMultiplier() { return 10; }
 const xpNeed = l => Math.round(60 * Math.pow(l, 1.7));
 const adReward = () => Math.max(200, Math.round(income() * 150));
 const XP_TIER = [1, 2, 6, 25, 150, 1000];
@@ -876,7 +881,7 @@ function renderPacks() {
     const ws = packWeights(id);
     const sum = ws.reduce((a, b) => a + b, 0), blat = ((ws[3] + ws[4]) / sum * 100);
     h += `<div class="pack ${locked ? "locked" : ""}"><div class="pi">${P.icon}</div>
-      <div class="pt"><b>${P.name}</b><small>${locked ? L("🔒 Откроется на уровне {0}", P.lvl) : L("Шанс блатного+: {0}%", blat.toFixed(blat < 10 ? 1 : 0))}${!locked && c > Math.round(P.price * Math.pow(0.93, up("disc"))) ? " · " + L("📈 цена растёт с доходом") : ""}</small></div>
+      <div class="pt"><b>${P.name}</b><small>${locked ? L("🔒 Откроется на уровне {0}", P.lvl) : L("Шанс блатного+: {0}%", blat.toFixed(blat < 10 ? 1 : 0))}${!locked && c > Math.round(P.price * blankMultiplier()) ? " · " + L("📈 цена растёт с доходом") : ""}</small></div>
       <div class="btns"><button class="btn sm ${id === "basic" && S.drawn === 0 ? "ready" : ""}" data-act="buy" data-pack="${id}" data-cost="${c}" ${locked ? "disabled" : ""}>${fmt(c)} 💰</button>
       ${id === "basic" && !locked ? `<button class="btn sm alt" data-act="buy10" data-pack="${id}" data-cost="${Math.round(c * 9.5)}">×10 · ${fmt(Math.round(c * 9.5))}</button>` : ""}</div></div>`;
   }
@@ -892,13 +897,14 @@ function renderPacks() {
 }
 // кнопки рекламы прячем, если площадка её не даёт (блокировщик, пробный запуск) — пустых кнопок быть не должно
 function syncAdButtons() {
-  $("btnAd").style.display = Platform.adsOK ? "" : "none";
+  const ad = $("btnAd"), buff = $("btnBuff");
+  if (ad) ad.style.display = Platform.adsOK ? "" : "none";
   const shopReady = Platform.canPay && S.tut === -1;
   $("btnFeaturedShop").hidden = !shopReady || !hasFeaturedShop();
   $("btnShop").style.display = shopReady && !hasFeaturedShop() ? "" : "none";
   $("btnShop").textContent = shopIco() + " " + L("Магазин");
   renderStarterOffer();
-  $("btnBuff").style.display = Platform.adsOK && S.lvl >= 3 && S.plates.length ? "" : "none";   // доход ×2 имеет смысл, когда гараж уже приносит деньги
+  if (buff) buff.style.display = Platform.adsOK && S.lvl >= 3 && S.plates.length ? "" : "none";   // доход ×2 имеет смысл, когда гараж уже приносит деньги
 }
 // вкладки открываются по мере роста, чтобы новичок не тонул в кнопках
 function syncNav() { const b = document.querySelector('nav button[data-tab="orders"]'); if (b) b.classList.toggle("hidden", !ordersOpen()); }
@@ -911,7 +917,7 @@ let taxiCombo = 0, taxiLast = 0;
 function taxi(e) {
   ac(); Mus.start();
   const now = performance.now(); taxiCombo = now - taxiLast < 500 ? Math.min(taxiCombo + 1, 12) : 0; taxiLast = now;
-  let v = taxiTap(), crit = Math.random() < 0.05 * up("crit"); if (crit) v *= 10;
+  let v = taxiTap(), crit = Math.random() < taxiCriticalChance(); if (crit) v *= taxiCriticalMultiplier();
   v = Math.round(v); gain(v); S.taxis++;
   const x = e && e.clientX ? e.clientX : innerWidth / 2, y = e && e.clientY ? e.clientY : innerHeight - 160;
   floatText(x - 10, y - 20, (crit ? "💥 " : "+") + fmt(v), crit ? "#ff3d71" : "#ffd23f");
@@ -1072,10 +1078,14 @@ function buyUp(id) {
 
 // ===================== ЕЩЁ: мини-игра, престиж, серии, достижения, статистика, настройки =====================
 // ===================== СТАРТОВОЕ МЕНЮ И «КАК ИГРАТЬ» =====================
+let vkProgressReady = false;
+const STAR_BOX_ITEM = "box_star", STAR_BOX_ST = 49;
 function showMenu() {
+  const starPrice = vkProgressReady && Platform.name === "vk" && priceOf(STAR_BOX_ITEM, STAR_BOX_ST);
   $("menu").innerHTML = `<div class="mlogo">🚘</div><h1>${I18N.TITLE[I18N.lang] || I18N.TITLE.ru}</h1>
     <div class="msub">${L("Выбивай блатные номера и собирай гараж с доходом")}</div>
     <button class="btn green" data-act="menuPlay">${L("▶ Играть")}</button>
+    ${starPrice ? `<button class="btn star shopbtn" data-act="shopBuy" data-k="${STAR_BOX_ITEM}"><span>⭐ Звёздный контейнер<small>Мифическая машина 70% · суперлегенда 30%</small></span><b>${starPrice}</b></button>` : ""}
     <button class="btn alt" data-act="menuHow">${L("📖 Как играть")}</button>
     <button class="btn alt" data-act="menuSettings">${L("🔧 Настройки")}</button>
     <div class="mfoot">${L("Игра вымышленная: номера генерируются случайно, монеты нельзя обменять на реальные деньги.")}</div>`;
@@ -2064,7 +2074,7 @@ function storyEvents() {                                // короткие ре
 const Talk = { q: [], cur: null, i: 0, typeT: null, full: "" };
 const TK = { el: $("talk") }; ["dim", "hole", "finger", "box", "ava", "name", "text", "next", "skip", "choice"].forEach(k => TK[k] = TK.el.querySelector(".tk-" + k));
 function say(lines, then, choice) { Talk.q.push({ lines: lines.slice(), then, choice }); }
-const talkBusy = () => rolling || forging || miniRun || jpState || cinemaQueue.length || !$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden");
+const talkBusy = () => rolling || forging || miniRun || jpState || cinemaQueue.length || $("dcOv")?.classList.contains("on") || !$("modal").classList.contains("hidden") || !$("menu").classList.contains("hidden");
 function tkSet(who, text) {
   const c = CHARS[who]; TK.box.style.setProperty("--cc", c.c); TK.ava.textContent = c.i; TK.name.textContent = c.n;
   clearInterval(Talk.typeT); Talk.full = text; let i = 0; TK.text.textContent = "";
@@ -2341,7 +2351,7 @@ function settleVkOffline() {
   showVkWelcome();
 }
 function showVkWelcome() {
-  if (!vkWelcomeReady || !$("menu").classList.contains("hidden") || !$("modal").classList.contains("hidden")) return;
+  if (!vkWelcomeReady || !$("menu").classList.contains("hidden") || !$("modal").classList.contains("hidden") || $("dcOv")?.classList.contains("on")) return;
   vkWelcomeReady = false;
   if (!vkOffline) { if (S.drawn >= 3) setTimeout(checkDaily, 700); return; }
   const { coins } = vkOffline;
@@ -2387,7 +2397,7 @@ document.addEventListener("contextmenu", e => { if (!e.target.closest("input, te
 Platform.init({
   pause: setPaused,
   mute: setMuted,
-  busy: b => $("adwait").classList.toggle("hidden", !b),
+  busy: b => $("adwait")?.classList.toggle("hidden", !b),
   ads: () => { renderPacks(); renderHeader(); syncVkOfflineAd(); if (tab === "more") renderMore(); if (tab === "forge") renderForge(); if (tab === "cars") renderTab(); },
   shop: () => { renderPacks(); if (tab === "more" || tab === "cars") renderTab(); },   // Яндекс: каталог покупок загрузился позже старта
   lang: l => { if (I18N.set(l)) { applyLang(); if (!$("menu").classList.contains("hidden")) showMenu(); } }
@@ -2397,7 +2407,11 @@ Platform.init({
   const progressReady = Platform.hasCloud ? cloudLoad() : Promise.resolve();
   progressReady.then(() => {
     if (Platform.direct) setTimeout(() => claimPaid(1), 1500);
-    if (Platform.name === "vk") { settleVkOffline(); refreshVkPostTasks(); }
+    if (Platform.name === "vk") {
+      vkProgressReady = true;
+      if (!$("menu").classList.contains("hidden")) showMenu();
+      settleVkOffline(); refreshVkPostTasks();
+    }
   });
   // Telegram: игрок регистрируется на сервере; уже подписан на канал (например, подписался и закрыл игру) — бонус сразу
   if (Platform.name === "tg") Promise.all([Platform.hello(), progressReady]).then(([j]) => {
@@ -2725,15 +2739,26 @@ function telegramSavedReceipts() {
 }
 function claimPaid(tries, afterPay) {
   if (claimBusy || !(Platform.canShare || Platform.direct) || (S.tut !== -1 && !afterPay)) return; claimBusy = true;
-  Platform.claim(Platform.name === "tg" ? telegramSavedReceipts() : undefined).then(items => {
+  Platform.claim(Platform.name === "tg" || Platform.name === "vk" && globalThis.GARAGE_PRODUCTS ? telegramSavedReceipts() : undefined).then(items => {
     claimBusy = false;
     if (items && !Platform.direct) setEvent(items.ev);    // события из админки — только с сервера Telegram
     const got = (items || []).filter(x => !S.paid.got.includes(x.id));
     if (got.length) {
-      got.forEach(x => { S.paid.got.push(x.id); shopGrant(x.item, GIFT_WHY(x.id)); });
+      got.forEach(x => {
+        if (S.paid.got.includes(x.id)) return;
+        if (x.item.startsWith("garage_")) {
+          if (typeof GarageMarket === "undefined" || !GarageMarket.grant(x)) return;
+        } else shopGrant(x.item,GIFT_WHY(x.id));
+        S.paid.got.push(x.id);
+      });
       S.paid.got = S.paid.got.slice(-50); save(); cloudFlush(true); renderAll();
     }
-    if (Platform.direct) (items || []).forEach(x => Platform.consume(x));   // ВК, Яндекс: выдано (или уже было выдано раньше) — закрываем покупку
+    if (Platform.direct) {
+      const stored = new Set(telegramSavedReceipts());
+      (items || []).forEach(x => {
+        if (!x.item.startsWith("garage_") || stored.has(x.id)) Platform.consume(x);
+      });
+    }
     if (got.length) return;
     if (tries > 1) setTimeout(() => claimPaid(tries - 1, afterPay), 2000);
     else if (afterPay) toast(L("Оплата получена — покупка зачислится при следующем запуске игры"));
@@ -2743,6 +2768,7 @@ setInterval(() => { if ((srvOK || Platform.direct) && !document.hidden) claimPai
 let shopBusy = false;
 function shopBuy(k) {
   if (hasFeaturedShop() && k === "starter" && !starterOn()) return;
+  if (k === STAR_BOX_ITEM && Platform.name === "vk" && !vkProgressReady) return toast("Сохранение загружается. Попробуй через секунду.");
   if (shopBusy) return; shopBusy = true; Platform.track("shop_try_" + k);
   Platform.buy(k).then(st => {
     shopBusy = false;

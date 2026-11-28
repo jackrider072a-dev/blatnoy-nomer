@@ -212,8 +212,20 @@ const VK_ADAPTER = (() => {
       }).then(r => r.json()).catch(() => ({ ok: false, error: "unavailable" }));
     },
     buy: k => vkBridge.send("VKWebAppShowOrderBox", { type: "item", item: k })
-      .then(r => { if (!r || r.success === false) return "cancelled"; paid.push({ id: "vk_" + (r.order_id || Date.now()), item: k }); return "paid"; }, () => "cancelled"),
-    claim: () => Promise.resolve(paid.slice()),
+      .then(r => {
+        if (!r || r.success === false) return "cancelled";
+        if (k.startsWith("garage_")) return "pending";
+        paid.push({ id: "vk_" + (r.order_id || Date.now()), item: k });
+        return "paid";
+      }, () => "cancelled"),
+    claim: async acked => {
+      if (!globalThis.GARAGE_PRODUCTS || !launch.has("sign")) return paid.slice();
+      const rows = await fetch("https://blatnoy-nomer.blatnoy.workers.dev/vk/garage-claim", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({launch:launch.toString(),acked}), signal:AbortSignal.timeout?.(10000)
+      }).then(response => response.ok ? response.json() : null).catch(() => null);
+      return paid.concat(rows?.items || []);
+    },
     consume(x) { paid = paid.filter(y => y.id !== x.id); },
     detect: () => /[?&](vk_app_id|vk_user_id)=/.test(location.search) || /[?&]platform=vk\b/.test(location.search),
     script: "vk-bridge.min.js",                          // лежит в сборке: сторонний CDN может не ответить, и ВК зависнет на загрузке
@@ -381,7 +393,7 @@ const TG_ADAPTER = (() => {
     buy: item => api("/api/invoice", { item }).then(j => !j || !j.link ? "noserver" :
       new Promise(res => { try { tg.openInvoice(j.link, st => res(st)); } catch (e) { res("failed"); } })),
     // оплаченные, но ещё не выданные покупки: [{ id, item }]; null — сервер недоступен
-    claim: acked => api("/api/claim", { delivery: "ack", acked }).then(j => j ? Object.assign(j.items || [], { ev: j.ev }) : null),   // ev — событие из админки (×доход/×удача)
+    claim: acked => api("/api/claim", { delivery: "ack", acked, shopVersion: globalThis.GARAGE_PRODUCTS ? 2 : 0 }).then(j => j ? Object.assign(j.items || [], { ev: j.ev }) : null),   // ev — событие из админки (×доход/×удача)
     ...storage
   };
 })();
@@ -409,13 +421,11 @@ const Platform = (() => {
     init(hooks) {
       Object.assign(ctx, hooks);
       const cand = ADAPTERS.find(x => x.detect()) || LOCAL_ADAPTER;
-      if (cand === VK_ADAPTER) a = { name: "vk", adsOK: false, rewarded: () => Promise.resolve(false) };
+      // До готовности SDK сохраняем режим площадки и отключённую рекламу.
+      if (cand === VK_ADAPTER || cand === TG_ADAPTER) a = { name: cand.name, adsOK: false, rewarded: () => Promise.resolve(false) };
       return (cand.script ? loadScript(cand.script) : Promise.resolve())
         .then(() => cand.init(ctx))
-        .then(() => { a = cand; }, () => {
-          // При ошибке VK нельзя выдавать награду через локальный тестовый режим.
-          if (cand === VK_ADAPTER) a = { name: "vk", adsOK: false, rewarded: () => Promise.resolve(false) };
-        });
+        .then(() => { a = cand; }, () => {});
     },
     rewarded() {
       if (!a.name) return a.rewarded();                   // локально награда сразу, без паузы и блокировки
@@ -441,6 +451,13 @@ const Platform = (() => {
     vkPostTasks: (action, task) => a.postTasks ? a.postTasks(action, task) : Promise.resolve({ ok: false, error: "disabled" }),
     openVkPost: (owner, post) => a.openPost?.(owner, post),
     claim: acked => a.claim ? a.claim(acked) : Promise.resolve(null),
+    garageStoreReady() {
+      if (!globalThis.GARAGE_PRODUCTS || !a.canPay) return Promise.resolve(false);
+      if (a.name === "ya") return Promise.resolve(true);
+      return fetch("https://blatnoy-nomer.blatnoy.workers.dev/garage/catalog", {signal:AbortSignal.timeout?.(8000)})
+        .then(response => response.ok ? response.json() : null)
+        .then(info => Boolean(info?.version === 2 && info.enabled), () => false);
+    },
     consume(x) { if (a.consume) a.consume(x); },
     get canShare() { return !!a.refLink; },               // приглашения и «похвастаться» — только в Telegram
     get refLink() { return a.refLink || ""; },

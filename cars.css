@@ -155,7 +155,6 @@ nav button em#carsDot{display:none}
 @property --dca{syntax:"<angle>";initial-value:0deg;inherits:false}
 .dc-list{display:flex;gap:7px;overflow-x:auto;margin:0 0 10px;padding:9px 2px 7px;scroll-snap-type:x proximity;
   -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 30px),#0003);mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 30px),#0003)}
-.dc-list::-webkit-scrollbar{height:4px}.dc-list::-webkit-scrollbar-track{background:#ffffff0d;border-radius:4px;margin:0 30px 0 2px}
 .dc-li{flex:none;width:76px;position:relative;scroll-snap-align:start;border-radius:12px;background:var(--card);border:2px solid #232b40;padding:4px 3px 6px;text-align:center;cursor:pointer;transition:transform .2s,border-color .2s,box-shadow .2s}
 .dc-li .cr{display:block;width:44px;height:44px;margin:0 auto;animation:none;filter:drop-shadow(0 3px 3px #000a)}
 .dc-li b{display:block;font:bold 10px Arial;color:var(--rc);margin-top:1px}
@@ -191,8 +190,6 @@ nav button em#carsDot{display:none}
 /* горизонтальные ленты: тонкий золотистый ползунок (общий стиль игры), колёсико мыши листает вбок, правый край гаснет — видно, что дальше ещё есть */
 .dc-thumbs,.dc-filters{padding-bottom:7px;scroll-snap-type:x proximity;
   -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 30px),#0003);mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 30px),#0003)}
-.dc-thumbs::-webkit-scrollbar,.dc-filters::-webkit-scrollbar{height:4px}
-.dc-thumbs::-webkit-scrollbar-track,.dc-filters::-webkit-scrollbar-track{background:#ffffff0d;border-radius:4px;margin:0 30px 0 2px}
 .dc-thumbs>div{scroll-snap-align:start}
 
 /* закрыть экран выпадения */

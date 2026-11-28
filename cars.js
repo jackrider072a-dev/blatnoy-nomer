@@ -46,6 +46,7 @@ const CARS = [
   ["jesko", "Koenigsegg Agera RS", 5, 10000000, [3, 64, 13, 67, 13, 73, 3, 70]],   // ключ jesko остаётся ради сохранений; на фото — Agera RS
   ["chiron", "Bugatti Chiron", 5, 13000000, [81, 79.5, 91, 80, 91, 85.5, 81, 85]],
 ].map(([k, n, r, p, q]) => ({ k, n, r, p, q, base: p / INC_SEC }));
+for (const [k,n,r,p] of window.GARAGE_EXTRA_CARS || []) CARS.push({ k,n,r,p,q:null,base:p / INC_SEC });
 // новогодние тачки (ny.js): выдуманные, без марок — одинаковые на всех площадках. В обычных контейнерах их нет:
 // только «Подарочный контейнер» (за 🍊), «Праздничный контейнер» (донат) и «Сани» (донат). Всегда в зимней ливрее (+25% к доходу).
 // Фото: cars/<ключ>.webp и cars-clean/<ключ>.webp; пока фото нет — рисунок-заглушка (NY_PHOTO — ключи, у которых фото уже есть)
@@ -57,15 +58,9 @@ const CK =Object.fromEntries(CARS.map(c => [c.k, c]));
 // build.ps1: window.CARS_CLEAN (ВК и Яндекс) — фото из cars-clean с затёртыми логотипами; window.CARS_NOBRAND (только ВК) — прозвища вместо марок
 const NOBRAND = !!window.CARS_NOBRAND, CLEAN = !!window.CARS_CLEAN;
 if (NOBRAND) {
-  const NN = { granta: "Народный седан", logan: "Бюджетник", solaris: "Таксист", rio: "Городской седан", polo: "Студент", vesta: "Свежак с завода",
-    octavia: "Практичный лифтбек", passat: "Бизнес-лайт", mazda6: "Красный самурай", tiguan: "Семейный кроссовер", camry: "Три с половиной",
-    a6: "Немецкий бизнес", bmw5: "Пятёрка", eclass: "Министерский", cayenne: "Перчик", lc: "Крузак", lc300: "Люкс-внедорожник",
-    m5: "Бешеная пятёрка", rr: "Британский лорд", gclass: "Кубик", p911: "Спорт-классика", urus: "Бык-кроссовер",
-    mcl720: "Британская ракета", aventador: "Бык V12", sf90: "Красный гибрид", cullinan: "Алмаз",
-    phantom: "Дворец на колёсах", aurus: "Кортеж", huayra: "Ветер Анд", jesko: "Шведский призрак", chiron: "Король скорости" };
-  CARS.forEach(c => { if (!c.ny) { c.n = NN[c.k]; Lprops(c, "n"); } });
+  CARS.forEach(c => { if (!c.ny) { c.n = window.VK_CAR_NAMES?.[c.k] || "Машина"; Lprops(c, "n"); } });
 }
-const IMGV = 3;                                            // поменяли фото — увеличь, чтобы Telegram не показывал старые из кэша
+const IMGV = 4;                                            // поменяли фото — увеличь, чтобы Telegram не показывал старые из кэша
 const nyArt = c => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300"><defs><radialGradient id="g" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="${RC[c.r].c}" stop-opacity=".55"/><stop offset="1" stop-color="${RC[c.r].c}" stop-opacity="0"/></radialGradient></defs><ellipse cx="320" cy="160" rx="300" ry="140" fill="url(#g)"/><text x="320" y="210" font-size="170" text-anchor="middle">${c.ico}</text><text x="190" y="90" font-size="44" text-anchor="middle" fill="#fff" opacity=".8">❄</text><text x="470" y="120" font-size="32" text-anchor="middle" fill="#fff" opacity=".6">❄</text></svg>`);
 const img = k => CK[k] && CK[k].ny && !NY_PHOTO.has(k) ? nyArt(CK[k]) : `cars/${k}.webp?v=${IMGV}${CLEAN ? "c" : ""}`;   // у фото без логотипов своя метка — кэш не подсунет старые с логотипами
 // авторы фото (Wikimedia Commons): ключ — [автор, лицензия]
@@ -270,6 +265,25 @@ function nyOpen(kind) {
   return true;
 }
 window.DC_NY = { open: nyOpen, photo: img, full: isFull, busy: () => !!(opening || switching) };
+const storeBox = id => BOXES.find(b => b.id === (id === 'legend' ? 'leg' : id) && Number.isInteger(b.price));
+const storeBoxPrice = (d,b) => freeReady(d,b) ? 0 : b.price;
+window.DC_STORE = {
+  coins(id) {
+    const b = storeBox(id);
+    return b ? storeBoxPrice(D(),b) : null;
+  },
+  take(id,quotedPrice) {
+    const d = D(), b = storeBox(id);
+    if (!b || quotedPrice !== storeBoxPrice(d,b)) return { error:'price' };
+    if (opening || switching) return { error:'busy' };
+    if (isFull()) return { error:'full' };
+    if (S.coins < quotedPrice) return { error:'coins' };
+    const index = BOXES.indexOf(b);
+    if (!pay(index)) return { error:'busy' };
+    return { id:takeBoxCar(d,b).x.k };
+  },
+  star() { return starUnlocked(D()) && !hidBox(STAR_BOX) ? starPrice() : null; }
+};
 window.DC_ADMIN = { list: () => CARS.map(c => [c.k, c.n, c.r, RC[c.r].n]), give: giveCar, take: takeCar, mine: () => D().cars.map(x => x.k),
   clear: () => takeCar("all") };
 
@@ -550,12 +564,7 @@ function pay(i) {
   return true;
 }
 function ov() { let o = $("dcOv"); if (!o) { o = document.createElement("div"); o.id = "dcOv"; document.body.appendChild(o); } return o; }
-function openBox(viaAd = false, index = D().bi) {
-  const d = D(), i = viaAd ? BOXES.findIndex(x => x.id === AD_BOX) : index, b = BOXES[i];
-  if (!b || opening || switching) return;
-  if (!viaAd && isFull() && !vkStarBox(b) && b !== NY_BOX.paid) return fullModal();
-  if (!viaAd && !pay(i)) return;
-  if (viaAd) Platform.track("box_ad");
+function takeBoxCar(d,b) {
   const car = b.nyb ? nyPick(b) : awardCar(carOfR(pick6(b.odds)), nyWinter());
   if (b.elite && !starUnlocked(d)) {
     d.eliteOpened = true;
@@ -563,7 +572,15 @@ function openBox(viaAd = false, index = D().bi) {
     Platform.track("dc_star_unlock");
   }
   save();
-  animateBox(b, car);
+  return car;
+}
+function openBox(viaAd = false, index = D().bi) {
+  const d = D(), i = viaAd ? BOXES.findIndex(x => x.id === AD_BOX) : index, b = BOXES[i];
+  if (!b || opening || switching) return;
+  if (!viaAd && isFull() && !vkStarBox(b) && b !== NY_BOX.paid) return fullModal();
+  if (!viaAd && !pay(i)) return;
+  if (viaAd) Platform.track("box_ad");
+  animateBox(b,takeBoxCar(d,b));
 }
 function showPaidBox(b, car) {
   if (opening || switching) return setTimeout(() => showPaidBox(b, car), 1500);
